@@ -14,10 +14,11 @@ use arc_swap::ArcSwap;
 use bytes::Bytes;
 use minestom_block::{Block, BlockManager};
 use minestom_command::CommandManager;
-use minestom_core::{BlockVec, Pos, Vec3};
+use minestom_core::{BlockVec, PlayerId, Pos, Vec3};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
 use minestom_entity::Entity;
 use minestom_event::GlobalEventHandler;
+use minestom_item::{Inventory, ItemStack};
 use minestom_nbt::NbtCompound;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
 use minestom_registry::Registries;
@@ -35,7 +36,7 @@ pub use event::{
 };
 
 use session::{build_cached_vanilla_config_packets, run_client_session};
-use tick::{EntityCommand, TickMessage, WorldBlockCommand, spawn_tick_thread};
+use tick::{EntityCommand, PlayerInvCommand, TickMessage, WorldBlockCommand, spawn_tick_thread};
 
 /// Errors returned while configuring, starting, or running [`MinecraftServer`].
 #[derive(Debug, thiserror::Error)]
@@ -73,11 +74,13 @@ pub(crate) struct ServerShared {
     pub(crate) command_manager: CommandManager,
     pub(crate) events: GlobalEventHandler,
     pub(crate) online_count: Arc<AtomicU32>,
-    pub(crate) next_entity_id: AtomicI32,
+    pub(crate) next_entity_id: Arc<AtomicI32>,
     pub(crate) entity_cmd_tx: flume::Sender<EntityCommand>,
     pub(crate) entity_cmd_rx: flume::Receiver<EntityCommand>,
     pub(crate) block_cmd_tx: flume::Sender<WorldBlockCommand>,
     pub(crate) block_cmd_rx: flume::Receiver<WorldBlockCommand>,
+    pub(crate) inv_cmd_tx: flume::Sender<PlayerInvCommand>,
+    pub(crate) inv_cmd_rx: flume::Receiver<PlayerInvCommand>,
     live_status: ArcSwap<LiveStatusState>,
     pub(crate) cached_registry_packets: Vec<Bytes>,
     pub(crate) cached_tags_packet: Bytes,
@@ -185,6 +188,7 @@ impl MinecraftServerBuilder {
         let (shutdown_tx, _) = watch::channel(false);
         let (entity_cmd_tx, entity_cmd_rx) = flume::unbounded();
         let (block_cmd_tx, block_cmd_rx) = flume::unbounded();
+        let (inv_cmd_tx, inv_cmd_rx) = flume::unbounded();
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
@@ -194,11 +198,13 @@ impl MinecraftServerBuilder {
                 command_manager: CommandManager::new(),
                 events: GlobalEventHandler::all("global"),
                 online_count: Arc::new(AtomicU32::new(0)),
-                next_entity_id: AtomicI32::new(1),
+                next_entity_id: Arc::new(AtomicI32::new(1)),
                 entity_cmd_tx,
                 entity_cmd_rx,
                 block_cmd_tx,
                 block_cmd_rx,
+                inv_cmd_tx,
+                inv_cmd_rx,
                 live_status: ArcSwap::from_pointee(live),
                 cached_registry_packets,
                 cached_tags_packet,
@@ -330,6 +336,54 @@ impl MinecraftServer {
         });
     }
 
+    /// Spawns a dropped world `ItemEntity` into `instance` at `position` with `velocity` and
+    /// `pickup_delay_ticks`, returning its assigned runtime network `entity_id`.
+    pub fn spawn_item(
+        &self,
+        instance: &InstanceContainer,
+        item_stack: ItemStack,
+        position: Pos,
+        velocity: Vec3,
+        pickup_delay_ticks: u32,
+    ) -> i32 {
+        let entity = Entity::item(item_stack, pickup_delay_ticks).with_velocity(velocity);
+        self.spawn_entity(instance, entity, position)
+    }
+
+    /// Adds `item` into an online player's [`minestom_item::PlayerInventory`] and synchronizes
+    /// window `0` (and visible equipment if main/off-hand changed).
+    pub fn give_player_item(&self, player_id: PlayerId, item: ItemStack) {
+        let _ = self
+            .shared
+            .inv_cmd_tx
+            .send(PlayerInvCommand::GiveItem { player_id, item });
+    }
+
+    /// Writes `item` directly into protocol window-0 `slot` (`0..46`) of `player_id` and syncs viewers.
+    pub fn set_player_slot(&self, player_id: PlayerId, slot: usize, item: ItemStack) {
+        let _ = self.shared.inv_cmd_tx.send(PlayerInvCommand::SetSlot {
+            player_id,
+            slot,
+            item,
+        });
+    }
+
+    /// Opens a custom container [`Inventory`] window for `player_id` (`OpenWindowPacket` + `WindowItemsPacket`).
+    pub fn open_inventory(&self, player_id: PlayerId, inventory: &Inventory) {
+        let _ = self.shared.inv_cmd_tx.send(PlayerInvCommand::OpenWindow {
+            player_id,
+            inventory: inventory.clone(),
+        });
+    }
+
+    /// Closes any currently open container [`Inventory`] window for `player_id`.
+    pub fn close_inventory(&self, player_id: PlayerId) {
+        let _ = self
+            .shared
+            .inv_cmd_tx
+            .send(PlayerInvCommand::CloseWindow { player_id });
+    }
+
     /// Writes `block` (and optional block-entity `nbt`) into `instance` at `position` and
     /// broadcasts `BlockChangePacket` (+ `BlockEntityDataPacket` when applicable) to all chunk viewers!
     pub fn set_block_synced(
@@ -431,9 +485,11 @@ impl BoundServer {
             self.server.shared.block_manager.clone(),
             self.server.shared.command_manager.clone(),
             Arc::clone(&self.server.shared.online_count),
+            Arc::clone(&self.server.shared.next_entity_id),
             tick_rx,
             self.server.shared.entity_cmd_rx.clone(),
             self.server.shared.block_cmd_rx.clone(),
+            self.server.shared.inv_cmd_rx.clone(),
             Arc::clone(&stop_flag),
         )?;
 

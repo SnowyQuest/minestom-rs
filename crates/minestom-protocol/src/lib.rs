@@ -8,6 +8,7 @@ pub mod config;
 pub mod entity;
 pub mod frame;
 pub mod handshake;
+pub mod inventory;
 pub mod login;
 pub mod play;
 pub mod status;

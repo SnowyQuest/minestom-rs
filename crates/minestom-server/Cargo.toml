@@ -17,6 +17,7 @@ minestom-core.workspace = true
 minestom-data.workspace = true
 minestom-entity.workspace = true
 minestom-event.workspace = true
+minestom-item.workspace = true
 minestom-nbt.workspace = true
 minestom-network.workspace = true
 minestom-protocol.workspace = true

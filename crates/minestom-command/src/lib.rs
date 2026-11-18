@@ -29,6 +29,7 @@ use std::sync::Arc;
 
 use bytes::{BufMut, BytesMut};
 use minestom_core::{BlockVec, GameMode, PlayerId, Point, Pos, Vec3};
+use minestom_item::{Inventory, ItemStack};
 use minestom_protocol::chat_command::{
     CommandGraphNode, DeclareCommandsPacket, TabCompleteMatch, node_flags, parser_ids,
 };
@@ -75,7 +76,7 @@ pub struct PlayerSenderInfo {
 }
 
 /// Deferred side-effect requested on a player or server during command execution.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum SenderEffect {
     /// Change the executing player's [`GameMode`].
     SetGameMode(GameMode),
@@ -85,6 +86,10 @@ pub enum SenderEffect {
     Broadcast(Component),
     /// Disconnect the executing player with a reason [`Component`].
     Kick(Component),
+    /// Give an [`ItemStack`] into the executing player's inventory.
+    GiveItem(ItemStack),
+    /// Open a custom container [`Inventory`] window for the executing player.
+    OpenInventory(Inventory),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -199,6 +204,17 @@ impl CommandSender {
     /// Requests disconnecting this player with `reason`.
     pub fn kick(&mut self, reason: impl Into<Component>) {
         self.effects.push(SenderEffect::Kick(reason.into()));
+    }
+
+    /// Requests giving `item_stack` to this player.
+    pub fn give_item(&mut self, item_stack: ItemStack) {
+        self.effects.push(SenderEffect::GiveItem(item_stack));
+    }
+
+    /// Requests opening container `inventory` for this player.
+    pub fn open_inventory(&mut self, inventory: &Inventory) {
+        self.effects
+            .push(SenderEffect::OpenInventory(inventory.clone()));
     }
 
     /// Borrows all reply messages queued during execution.

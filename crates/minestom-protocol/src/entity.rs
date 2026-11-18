@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use bytes::{Buf, BufMut};
 use minestom_core::{BlockVec, Direction, Hand, MainHand, Pos, Vec3};
+use minestom_item::ItemStack;
 use minestom_macros::PacketMeta;
 use minestom_text::Component;
 use uuid::Uuid;
@@ -207,6 +208,8 @@ pub enum MetadataValue {
     Component(Component),
     /// `6` — `OPT_CHAT` (`Option<Component>`).
     OptComponent(Option<Component>),
+    /// `7` — `ITEM_STACK` (`ItemStack`, used by `ItemEntity`, `ItemDisplay`, `ItemFrame`!).
+    ItemStack(ItemStack),
     /// `8` — `BOOLEAN`.
     Boolean(bool),
     /// `9` — `ROTATION` (`[f32; 3]` pitch/yaw/roll).
@@ -267,6 +270,10 @@ impl Encode for MetadataValue {
             Self::OptComponent(opt) => {
                 write_var_int(buf, 6);
                 opt.encode(buf)
+            }
+            Self::ItemStack(item) => {
+                write_var_int(buf, 7);
+                item.encode(buf)
             }
             Self::Boolean(b) => {
                 write_var_int(buf, 8);
@@ -347,6 +354,7 @@ impl Decode for MetadataValue {
             4 => Ok(Self::String(read_string(buf, DEFAULT_MAX_STRING_CHARS)?)),
             5 => Ok(Self::Component(Component::decode(buf)?)),
             6 => Ok(Self::OptComponent(Option::<Component>::decode(buf)?)),
+            7 => Ok(Self::ItemStack(ItemStack::decode(buf)?)),
             8 => Ok(Self::Boolean(bool::decode(buf)?)),
             9 => Ok(Self::Rotation([
                 f32::decode(buf)?,

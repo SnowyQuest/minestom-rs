@@ -87,3 +87,52 @@ fn status_response_payload_encode(bencher: divan::Bencher) {
     };
     bencher.bench_local(|| black_box(encode_packet_payload(black_box(&pkt)).unwrap()));
 }
+
+#[divan::bench]
+fn item_stack_data_components_roundtrip(bencher: divan::Bencher) {
+    let sword = ItemStack::single(Material::DIAMOND_SWORD)
+        .with_custom_name(Component::text("Excalibur").color(NamedTextColor::Aqua))
+        .with_lore([
+            Component::text("Line 1").color(NamedTextColor::Gray),
+            Component::text("Line 2").color(NamedTextColor::Gold),
+        ])
+        .with_enchantment(16, 5)
+        .with_unbreakable()
+        .with_glowing(true);
+
+    bencher.bench_local(|| {
+        let mut buf = BytesMut::with_capacity(256);
+        black_box(&sword).encode(&mut buf).unwrap();
+        let mut reader = buf.freeze();
+        black_box(ItemStack::decode(&mut reader).unwrap())
+    });
+}
+
+#[divan::bench]
+fn inventory_quick_move_and_pickup_cycle(bencher: divan::Bencher) {
+    let mut pinv = PlayerInventory::new();
+    let chest = Inventory::new(InventoryType::Chest3Row, "Bench");
+    pinv.set_slot(36, ItemStack::of(Material::DIAMOND, 64))
+        .unwrap();
+
+    bencher.bench_local(|| {
+        // Shift-click hotbar slot 0 (combined 54) -> chest slot 0, then shift-click back!
+        let o1 = process_inventory_click(
+            black_box(&mut pinv),
+            Some(black_box(&chest)),
+            54,
+            0,
+            WindowClickMode::QuickMove,
+            false,
+        );
+        let o2 = process_inventory_click(
+            black_box(&mut pinv),
+            Some(black_box(&chest)),
+            0,
+            0,
+            WindowClickMode::QuickMove,
+            false,
+        );
+        black_box((o1.changed, o2.changed))
+    });
+}

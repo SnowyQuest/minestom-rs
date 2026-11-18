@@ -2,8 +2,9 @@
 //! spatial `EntityTracker` multi-player & world-entity synchronization, 20 TPS entity physics,
 //! movement chunk streaming, chat, Brigadier commands, and `KeepAlive` tracking (ADR 0002).
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -18,10 +19,15 @@ use minestom_core::{
     BlockFace, BlockVec, ChunkPos, GameMode, Hand, InstanceId, MainHand, PlayerId, Point, Pos, Vec3,
 };
 use minestom_entity::{
-    BoundingBox, Entity, EntityDespawnEvent, EntityMetadata, EntitySpawnEvent, EntityTracker,
-    EntityType, PlayerAttackEntityEvent, PlayerEntityInteractEvent, PlayerHandAnimationEvent,
+    BoundingBox, Entity, EntityDespawnEvent, EntityMetadata, EntityRole, EntitySpawnEvent,
+    EntityTracker, EntityType, PlayerAttackEntityEvent, PlayerEntityInteractEvent,
+    PlayerHandAnimationEvent,
 };
 use minestom_event::{CancellableEvent, GlobalEventHandler};
+use minestom_item::{
+    EquipmentSlot, Inventory, InventoryCloseEvent, InventoryPreClickEvent, ItemDropEvent,
+    ItemStack, PickupItemEvent, PlayerInventory, process_inventory_click,
+};
 use minestom_nbt::NbtCompound;
 use minestom_protocol::RawPacketFrame;
 use minestom_protocol::block::{
@@ -39,8 +45,14 @@ use minestom_protocol::entity::{
     ClientInputPacket, ClientInteractEntityPacket, DestroyEntitiesPacket, EntityAnimation,
     EntityAnimationPacket, EntityHeadLookPacket, EntityMetaDataPacket, EntityPose,
     EntityPositionAndRotationPacket, EntityPositionPacket, EntityPositionSyncPacket,
-    EntityRotationPacket, EntityVelocityPacket, PlayerInfoRemovePacket, SpawnEntityPacket,
-    delta_short_4096,
+    EntityRotationPacket, EntityVelocityPacket, MetadataValue, PlayerInfoRemovePacket,
+    SpawnEntityPacket, delta_short_4096,
+};
+use minestom_protocol::inventory::{
+    ClientClickWindowButtonPacket, ClientClickWindowPacket, ClientCloseWindowPacket,
+    ClientCreativeInventoryActionPacket, ClientHeldItemChangePacket, CloseWindowPacket,
+    CollectItemPacket, EntityEquipmentPacket, HeldItemChangePacket, OpenWindowPacket,
+    WindowItemsPacket,
 };
 use minestom_protocol::login::GameProfile;
 use minestom_protocol::play::{
@@ -103,6 +115,26 @@ pub(crate) enum WorldBlockCommand {
     },
 }
 
+/// Cross-thread command mutating player inventories and open container windows.
+pub(crate) enum PlayerInvCommand {
+    GiveItem {
+        player_id: PlayerId,
+        item: ItemStack,
+    },
+    SetSlot {
+        player_id: PlayerId,
+        slot: usize,
+        item: ItemStack,
+    },
+    OpenWindow {
+        player_id: PlayerId,
+        inventory: Inventory,
+    },
+    CloseWindow {
+        player_id: PlayerId,
+    },
+}
+
 /// Message sent from async connection tasks into the dedicated 20 TPS tick loop.
 pub(crate) enum TickMessage {
     /// A player completed Configuration and is ready to join Play.
@@ -139,6 +171,9 @@ struct ActivePlayer {
     last_synced_pos: Pos,
     on_ground: bool,
     metadata: EntityMetadata,
+    inventory: PlayerInventory,
+    open_window: Option<(i32, Inventory)>,
+    next_window_id: i32,
     chunk_pos: ChunkPos,
     view_distance: u8,
     instance: InstanceContainer,
@@ -204,6 +239,60 @@ impl ActivePlayer {
             }
         }
         let _ = self.send_packet(&ChunkBatchFinishedPacket { batch_size: count });
+    }
+
+    fn sync_window_zero(&mut self) {
+        let state_id = self.inventory.bump_state_id();
+        let _ = self.send_packet(&WindowItemsPacket {
+            window_id: 0,
+            state_id,
+            items: self.inventory.window_zero_items(),
+            carried_item: self.inventory.cursor_item().clone(),
+        });
+    }
+
+    fn sync_active_windows(&mut self) {
+        if let Some((wid, inv)) = self.open_window.clone() {
+            let state_id = inv.bump_state_id();
+            let _ = self.send_packet(&WindowItemsPacket {
+                window_id: wid,
+                state_id,
+                items: self.inventory.combined_window_items(&inv),
+                carried_item: self.inventory.cursor_item().clone(),
+            });
+        }
+        self.sync_window_zero();
+    }
+
+    fn equipment_map(&self, include_air: bool) -> BTreeMap<EquipmentSlot, ItemStack> {
+        let air = ItemStack::AIR;
+        let pairs = [
+            (EquipmentSlot::MainHand, self.inventory.item_in_main_hand()),
+            (EquipmentSlot::OffHand, self.inventory.item_in_off_hand()),
+            (
+                EquipmentSlot::Helmet,
+                self.inventory.get_slot(5).unwrap_or(&air),
+            ),
+            (
+                EquipmentSlot::Chestplate,
+                self.inventory.get_slot(6).unwrap_or(&air),
+            ),
+            (
+                EquipmentSlot::Leggings,
+                self.inventory.get_slot(7).unwrap_or(&air),
+            ),
+            (
+                EquipmentSlot::Boots,
+                self.inventory.get_slot(8).unwrap_or(&air),
+            ),
+        ];
+        let mut map = BTreeMap::new();
+        for (slot, stack) in pairs {
+            if include_air || !stack.is_air() {
+                map.insert(slot, stack.clone());
+            }
+        }
+        map
     }
 }
 
@@ -291,6 +380,13 @@ impl WorldSimState {
                         entries: meta,
                     });
                 }
+                let equip = target_player.equipment_map(false);
+                if !equip.is_empty() {
+                    let _ = viewer.send_packet(&EntityEquipmentPacket {
+                        entity_id: target_player.entity_id,
+                        equipments: equip,
+                    });
+                }
             }
         } else if let Some(we) = self.entities.get(&target_entity_id) {
             let core = &we.entity.core;
@@ -313,6 +409,32 @@ impl WorldSimState {
                     entity_id: core.network_id,
                     entries: meta,
                 });
+            }
+        }
+    }
+
+    fn broadcast_player_equipment(&self, pid: PlayerId) {
+        let Some((eid, equip)) = sim_player_equip(self, pid) else {
+            return;
+        };
+        if !equip.is_empty() {
+            self.send_to_viewers(
+                eid,
+                &EntityEquipmentPacket {
+                    entity_id: eid,
+                    equipments: equip,
+                },
+            );
+        }
+    }
+
+    fn sync_shared_inventory_viewers(&mut self, inv: &Inventory, exclude_pid: Option<PlayerId>) {
+        for (pid, p) in &mut self.players {
+            if Some(pid) == exclude_pid {
+                continue;
+            }
+            if p.open_window.as_ref().is_some_and(|(_, o)| o.ptr_eq(inv)) {
+                p.sync_active_windows();
             }
         }
     }
@@ -519,6 +641,15 @@ impl WorldSimState {
     }
 }
 
+fn sim_player_equip(
+    sim: &WorldSimState,
+    pid: PlayerId,
+) -> Option<(i32, BTreeMap<EquipmentSlot, ItemStack>)> {
+    sim.players
+        .get(pid)
+        .map(|p| (p.entity_id, p.equipment_map(true)))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_tick_thread(
     config: ServerConfig,
@@ -526,9 +657,11 @@ pub(crate) fn spawn_tick_thread(
     block_manager: BlockManager,
     command_manager: CommandManager,
     online_count: Arc<AtomicU32>,
+    next_entity_id: Arc<AtomicI32>,
     inbox_rx: Receiver<TickMessage>,
     entity_cmd_rx: Receiver<EntityCommand>,
     block_cmd_rx: Receiver<WorldBlockCommand>,
+    inv_cmd_rx: Receiver<PlayerInvCommand>,
     stop_flag: Arc<AtomicBool>,
 ) -> std::io::Result<JoinHandle<()>> {
     thread::Builder::new()
@@ -540,9 +673,11 @@ pub(crate) fn spawn_tick_thread(
                 &block_manager,
                 &command_manager,
                 &online_count,
+                &next_entity_id,
                 &inbox_rx,
                 &entity_cmd_rx,
                 &block_cmd_rx,
+                &inv_cmd_rx,
                 &stop_flag,
             );
         })
@@ -555,9 +690,11 @@ fn run_tick_loop(
     block_manager: &BlockManager,
     command_manager: &CommandManager,
     online_count: &AtomicU32,
+    next_entity_id: &AtomicI32,
     inbox_rx: &Receiver<TickMessage>,
     entity_cmd_rx: &Receiver<EntityCommand>,
     block_cmd_rx: &Receiver<WorldBlockCommand>,
+    inv_cmd_rx: &Receiver<PlayerInvCommand>,
     stop_flag: &AtomicBool,
 ) {
     let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(config.ticks_per_second));
@@ -572,9 +709,10 @@ fn run_tick_loop(
         let _span = trace_span!("tick", tick_num).entered();
         let now = Instant::now();
 
-        // 1. Drain queued world EntityCommands & WorldBlockCommands
+        // 1. Drain queued world EntityCommands, WorldBlockCommands & PlayerInvCommands
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
         drain_block_commands(&sim, block_cmd_rx);
+        drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
 
         // 2. Drain cross-thread player messages & inbound packets
         while let Ok(msg) = inbox_rx.try_recv() {
@@ -608,6 +746,9 @@ fn run_tick_loop(
                         last_synced_pos: spawn_pos,
                         on_ground: true,
                         metadata,
+                        inventory: PlayerInventory::new(),
+                        open_window: None,
+                        next_window_id: 1,
                         chunk_pos: center,
                         view_distance: effective_vd,
                         instance: instance.clone(),
@@ -637,6 +778,7 @@ fn run_tick_loop(
                         events,
                         block_manager,
                         command_manager,
+                        next_entity_id,
                         frame,
                     ) {
                         if let Some(p) = sim.players.get(player_id) {
@@ -669,9 +811,10 @@ fn run_tick_loop(
             }
         }
 
-        // Drain any EntityCommands / WorldBlockCommands emitted inside event/command handlers this tick
+        // Drain any cross-thread commands emitted inside event/command handlers this tick
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
         drain_block_commands(&sim, block_cmd_rx);
+        drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
 
         // 3. Step 20 TPS World Entities (Behavior + Gravity/Collision + Viewer Delta Sync)
         tick_world_entities(&mut sim, events);
@@ -719,6 +862,189 @@ fn run_tick_loop(
     }
 }
 
+fn spawn_world_entity_direct(
+    sim: &mut WorldSimState,
+    network_id: i32,
+    instance: InstanceContainer,
+    mut entity: Entity,
+    position: Pos,
+    events: &GlobalEventHandler,
+) {
+    entity.core.network_id = network_id;
+    entity.core.position = position;
+    entity.core.head_yaw = position.yaw;
+    let _ = instance.chunk_packet_payloads(&[position.chunk_pos()]);
+    entity.notify_spawn();
+    entity.core.metadata.clear_dirty();
+
+    let inst_id = instance.id();
+    let etype = entity.entity_type();
+    sim.tracker.register(network_id, inst_id, position);
+    sim.entities.insert(
+        network_id,
+        SpawnedWorldEntity {
+            entity,
+            instance,
+            last_synced_pos: position,
+            last_synced_head_yaw: position.yaw,
+            velocity_dirty: false,
+        },
+    );
+
+    let mut ev = EntitySpawnEvent {
+        network_id,
+        entity_type: etype,
+        instance_id: inst_id,
+        position,
+    };
+    events.call(&mut ev);
+    sim.reconcile_instance_players(inst_id);
+}
+
+fn drop_item_from_player(
+    sim: &mut WorldSimState,
+    pid: PlayerId,
+    stack: ItemStack,
+    events: &GlobalEventHandler,
+    next_entity_id: &AtomicI32,
+) -> bool {
+    if stack.is_air() {
+        return true;
+    }
+    let Some((instance, pos)) = sim
+        .players
+        .get(pid)
+        .map(|p| (p.instance.clone(), p.position))
+    else {
+        return true;
+    };
+    let mut ev = ItemDropEvent::new(pid, instance.id(), stack);
+    events.call(&mut ev);
+    if ev.is_cancelled() || ev.item_stack.is_air() {
+        return false;
+    }
+
+    let yaw_rad = pos.yaw.to_radians();
+    let pitch_rad = pos.pitch.to_radians();
+    let throw_vel = Vec3::new(
+        f64::from(-yaw_rad.sin() * pitch_rad.cos()) * 0.25,
+        f64::from(-pitch_rad.sin()) * 0.25 + 0.1,
+        f64::from(yaw_rad.cos() * pitch_rad.cos()) * 0.25,
+    );
+    let drop_pos = pos.with_y(pos.y + 1.32);
+    let eid = next_entity_id.fetch_add(1, Ordering::Relaxed);
+    let entity = Entity::item(ev.item_stack, 10).with_velocity(throw_vel);
+    spawn_world_entity_direct(sim, eid, instance, entity, drop_pos, events);
+    true
+}
+
+fn open_player_window(
+    sim: &mut WorldSimState,
+    pid: PlayerId,
+    inventory: Inventory,
+    events: &GlobalEventHandler,
+    next_entity_id: &AtomicI32,
+) {
+    if sim
+        .players
+        .get(pid)
+        .is_some_and(|p| p.open_window.is_some())
+    {
+        close_player_window(sim, pid, false, events, next_entity_id);
+    }
+    if let Some(p) = sim.players.get_mut(pid) {
+        let wid = p.next_window_id;
+        p.next_window_id = (wid % 100) + 1;
+        let _ = p.send_packet(&OpenWindowPacket {
+            window_id: wid,
+            window_type: inventory.inventory_type().window_type_id(),
+            title: inventory.title(),
+        });
+        p.open_window = Some((wid, inventory));
+        p.sync_active_windows();
+    }
+}
+
+fn close_player_window(
+    sim: &mut WorldSimState,
+    pid: PlayerId,
+    send_packet_to_client: bool,
+    events: &GlobalEventHandler,
+    next_entity_id: &AtomicI32,
+) {
+    let mut overflow = ItemStack::AIR;
+    let mut closed_wid = None;
+    if let Some(p) = sim.players.get_mut(pid) {
+        p.inventory.cancel_drag();
+        if !p.inventory.cursor_item().is_air() {
+            let carried = p.inventory.cursor_item().clone();
+            p.inventory.set_cursor_item(ItemStack::AIR);
+            overflow = p.inventory.add_item(carried);
+        }
+        if let Some((wid, _)) = p.open_window.take() {
+            closed_wid = Some(wid);
+            if send_packet_to_client {
+                let _ = p.send_packet(&CloseWindowPacket { window_id: wid });
+            }
+        }
+        p.sync_window_zero();
+    }
+    sim.broadcast_player_equipment(pid);
+    if !overflow.is_air() {
+        let _ = drop_item_from_player(sim, pid, overflow, events, next_entity_id);
+    }
+    if let Some(wid) = closed_wid {
+        let mut ev = InventoryCloseEvent {
+            player_id: pid,
+            window_id: wid,
+        };
+        events.call(&mut ev);
+    }
+}
+
+fn drain_inv_commands(
+    sim: &mut WorldSimState,
+    inv_cmd_rx: &Receiver<PlayerInvCommand>,
+    events: &GlobalEventHandler,
+    next_entity_id: &AtomicI32,
+) {
+    while let Ok(cmd) = inv_cmd_rx.try_recv() {
+        match cmd {
+            PlayerInvCommand::GiveItem { player_id, item } => {
+                let mut overflow = ItemStack::AIR;
+                if let Some(p) = sim.players.get_mut(player_id) {
+                    overflow = p.inventory.add_item(item);
+                    p.sync_active_windows();
+                }
+                sim.broadcast_player_equipment(player_id);
+                if !overflow.is_air() {
+                    let _ = drop_item_from_player(sim, player_id, overflow, events, next_entity_id);
+                }
+            }
+            PlayerInvCommand::SetSlot {
+                player_id,
+                slot,
+                item,
+            } => {
+                if let Some(p) = sim.players.get_mut(player_id) {
+                    let _ = p.inventory.set_slot(slot, item);
+                    p.sync_active_windows();
+                }
+                sim.broadcast_player_equipment(player_id);
+            }
+            PlayerInvCommand::OpenWindow {
+                player_id,
+                inventory,
+            } => {
+                open_player_window(sim, player_id, inventory, events, next_entity_id);
+            }
+            PlayerInvCommand::CloseWindow { player_id } => {
+                close_player_window(sim, player_id, true, events, next_entity_id);
+            }
+        }
+    }
+}
+
 fn drain_entity_commands(
     sim: &mut WorldSimState,
     entity_cmd_rx: &Receiver<EntityCommand>,
@@ -729,38 +1055,10 @@ fn drain_entity_commands(
             EntityCommand::Spawn {
                 network_id,
                 instance,
-                mut entity,
+                entity,
                 position,
             } => {
-                entity.core.network_id = network_id;
-                entity.core.position = position;
-                entity.core.head_yaw = position.yaw;
-                let _ = instance.chunk_packet_payloads(&[position.chunk_pos()]);
-                entity.notify_spawn();
-                entity.core.metadata.clear_dirty();
-
-                let inst_id = instance.id();
-                let etype = entity.entity_type();
-                sim.tracker.register(network_id, inst_id, position);
-                sim.entities.insert(
-                    network_id,
-                    SpawnedWorldEntity {
-                        entity: *entity,
-                        instance,
-                        last_synced_pos: position,
-                        last_synced_head_yaw: position.yaw,
-                        velocity_dirty: false,
-                    },
-                );
-
-                let mut ev = EntitySpawnEvent {
-                    network_id,
-                    entity_type: etype,
-                    instance_id: inst_id,
-                    position,
-                };
-                events.call(&mut ev);
-                sim.reconcile_instance_players(inst_id);
+                spawn_world_entity_direct(sim, network_id, instance, *entity, position, events);
             }
             EntityCommand::Remove { network_id } => {
                 despawn_world_entity(sim, network_id, events);
@@ -929,6 +1227,111 @@ fn tick_world_entities(sim: &mut WorldSimState, events: &GlobalEventHandler) {
     for inst_id in instances_needing_reconcile {
         sim.reconcile_instance_players(inst_id);
     }
+
+    // Check dropped ItemEntities ready for pickup (`pickup_delay_ticks == 0`)
+    let item_candidates: Vec<(i32, InstanceId, Pos, ItemStack)> = sim
+        .entities
+        .iter()
+        .filter_map(|(&eid, we)| {
+            if we.entity.core.should_remove || to_remove.contains(&eid) {
+                return None;
+            }
+            match &we.entity.role {
+                EntityRole::DroppedItem {
+                    item_stack,
+                    pickup_delay_ticks: 0,
+                } if !item_stack.is_air() => Some((
+                    eid,
+                    we.instance.id(),
+                    we.entity.core.position,
+                    item_stack.clone(),
+                )),
+                _ => None,
+            }
+        })
+        .collect();
+
+    for (eid, inst_id, item_pos, item_stack) in item_candidates {
+        let mut best_collector: Option<(PlayerId, i32, f64)> = None;
+        for (pid, p) in &sim.players {
+            if p.instance.id() != inst_id || p.game_mode == GameMode::Spectator {
+                continue;
+            }
+            let dx = item_pos.x - p.position.x;
+            let dz = item_pos.z - p.position.z;
+            let dy = item_pos.y - p.position.y;
+            let horiz_sq = dx * dx + dz * dz;
+            if horiz_sq <= 2.25
+                && (-0.5..=2.0).contains(&dy)
+                && best_collector.is_none_or(|(_, _, prev)| horiz_sq < prev)
+            {
+                best_collector = Some((pid, p.entity_id, horiz_sq));
+            }
+        }
+
+        let Some((collector_pid, collector_eid, _)) = best_collector else {
+            continue;
+        };
+
+        let mut ev = PickupItemEvent::new(collector_pid, inst_id, eid, item_stack);
+        events.call(&mut ev);
+        if ev.is_cancelled() || ev.item_stack.is_air() {
+            continue;
+        }
+
+        let orig_amount = ev.item_stack.amount();
+        let mut leftover = ev.item_stack.clone();
+        if let Some(collector) = sim.players.get_mut(collector_pid) {
+            leftover = collector.inventory.add_item(ev.item_stack);
+            if leftover.amount() < orig_amount {
+                collector.sync_active_windows();
+            }
+        }
+        let picked = orig_amount.saturating_sub(leftover.amount());
+        if picked == 0 {
+            continue;
+        }
+
+        sim.broadcast_player_equipment(collector_pid);
+        let collect_pkt = CollectItemPacket {
+            collected_entity_id: eid,
+            collector_entity_id: collector_eid,
+            pickup_item_count: picked as i32,
+        };
+        sim.send_to_viewers(eid, &collect_pkt);
+        if !sim
+            .tracker
+            .viewers(eid)
+            .is_some_and(|v| v.contains(&collector_pid))
+            && let Some(collector) = sim.players.get(collector_pid)
+        {
+            let _ = collector.send_packet(&collect_pkt);
+        }
+
+        if leftover.is_air() {
+            to_remove.push(eid);
+        } else if let Some(we) = sim.entities.get_mut(&eid) {
+            we.entity.role = EntityRole::DroppedItem {
+                item_stack: leftover.clone(),
+                pickup_delay_ticks: 0,
+            };
+            we.entity
+                .core
+                .metadata
+                .set(8, MetadataValue::ItemStack(leftover));
+            let entries = we.entity.core.metadata.take_dirty();
+            if !entries.is_empty() {
+                sim.send_to_viewers(
+                    eid,
+                    &EntityMetaDataPacket {
+                        entity_id: eid,
+                        entries,
+                    },
+                );
+            }
+        }
+    }
+
     for eid in to_remove {
         despawn_world_entity(sim, eid, events);
     }
@@ -1032,6 +1435,10 @@ fn initialize_joining_player(
             flags: abilities_flags,
             ..PlayerAbilitiesPacket::default()
         });
+        let _ = player.send_packet(&HeldItemChangePacket {
+            slot: player.inventory.held_slot() as i8,
+        });
+        player.sync_window_zero();
         let sender_view = player.command_sender(pid);
         let declare_cmds = command_manager.build_declare_commands_packet(&sender_view);
         let _ = player.send_packet(&declare_cmds);
@@ -1206,6 +1613,7 @@ fn dispatch_player_command(
     sim: &mut WorldSimState,
     events: &GlobalEventHandler,
     command_manager: &CommandManager,
+    next_entity_id: &AtomicI32,
     raw_command: String,
 ) {
     let Some(username) = sim.players.get(pid).map(|p| p.profile.username.clone()) else {
@@ -1246,6 +1654,8 @@ fn dispatch_player_command(
     let mut pending_broadcasts: Vec<Component> = Vec::new();
     let mut pending_tp: Option<Pos> = None;
     let mut kick_reason: Option<Component> = None;
+    let mut pending_give: Vec<ItemStack> = Vec::new();
+    let mut pending_open_inv: Option<Inventory> = None;
 
     if let Some(p) = sim.players.get_mut(pid) {
         for effect in effects {
@@ -1264,8 +1674,31 @@ fn dispatch_player_command(
                 SenderEffect::Teleport(pos) => pending_tp = Some(pos),
                 SenderEffect::Broadcast(msg) => pending_broadcasts.push(msg),
                 SenderEffect::Kick(reason) => kick_reason = Some(reason),
+                SenderEffect::GiveItem(item) => pending_give.push(item),
+                SenderEffect::OpenInventory(inv) => pending_open_inv = Some(inv),
             }
         }
+    }
+
+    if !pending_give.is_empty() {
+        let mut overflows = Vec::new();
+        if let Some(p) = sim.players.get_mut(pid) {
+            for stack in pending_give {
+                let rem = p.inventory.add_item(stack);
+                if !rem.is_air() {
+                    overflows.push(rem);
+                }
+            }
+            p.sync_active_windows();
+        }
+        sim.broadcast_player_equipment(pid);
+        for rem in overflows {
+            let _ = drop_item_from_player(sim, pid, rem, events, next_entity_id);
+        }
+    }
+
+    if let Some(inv) = pending_open_inv {
+        open_player_window(sim, pid, inv, events, next_entity_id);
     }
 
     if let Some(tp_pos) = pending_tp {
@@ -1428,22 +1861,36 @@ fn process_block_digging(
 
 fn process_block_placement(
     pid: PlayerId,
-    sim: &WorldSimState,
+    sim: &mut WorldSimState,
     events: &GlobalEventHandler,
     block_manager: &BlockManager,
     pkt: ClientPlayerBlockPlacementPacket,
 ) {
-    let Some(player) = sim.players.get(pid) else {
+    let Some((game_mode, instance, sneaking, player_pos, player_name, held_item)) =
+        sim.players.get(pid).map(|player| {
+            let _ = player.send_packet(&AcknowledgeBlockChangePacket {
+                sequence: pkt.sequence,
+            });
+            let held = match pkt.hand {
+                Hand::Main => player.inventory.item_in_main_hand().clone(),
+                Hand::Off => player.inventory.item_in_off_hand().clone(),
+            };
+            (
+                player.game_mode,
+                player.instance.clone(),
+                player.metadata.is_sneaking(),
+                player.position,
+                player.profile.username.clone(),
+                held,
+            )
+        })
+    else {
         return;
     };
-    let _ = player.send_packet(&AcknowledgeBlockChangePacket {
-        sequence: pkt.sequence,
-    });
-    if player.game_mode == GameMode::Spectator || player.game_mode == GameMode::Adventure {
+    if game_mode == GameMode::Spectator || game_mode == GameMode::Adventure {
         return;
     }
 
-    let instance = player.instance.clone();
     let inst_id = instance.id();
     let clicked_block = instance.get_block(pkt.position);
     let cursor = Vec3::new(
@@ -1451,7 +1898,6 @@ fn process_block_placement(
         f64::from(pkt.cursor_y),
         f64::from(pkt.cursor_z),
     );
-    let sneaking = player.metadata.is_sneaking();
 
     if !sneaking {
         let handler = instance
@@ -1472,6 +1918,17 @@ fn process_block_placement(
         }
     }
 
+    let default_candidate = if !held_item.is_air() {
+        let Some(b) = held_item.material().corresponding_block() else {
+            return;
+        };
+        b
+    } else if game_mode == GameMode::Creative {
+        Block::STONE
+    } else {
+        return;
+    };
+
     let place_pos = if clicked_block.is_air() || clicked_block.is_liquid() {
         pkt.position
     } else {
@@ -1480,14 +1937,15 @@ fn process_block_placement(
     };
     let previous = instance.get_block(place_pos);
     if !previous.is_air() && !previous.is_liquid() {
-        let _ = player.send_packet(&BlockChangePacket {
-            position: place_pos,
-            block_state_id: i32::from(previous.state_id()),
-        });
+        if let Some(player) = sim.players.get(pid) {
+            let _ = player.send_packet(&BlockChangePacket {
+                position: place_pos,
+                block_state_id: i32::from(previous.state_id()),
+            });
+        }
         return;
     }
 
-    let default_candidate = Block::STONE;
     let resolved_block = if let Some(rule) = block_manager.get_placement_rule(default_candidate) {
         let Some(b) = rule.block_place(&PlacementState {
             world: &instance,
@@ -1495,13 +1953,15 @@ fn process_block_placement(
             block_face: pkt.block_face,
             place_position: place_pos,
             cursor_position: cursor,
-            player_position: player.position,
+            player_position: player_pos,
             is_player_shifting: sneaking,
         }) else {
-            let _ = player.send_packet(&BlockChangePacket {
-                position: place_pos,
-                block_state_id: i32::from(previous.state_id()),
-            });
+            if let Some(player) = sim.players.get(pid) {
+                let _ = player.send_packet(&BlockChangePacket {
+                    position: place_pos,
+                    block_state_id: i32::from(previous.state_id()),
+                });
+            }
             return;
         };
         b
@@ -1522,18 +1982,20 @@ fn process_block_placement(
         f64::from(place_pos.z) + 0.5,
     );
     if resolved_block.is_solid()
-        && player_bbox.intersects_at(&player.position, &block_bbox, &block_anchor)
+        && player_bbox.intersects_at(&player_pos, &block_bbox, &block_anchor)
     {
-        let _ = player.send_packet(&BlockChangePacket {
-            position: place_pos,
-            block_state_id: i32::from(previous.state_id()),
-        });
+        if let Some(player) = sim.players.get(pid) {
+            let _ = player.send_packet(&BlockChangePacket {
+                position: place_pos,
+                block_state_id: i32::from(previous.state_id()),
+            });
+        }
         return;
     }
 
     let mut ev = PlayerBlockPlaceEvent::new(
         pid,
-        player.profile.username.clone(),
+        player_name,
         inst_id,
         place_pos,
         pkt.block_face,
@@ -1543,11 +2005,27 @@ fn process_block_placement(
     events.call(&mut ev);
 
     if ev.is_cancelled() {
-        let _ = player.send_packet(&BlockChangePacket {
-            position: place_pos,
-            block_state_id: i32::from(previous.state_id()),
-        });
+        if let Some(player) = sim.players.get_mut(pid) {
+            let _ = player.send_packet(&BlockChangePacket {
+                position: place_pos,
+                block_state_id: i32::from(previous.state_id()),
+            });
+            player.sync_window_zero();
+        }
         return;
+    }
+
+    if !held_item.is_air() && game_mode == GameMode::Survival {
+        if let Some(player) = sim.players.get_mut(pid) {
+            let next_amt = held_item.amount().saturating_sub(1);
+            let updated = held_item.with_amount(next_amt);
+            match pkt.hand {
+                Hand::Main => player.inventory.set_item_in_main_hand(updated),
+                Hand::Off => player.inventory.set_item_in_off_hand(updated),
+            }
+            player.sync_window_zero();
+        }
+        sim.broadcast_player_equipment(pid);
     }
 
     let handler = block_manager.get_handler(ev.block.key());
@@ -1601,12 +2079,14 @@ fn sync_player_dirty_metadata(sim: &mut WorldSimState, pid: PlayerId) {
     );
 }
 
+#[allow(clippy::too_many_lines)]
 fn handle_play_packet(
     pid: PlayerId,
     sim: &mut WorldSimState,
     events: &GlobalEventHandler,
     block_manager: &BlockManager,
     command_manager: &CommandManager,
+    next_entity_id: &AtomicI32,
     frame: RawPacketFrame,
 ) -> bool {
     match frame.packet_id {
@@ -1638,7 +2118,14 @@ fn handle_play_packet(
             let Ok(pkt) = decode_packet_exact::<ClientCommandChatPacket>(frame.payload) else {
                 return false;
             };
-            dispatch_player_command(pid, sim, events, command_manager, pkt.message);
+            dispatch_player_command(
+                pid,
+                sim,
+                events,
+                command_manager,
+                next_entity_id,
+                pkt.message,
+            );
             true
         }
         0x08 => {
@@ -1646,7 +2133,14 @@ fn handle_play_packet(
             else {
                 return false;
             };
-            dispatch_player_command(pid, sim, events, command_manager, pkt.message);
+            dispatch_player_command(
+                pid,
+                sim,
+                events,
+                command_manager,
+                next_entity_id,
+                pkt.message,
+            );
             true
         }
         0x09 => {
@@ -1706,6 +2200,77 @@ fn handle_play_packet(
                     matches: res.matches,
                 });
             }
+            true
+        }
+        0x11 => decode_packet_exact::<ClientClickWindowButtonPacket>(frame.payload).is_ok(),
+        0x12 => {
+            let Ok(pkt) = decode_packet_exact::<ClientClickWindowPacket>(frame.payload) else {
+                return false;
+            };
+            let mut pre_ev = InventoryPreClickEvent::new(
+                pid,
+                pkt.window_id,
+                pkt.slot,
+                pkt.button,
+                pkt.click_type,
+            );
+            events.call(&mut pre_ev);
+
+            if pre_ev.is_cancelled() {
+                if let Some(p) = sim.players.get_mut(pid) {
+                    p.sync_active_windows();
+                }
+                return true;
+            }
+
+            let mut dropped_items = Vec::new();
+            let mut shared_inv_to_sync = None;
+            if let Some(p) = sim.players.get_mut(pid) {
+                let creative = p.game_mode == GameMode::Creative;
+                let valid_target = if pkt.window_id == 0 {
+                    Some(None)
+                } else if let Some((wid, inv)) = &p.open_window
+                    && *wid == pkt.window_id
+                {
+                    Some(Some(inv.clone()))
+                } else {
+                    None
+                };
+
+                if let Some(open_inv) = valid_target {
+                    let outcome = process_inventory_click(
+                        &mut p.inventory,
+                        open_inv.as_ref(),
+                        pkt.slot,
+                        pkt.button,
+                        pkt.click_type,
+                        creative,
+                    );
+                    dropped_items = outcome.dropped_items;
+                    shared_inv_to_sync = open_inv;
+                }
+                p.sync_active_windows();
+            }
+
+            sim.broadcast_player_equipment(pid);
+            if let Some(inv) = shared_inv_to_sync {
+                sim.sync_shared_inventory_viewers(&inv, Some(pid));
+            }
+            for stack in dropped_items {
+                if !drop_item_from_player(sim, pid, stack.clone(), events, next_entity_id)
+                    && let Some(p) = sim.players.get_mut(pid)
+                {
+                    let _ = p.inventory.add_item(stack);
+                    p.sync_active_windows();
+                }
+            }
+            true
+        }
+        0x13 => {
+            let Ok(_pkt) = decode_packet_exact::<ClientCloseWindowPacket>(frame.payload) else {
+                return false;
+            };
+            close_player_window(sim, pid, false, events, next_entity_id);
             true
         }
         0x1A => {
@@ -1777,7 +2342,47 @@ fn handle_play_packet(
             let Ok(pkt) = decode_packet_exact::<ClientPlayerActionPacket>(frame.payload) else {
                 return false;
             };
-            process_block_digging(pid, sim, events, block_manager, pkt);
+            match pkt.status {
+                PlayerActionStatus::DropItem | PlayerActionStatus::DropItemStack => {
+                    let drop_all = pkt.status == PlayerActionStatus::DropItemStack;
+                    let mut to_drop = ItemStack::AIR;
+                    if let Some(p) = sim.players.get_mut(pid) {
+                        let held = p.inventory.item_in_main_hand().clone();
+                        if !held.is_air() {
+                            if drop_all {
+                                to_drop = held;
+                                p.inventory.set_item_in_main_hand(ItemStack::AIR);
+                            } else {
+                                let rem = held.amount() - 1;
+                                to_drop = held.clone().with_amount(1);
+                                p.inventory.set_item_in_main_hand(held.with_amount(rem));
+                            }
+                        }
+                    }
+                    if !to_drop.is_air() {
+                        if !drop_item_from_player(sim, pid, to_drop.clone(), events, next_entity_id)
+                            && let Some(p) = sim.players.get_mut(pid)
+                        {
+                            let _ = p.inventory.add_item(to_drop);
+                        }
+                        if let Some(p) = sim.players.get_mut(pid) {
+                            p.sync_active_windows();
+                        }
+                        sim.broadcast_player_equipment(pid);
+                    }
+                }
+                PlayerActionStatus::SwapItemHand => {
+                    if let Some(p) = sim.players.get_mut(pid) {
+                        let main = p.inventory.item_in_main_hand().clone();
+                        let off = p.inventory.item_in_off_hand().clone();
+                        p.inventory.set_item_in_main_hand(off);
+                        p.inventory.set_item_in_off_hand(main);
+                        p.sync_active_windows();
+                    }
+                    sim.broadcast_player_equipment(pid);
+                }
+                _ => process_block_digging(pid, sim, events, block_manager, pkt),
+            }
             true
         }
         0x2A => {
@@ -1810,6 +2415,44 @@ fn handle_play_packet(
                 }
             }
             sync_player_dirty_metadata(sim, pid);
+            true
+        }
+        0x35 => {
+            let Ok(pkt) = decode_packet_exact::<ClientHeldItemChangePacket>(frame.payload) else {
+                return false;
+            };
+            if let Ok(slot_u8) = u8::try_from(pkt.slot)
+                && slot_u8 <= 8
+            {
+                if let Some(p) = sim.players.get_mut(pid) {
+                    let _ = p.inventory.set_held_slot(slot_u8);
+                }
+                sim.broadcast_player_equipment(pid);
+            }
+            true
+        }
+        0x38 => {
+            let Ok(pkt) = decode_packet_exact::<ClientCreativeInventoryActionPacket>(frame.payload)
+            else {
+                return false;
+            };
+            let is_creative = sim
+                .players
+                .get(pid)
+                .is_some_and(|p| p.game_mode == GameMode::Creative);
+            if is_creative {
+                if pkt.slot < 0 {
+                    let _ = drop_item_from_player(sim, pid, pkt.item, events, next_entity_id);
+                } else if let Ok(slot_idx) = usize::try_from(pkt.slot)
+                    && slot_idx < PlayerInventory::SIZE
+                {
+                    if let Some(p) = sim.players.get_mut(pid) {
+                        let _ = p.inventory.set_slot(slot_idx, pkt.item);
+                        p.sync_window_zero();
+                    }
+                    sim.broadcast_player_equipment(pid);
+                }
+            }
             true
         }
         0x3F => {

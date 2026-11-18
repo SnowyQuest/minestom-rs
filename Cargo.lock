@@ -588,6 +588,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "minestom-core",
+ "minestom-item",
  "minestom-protocol",
  "minestom-text",
  "parking_lot",
@@ -622,6 +623,7 @@ dependencies = [
  "minestom-core",
  "minestom-data",
  "minestom-event",
+ "minestom-item",
  "minestom-protocol",
  "minestom-text",
  "rustc-hash",
@@ -643,6 +645,14 @@ dependencies = [
 name = "minestom-item"
 version = "0.1.0"
 dependencies = [
+ "minestom-block",
+ "minestom-core",
+ "minestom-data",
+ "minestom-event",
+ "minestom-nbt",
+ "minestom-text",
+ "parking_lot",
+ "rustc-hash",
  "thiserror",
 ]
 
@@ -687,6 +697,7 @@ dependencies = [
  "flate2",
  "minestom-core",
  "minestom-data",
+ "minestom-item",
  "minestom-macros",
  "minestom-nbt",
  "minestom-text",
@@ -724,6 +735,7 @@ dependencies = [
  "minestom-data",
  "minestom-entity",
  "minestom-event",
+ "minestom-item",
  "minestom-nbt",
  "minestom-network",
  "minestom-protocol",

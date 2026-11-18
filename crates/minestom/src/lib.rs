@@ -91,6 +91,11 @@ pub mod prelude {
         BlockEvent, CancellableEvent, EntityEvent, Event, EventListener, EventNode,
         GlobalEventHandler, InstanceEvent, ListenerHandle, PlayerEvent,
     };
+    pub use crate::item::{
+        ClickOutcome, DataComponentValue, EquipmentSlot, Inventory, InventoryCloseEvent,
+        InventoryPreClickEvent, InventoryType, ItemDropEvent, ItemError, ItemRarity, ItemStack,
+        Material, PickupItemEvent, PlayerInventory, WindowClickMode, process_inventory_click,
+    };
     pub use crate::nbt::{NbtCompound, NbtTag};
     pub use crate::protocol::ConnectionState;
     pub use crate::registry::{DimensionType, Registries};

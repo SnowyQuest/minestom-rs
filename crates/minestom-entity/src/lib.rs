@@ -19,6 +19,8 @@ use minestom_block::BlockGetter;
 use minestom_core::{GameMode, Hand, InstanceId, PlayerId, Pos, TagMap, Vec3};
 use minestom_data::generated::entity_types::{self, ENTITY_INFOS, EntityTypeInfo};
 use minestom_event::{CancellableEvent, Event, InstanceEvent, PlayerEvent};
+use minestom_item::ItemStack;
+use minestom_protocol::entity::MetadataValue;
 use minestom_text::Component;
 use uuid::Uuid;
 
@@ -261,11 +263,18 @@ impl Default for LivingState {
     }
 }
 
-/// Role classification of an [`Entity`] (`Entity`, `LivingEntity`, `EntityCreature` in Minestom).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Role classification of an [`Entity`] (`Entity`, `LivingEntity`, `EntityCreature`, `ItemEntity` in Minestom).
+#[derive(Debug, Clone, PartialEq)]
 pub enum EntityRole {
-    /// Non-living object (display entity, projectile, item, falling block, interaction).
+    /// Non-living object (display entity, projectile, falling block, interaction).
     Object,
+    /// Dropped world item (`ItemEntity` in Minestom) with pickup delay ticks.
+    DroppedItem {
+        /// Carried [`ItemStack`].
+        item_stack: ItemStack,
+        /// Remaining ticks before players can pick up this item (`10` = 0.5s, `40` = 2.0s).
+        pickup_delay_ticks: u32,
+    },
     /// Living entity (`ArmorStand`, passive/ambient living).
     Living,
     /// AI-capable mob/creature (`EntityCreature` in Minestom).
@@ -354,6 +363,21 @@ impl Entity {
         e
     }
 
+    /// Constructs a dropped world `ItemEntity` (`EntityType::ITEM`) carrying `item_stack`
+    /// (`MetadataDef.ItemEntity.ITEM` at index `8`) and `pickup_delay_ticks`.
+    #[must_use]
+    pub fn item(item_stack: ItemStack, pickup_delay_ticks: u32) -> Self {
+        let mut e = Self::new(EntityType::ITEM);
+        e.core
+            .metadata
+            .set(8, MetadataValue::ItemStack(item_stack.clone()));
+        e.role = EntityRole::DroppedItem {
+            item_stack,
+            pickup_delay_ticks,
+        };
+        e
+    }
+
     /// Attaches a custom [`EntityBehavior`] implementation (`on_spawn` + 20 TPS `tick`).
     #[must_use]
     pub fn with_behavior(mut self, behavior: impl EntityBehavior) -> Self {
@@ -423,6 +447,12 @@ impl Entity {
         }
         if let Some(liv) = &self.living {
             self.core.metadata.set_health(liv.health);
+        }
+        if let EntityRole::DroppedItem {
+            pickup_delay_ticks, ..
+        } = &mut self.role
+        {
+            *pickup_delay_ticks = pickup_delay_ticks.saturating_sub(1);
         }
         if self.core.has_physics {
             let no_grav = self.core.metadata.has_no_gravity();

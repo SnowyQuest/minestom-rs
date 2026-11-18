@@ -12,6 +12,7 @@ minestom-block.workspace = true
 minestom-core.workspace = true
 minestom-data.workspace = true
 minestom-event.workspace = true
+minestom-item.workspace = true
 minestom-protocol.workspace = true
 minestom-text.workspace = true
 rustc-hash.workspace = true

@@ -13,6 +13,7 @@ bytes.workspace = true
 flate2.workspace = true
 minestom-core.workspace = true
 minestom-data.workspace = true
+minestom-item.workspace = true
 minestom-macros.workspace = true
 minestom-nbt.workspace = true
 minestom-text.workspace = true
