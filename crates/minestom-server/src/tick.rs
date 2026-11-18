@@ -19,14 +19,16 @@ use minestom_core::{
     BlockFace, BlockVec, ChunkPos, GameMode, Hand, InstanceId, MainHand, PlayerId, Point, Pos, Vec3,
 };
 use minestom_entity::{
-    BoundingBox, Entity, EntityDespawnEvent, EntityMetadata, EntityRole, EntitySpawnEvent,
-    EntityTracker, EntityType, PlayerAttackEntityEvent, PlayerEntityInteractEvent,
-    PlayerHandAnimationEvent,
+    Attribute, AttributeMap, AttributeModifier, BoundingBox, Damage, DamageType, EffectMap, Entity,
+    EntityDamageEvent, EntityDeathEvent, EntityDespawnEvent, EntityMetadata, EntityRole,
+    EntitySpawnEvent, EntityTracker, EntityType, PlayerAttackEntityEvent,
+    PlayerEntityInteractEvent, PlayerHandAnimationEvent, PlayerRespawnEvent, Potion, PotionEffect,
+    TargetCandidate, compute_knockback_velocity,
 };
 use minestom_event::{CancellableEvent, GlobalEventHandler};
 use minestom_item::{
     EquipmentSlot, Inventory, InventoryCloseEvent, InventoryPreClickEvent, ItemDropEvent,
-    ItemStack, PickupItemEvent, PlayerInventory, process_inventory_click,
+    ItemStack, Material, PickupItemEvent, PlayerInventory, process_inventory_click,
 };
 use minestom_nbt::NbtCompound;
 use minestom_protocol::RawPacketFrame;
@@ -43,10 +45,10 @@ use minestom_protocol::config::ClientSettingsPacket;
 use minestom_protocol::entity::{
     ClientAnimationPacket, ClientAttackPacket, ClientEntityAction, ClientEntityActionPacket,
     ClientInputPacket, ClientInteractEntityPacket, DestroyEntitiesPacket, EntityAnimation,
-    EntityAnimationPacket, EntityHeadLookPacket, EntityMetaDataPacket, EntityPose,
-    EntityPositionAndRotationPacket, EntityPositionPacket, EntityPositionSyncPacket,
-    EntityRotationPacket, EntityVelocityPacket, MetadataValue, PlayerInfoRemovePacket,
-    SpawnEntityPacket, delta_short_4096,
+    EntityAnimationPacket, EntityAttributesPacket, EntityHeadLookPacket, EntityMetaDataPacket,
+    EntityPose, EntityPositionAndRotationPacket, EntityPositionPacket, EntityPositionSyncPacket,
+    EntityRotationPacket, EntityVelocityPacket, HitAnimationPacket, MetadataValue,
+    PlayerInfoRemovePacket, SpawnEntityPacket, delta_short_4096,
 };
 use minestom_protocol::inventory::{
     ClientClickWindowButtonPacket, ClientClickWindowPacket, ClientCloseWindowPacket,
@@ -58,11 +60,12 @@ use minestom_protocol::login::GameProfile;
 use minestom_protocol::play::{
     ChangeGameStatePacket, ChunkBatchFinishedPacket, ChunkBatchStartPacket,
     ClientPlayKeepAlivePacket, ClientPlayerPositionAndRotationPacket, ClientPlayerPositionPacket,
-    ClientPlayerRotationPacket, ClientTeleportConfirmPacket, GameStateReason,
-    InitializeWorldBorderPacket, JoinGamePacket, PlayDisconnectPacket, PlayKeepAlivePacket,
-    PlayerAbilitiesPacket, PlayerInfoAddEntry, PlayerInfoUpdatePacket, PlayerPositionAndLookPacket,
-    PlayerSpawnInfo, ServerDifficultyPacket, SpawnPositionPacket, UpdateHealthPacket,
-    UpdateViewPositionPacket, WorldPos,
+    ClientPlayerRotationPacket, ClientStatusAction, ClientStatusPacket,
+    ClientTeleportConfirmPacket, GameStateReason, InitializeWorldBorderPacket, JoinGamePacket,
+    PlayDisconnectPacket, PlayKeepAlivePacket, PlayerAbilitiesPacket, PlayerInfoAddEntry,
+    PlayerInfoUpdatePacket, PlayerPositionAndLookPacket, PlayerSpawnInfo, RespawnPacket,
+    ServerDifficultyPacket, SpawnPositionPacket, UpdateHealthPacket, UpdateViewPositionPacket,
+    WorldPos,
 };
 use minestom_protocol::{decode_packet_exact, encode_packet_payload};
 use minestom_scheduler::SchedulerManager;
@@ -101,6 +104,50 @@ pub(crate) enum EntityCommand {
     Teleport { network_id: i32, position: Pos },
     /// Set velocity on an existing world entity.
     SetVelocity { network_id: i32, velocity: Vec3 },
+    /// Apply damage to any entity or player by `network_id`.
+    DamageByNetworkId { target_id: i32, damage: Damage },
+    /// Apply damage to a player by `player_id`.
+    DamagePlayer { player_id: PlayerId, damage: Damage },
+    /// Heal a player to full `max_health`.
+    HealPlayer { player_id: PlayerId },
+    /// Set base attribute value on an entity/player by `network_id`.
+    SetAttributeBase {
+        target_id: i32,
+        attribute: Attribute,
+        base_value: f64,
+    },
+    /// Add an attribute modifier on an entity/player by `network_id`.
+    AddAttributeModifier {
+        target_id: i32,
+        attribute: Attribute,
+        modifier: AttributeModifier,
+    },
+    /// Set base attribute value on a player by `player_id`.
+    SetPlayerAttributeBase {
+        player_id: PlayerId,
+        attribute: Attribute,
+        base_value: f64,
+    },
+    /// Add an attribute modifier on a player by `player_id`.
+    AddPlayerAttributeModifier {
+        player_id: PlayerId,
+        attribute: Attribute,
+        modifier: AttributeModifier,
+    },
+    /// Add a potion effect to an entity/player by `network_id`.
+    AddEffect { target_id: i32, potion: Potion },
+    /// Remove a potion effect from an entity/player by `network_id`.
+    RemoveEffect {
+        target_id: i32,
+        effect: PotionEffect,
+    },
+    /// Add a potion effect to a player by `player_id`.
+    AddPlayerEffect { player_id: PlayerId, potion: Potion },
+    /// Remove a potion effect from a player by `player_id`.
+    RemovePlayerEffect {
+        player_id: PlayerId,
+        effect: PotionEffect,
+    },
 }
 
 /// Cross-thread command broadcasting server-initiated single/batch block updates to chunk viewers.
@@ -187,9 +234,17 @@ struct ActivePlayer {
     profile: GameProfile,
     game_mode: GameMode,
     permission_level: u8,
+    respawn_point: Pos,
     position: Pos,
     last_synced_pos: Pos,
+    velocity: Vec3,
     on_ground: bool,
+    health: f32,
+    max_health: f32,
+    dead: bool,
+    invulnerable_ticks: u32,
+    attributes: AttributeMap,
+    effects: EffectMap,
     metadata: EntityMetadata,
     inventory: PlayerInventory,
     open_window: Option<(i32, Inventory)>,
@@ -391,6 +446,28 @@ impl WorldSimState {
         }
     }
 
+    fn send_to_viewers_and_self<P: minestom_protocol::PacketPayload>(
+        &self,
+        entity_id: i32,
+        pkt: &P,
+    ) {
+        let Ok(bytes) = encode_packet_payload(pkt) else {
+            return;
+        };
+        if let Some(&self_pid) = self.player_by_entity_id.get(&entity_id)
+            && let Some(p) = self.players.get(self_pid)
+        {
+            let _ = p.send_encoded(bytes.clone());
+        }
+        if let Some(viewers) = self.tracker.viewers(entity_id) {
+            for &pid in viewers {
+                if let Some(p) = self.players.get(pid) {
+                    let _ = p.send_encoded(bytes.clone());
+                }
+            }
+        }
+    }
+
     fn send_entity_spawn_bundle(&self, viewer_pid: PlayerId, target_entity_id: i32) {
         let Some(viewer) = self.players.get(viewer_pid) else {
             return;
@@ -424,6 +501,16 @@ impl WorldSimState {
                         equipments: equip,
                     });
                 }
+                let attrs = target_player.attributes.all_synced_wire_properties();
+                if !attrs.is_empty() {
+                    let _ = viewer.send_packet(&EntityAttributesPacket {
+                        entity_id: target_player.entity_id,
+                        properties: attrs,
+                    });
+                }
+                for potion in target_player.effects.iter() {
+                    let _ = viewer.send_packet(&potion.to_add_packet(target_player.entity_id));
+                }
             }
         } else if let Some(we) = self.entities.get(&target_entity_id) {
             let core = &we.entity.core;
@@ -446,6 +533,18 @@ impl WorldSimState {
                     entity_id: core.network_id,
                     entries: meta,
                 });
+            }
+            if let Some(liv) = &we.entity.living {
+                let attrs = liv.attributes.all_synced_wire_properties();
+                if !attrs.is_empty() {
+                    let _ = viewer.send_packet(&EntityAttributesPacket {
+                        entity_id: core.network_id,
+                        properties: attrs,
+                    });
+                }
+                for potion in liv.effects.iter() {
+                    let _ = viewer.send_packet(&potion.to_add_packet(core.network_id));
+                }
             }
         }
     }
@@ -792,9 +891,17 @@ fn run_tick_loop(
                         profile: profile.clone(),
                         game_mode,
                         permission_level,
+                        respawn_point: spawn_pos,
                         position: spawn_pos,
                         last_synced_pos: spawn_pos,
+                        velocity: Vec3::ZERO,
                         on_ground: true,
+                        health: 20.0,
+                        max_health: 20.0,
+                        dead: false,
+                        invulnerable_ticks: 0,
+                        attributes: AttributeMap::for_player(),
+                        effects: EffectMap::new(),
                         metadata,
                         inventory: PlayerInventory::new(),
                         open_window: None,
@@ -855,13 +962,14 @@ fn run_tick_loop(
         drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
         drain_env_commands(&sim, env_cmd_rx);
 
-        // 3. Advance world clocks & step 20 TPS World Entities
+        // 3. Advance world clocks & step 20 TPS Players + World Entities
         for inst in instance_manager.instances() {
             let wt = inst.tick_time();
             if tick_num.is_multiple_of(20) {
                 sim.send_to_instance_players(inst.id(), &wt.to_set_time_packet());
             }
         }
+        tick_players_gameplay(&mut sim);
         tick_world_entities(&mut sim, events);
 
         // 4. TickEnd scheduled tasks + final command drain
@@ -1182,9 +1290,472 @@ fn drain_entity_commands(
                 if let Some(we) = sim.entities.get_mut(&network_id) {
                     we.entity.core.velocity = velocity;
                     we.velocity_dirty = true;
+                } else if let Some(&pid) = sim.player_by_entity_id.get(&network_id) {
+                    if let Some(p) = sim.players.get_mut(pid) {
+                        p.velocity = velocity;
+                    }
+                    sim.send_to_viewers_and_self(
+                        network_id,
+                        &EntityVelocityPacket {
+                            entity_id: network_id,
+                            velocity,
+                        },
+                    );
+                }
+            }
+            EntityCommand::DamageByNetworkId { target_id, damage } => {
+                apply_damage_to_target(sim, events, target_id, damage);
+            }
+            EntityCommand::DamagePlayer { player_id, damage } => {
+                if let Some(eid) = sim.players.get(player_id).map(|p| p.entity_id) {
+                    apply_damage_to_target(sim, events, eid, damage);
+                }
+            }
+            EntityCommand::HealPlayer { player_id } => {
+                if let Some(p) = sim.players.get_mut(player_id) {
+                    p.dead = false;
+                    p.health = p.max_health;
+                    p.metadata.set_health(p.health);
+                    p.metadata.set_pose(EntityPose::Standing);
+                    let _ = p.send_packet(&UpdateHealthPacket {
+                        health: p.health,
+                        food: 20,
+                        food_saturation: 5.0,
+                    });
+                }
+                sync_player_dirty_metadata(sim, player_id);
+            }
+            EntityCommand::SetAttributeBase {
+                target_id,
+                attribute,
+                base_value,
+            } => {
+                set_attribute_on_target(sim, target_id, attribute, base_value, None);
+            }
+            EntityCommand::AddAttributeModifier {
+                target_id,
+                attribute,
+                modifier,
+            } => {
+                set_attribute_on_target(sim, target_id, attribute, 0.0, Some(modifier));
+            }
+            EntityCommand::SetPlayerAttributeBase {
+                player_id,
+                attribute,
+                base_value,
+            } => {
+                if let Some(eid) = sim.players.get(player_id).map(|p| p.entity_id) {
+                    set_attribute_on_target(sim, eid, attribute, base_value, None);
+                }
+            }
+            EntityCommand::AddPlayerAttributeModifier {
+                player_id,
+                attribute,
+                modifier,
+            } => {
+                if let Some(eid) = sim.players.get(player_id).map(|p| p.entity_id) {
+                    set_attribute_on_target(sim, eid, attribute, 0.0, Some(modifier));
+                }
+            }
+            EntityCommand::AddEffect { target_id, potion } => {
+                add_effect_on_target(sim, target_id, potion);
+            }
+            EntityCommand::RemoveEffect { target_id, effect } => {
+                remove_effect_on_target(sim, target_id, effect);
+            }
+            EntityCommand::AddPlayerEffect { player_id, potion } => {
+                if let Some(eid) = sim.players.get(player_id).map(|p| p.entity_id) {
+                    add_effect_on_target(sim, eid, potion);
+                }
+            }
+            EntityCommand::RemovePlayerEffect { player_id, effect } => {
+                if let Some(eid) = sim.players.get(player_id).map(|p| p.entity_id) {
+                    remove_effect_on_target(sim, eid, effect);
                 }
             }
         }
+    }
+}
+
+fn set_attribute_on_target(
+    sim: &mut WorldSimState,
+    target_id: i32,
+    attribute: Attribute,
+    base_value: f64,
+    modifier: Option<AttributeModifier>,
+) {
+    let mut sync_props = Vec::new();
+    let mut new_player_health = None;
+    if let Some(&pid) = sim.player_by_entity_id.get(&target_id) {
+        if let Some(p) = sim.players.get_mut(pid) {
+            if let Some(m) = modifier {
+                p.attributes.add_modifier(attribute, m);
+            } else {
+                p.attributes.set_base_value(attribute, base_value);
+            }
+            if attribute == Attribute::MAX_HEALTH {
+                #[allow(clippy::cast_possible_truncation)]
+                let mh = p.attributes.get_value(Attribute::MAX_HEALTH) as f32;
+                p.max_health = mh;
+                if p.health > mh {
+                    p.health = mh;
+                    p.metadata.set_health(p.health);
+                }
+                new_player_health = Some((pid, p.health));
+            }
+            sync_props = p.attributes.take_dirty_wire_properties();
+        }
+    } else if let Some(we) = sim.entities.get_mut(&target_id)
+        && let Some(liv) = &mut we.entity.living
+    {
+        if let Some(m) = modifier {
+            liv.attributes.add_modifier(attribute, m);
+        } else {
+            liv.attributes.set_base_value(attribute, base_value);
+        }
+        if attribute == Attribute::MAX_HEALTH {
+            #[allow(clippy::cast_possible_truncation)]
+            let mh = liv.attributes.get_value(Attribute::MAX_HEALTH) as f32;
+            liv.max_health = mh;
+            if liv.health > mh {
+                liv.health = mh;
+                we.entity.core.metadata.set_health(liv.health);
+            }
+        }
+        sync_props = liv.attributes.take_dirty_wire_properties();
+    }
+    if !sync_props.is_empty() {
+        sim.send_to_viewers_and_self(
+            target_id,
+            &EntityAttributesPacket {
+                entity_id: target_id,
+                properties: sync_props,
+            },
+        );
+    }
+    if let Some((pid, hp)) = new_player_health {
+        if let Some(p) = sim.players.get(pid) {
+            let _ = p.send_packet(&UpdateHealthPacket {
+                health: hp,
+                food: 20,
+                food_saturation: 5.0,
+            });
+        }
+        sync_player_dirty_metadata(sim, pid);
+    }
+}
+
+fn add_effect_on_target(sim: &mut WorldSimState, target_id: i32, potion: Potion) {
+    let mut applied = false;
+    if let Some(&pid) = sim.player_by_entity_id.get(&target_id) {
+        if let Some(p) = sim.players.get_mut(pid) {
+            p.effects.add(potion);
+            applied = true;
+        }
+    } else if let Some(we) = sim.entities.get_mut(&target_id)
+        && let Some(liv) = &mut we.entity.living
+    {
+        liv.effects.add(potion);
+        applied = true;
+    }
+    if applied {
+        sim.send_to_viewers_and_self(target_id, &potion.to_add_packet(target_id));
+    }
+}
+
+fn remove_effect_on_target(sim: &mut WorldSimState, target_id: i32, effect: PotionEffect) {
+    let mut removed = false;
+    if let Some(&pid) = sim.player_by_entity_id.get(&target_id) {
+        if let Some(p) = sim.players.get_mut(pid) {
+            removed = p.effects.remove(effect);
+        }
+    } else if let Some(we) = sim.entities.get_mut(&target_id)
+        && let Some(liv) = &mut we.entity.living
+    {
+        removed = liv.effects.remove(effect);
+    }
+    if removed {
+        sim.send_to_viewers_and_self(target_id, &Potion::to_remove_packet(effect, target_id));
+    }
+}
+
+fn tick_players_gameplay(sim: &mut WorldSimState) {
+    let mut expired_packets = Vec::new();
+    let mut attr_packets = Vec::new();
+    for p in sim.players.values_mut() {
+        p.invulnerable_ticks = p.invulnerable_ticks.saturating_sub(1);
+        for eff in p.effects.tick() {
+            expired_packets.push((p.entity_id, Potion::to_remove_packet(eff, p.entity_id)));
+        }
+        let dirty = p.attributes.take_dirty_wire_properties();
+        if !dirty.is_empty() {
+            attr_packets.push((
+                p.entity_id,
+                EntityAttributesPacket {
+                    entity_id: p.entity_id,
+                    properties: dirty,
+                },
+            ));
+        }
+    }
+    for (eid, pkt) in expired_packets {
+        sim.send_to_viewers_and_self(eid, &pkt);
+    }
+    for (eid, pkt) in attr_packets {
+        sim.send_to_viewers_and_self(eid, &pkt);
+    }
+}
+
+fn melee_weapon_bonus(material: Material) -> f32 {
+    match material.key() {
+        "minecraft:wooden_sword" | "minecraft:golden_sword" => 3.0,
+        "minecraft:stone_sword" | "minecraft:copper_sword" => 4.0,
+        "minecraft:iron_sword" => 5.0,
+        "minecraft:diamond_sword" | "minecraft:wooden_axe" | "minecraft:golden_axe" => 6.0,
+        "minecraft:netherite_sword" => 7.0,
+        "minecraft:stone_axe"
+        | "minecraft:copper_axe"
+        | "minecraft:iron_axe"
+        | "minecraft:diamond_axe" => 8.0,
+        "minecraft:netherite_axe" => 9.0,
+        _ => 0.0,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn apply_damage_to_target(
+    sim: &mut WorldSimState,
+    events: &GlobalEventHandler,
+    target_id: i32,
+    damage: Damage,
+) {
+    let bypass_gm = matches!(
+        damage.damage_type,
+        DamageType::OUT_OF_WORLD | DamageType::GENERIC_KILL
+    );
+    let target_info = if let Some(&pid) = sim.player_by_entity_id.get(&target_id) {
+        let Some(p) = sim.players.get(pid) else {
+            return;
+        };
+        if p.dead || (!bypass_gm && matches!(p.game_mode, GameMode::Creative | GameMode::Spectator))
+        {
+            return;
+        }
+        Some((Some(pid), p.instance.id(), EntityType::PLAYER, p.position))
+    } else if let Some(we) = sim.entities.get(&target_id) {
+        let Some(liv) = &we.entity.living else {
+            return;
+        };
+        if liv.dead || we.entity.core.should_remove {
+            return;
+        }
+        Some((
+            None,
+            we.instance.id(),
+            we.entity.entity_type(),
+            we.entity.core.position,
+        ))
+    } else {
+        None
+    };
+
+    let Some((target_pid, inst_id, etype, target_pos)) = target_info else {
+        return;
+    };
+
+    let mut dmg_ev = EntityDamageEvent::new(target_id, target_pid, inst_id, damage);
+    events.call(&mut dmg_ev);
+    if dmg_ev.is_cancelled() || dmg_ev.damage.amount <= 0.0 {
+        return;
+    }
+
+    let final_dmg = dmg_ev.damage;
+    let mut died = false;
+    let mut kb_packet_for_player = None;
+    let mut player_hp_update = None;
+
+    if let Some(pid) = target_pid {
+        if let Some(p) = sim.players.get_mut(pid) {
+            p.health = (p.health - final_dmg.amount).max(0.0);
+            p.invulnerable_ticks = 10;
+            p.metadata.set_health(p.health);
+            if let Some(src_pos) = final_dmg.source_pos {
+                let kb_res = p.attributes.get_value(Attribute::KNOCKBACK_RESISTANCE);
+                p.velocity = compute_knockback_velocity(
+                    p.velocity,
+                    src_pos,
+                    p.position,
+                    0.4,
+                    kb_res,
+                    p.on_ground,
+                );
+                kb_packet_for_player = Some(p.velocity);
+            }
+            if p.health <= 0.0 {
+                p.dead = true;
+                p.metadata.set_pose(EntityPose::Dying);
+                died = true;
+            }
+            player_hp_update = Some((pid, p.health));
+        }
+        sync_player_dirty_metadata(sim, pid);
+    } else if let Some(we) = sim.entities.get_mut(&target_id)
+        && let Some(liv) = &mut we.entity.living
+    {
+        liv.health = (liv.health - final_dmg.amount).max(0.0);
+        liv.invulnerable_ticks = 10;
+        liv.last_damager_network_id = final_dmg.source_entity_id;
+        we.entity.core.metadata.set_health(liv.health);
+        if let Some(src_pos) = final_dmg.source_pos {
+            let kb_res = liv.attributes.get_value(Attribute::KNOCKBACK_RESISTANCE);
+            we.entity.core.velocity = compute_knockback_velocity(
+                we.entity.core.velocity,
+                src_pos,
+                we.entity.core.position,
+                0.4,
+                kb_res,
+                we.entity.core.on_ground,
+            );
+            we.velocity_dirty = true;
+        }
+        if liv.health <= 0.0 {
+            liv.dead = true;
+            we.entity.core.should_remove = true;
+            died = true;
+        }
+    }
+
+    if dmg_ev.animation {
+        sim.send_to_viewers_and_self(target_id, &final_dmg.to_packet(target_id));
+        let hit_yaw = final_dmg.source_pos.map_or(0.0, |sp| {
+            let dx = sp.x - target_pos.x;
+            let dz = sp.z - target_pos.z;
+            #[allow(clippy::cast_possible_truncation)]
+            let angle = dz.atan2(dx).to_degrees() as f32 - target_pos.yaw;
+            angle
+        });
+        sim.send_to_viewers_and_self(
+            target_id,
+            &HitAnimationPacket {
+                entity_id: target_id,
+                yaw: hit_yaw,
+            },
+        );
+    }
+
+    if let Some(vel) = kb_packet_for_player {
+        sim.send_to_viewers_and_self(
+            target_id,
+            &EntityVelocityPacket {
+                entity_id: target_id,
+                velocity: vel,
+            },
+        );
+    }
+
+    if let Some((pid, hp)) = player_hp_update
+        && let Some(p) = sim.players.get(pid)
+    {
+        let _ = p.send_packet(&UpdateHealthPacket {
+            health: hp,
+            food: 20,
+            food_saturation: 5.0,
+        });
+    }
+
+    if died {
+        let mut death_ev = EntityDeathEvent {
+            network_id: target_id,
+            player_id: target_pid,
+            entity_type: etype,
+            instance_id: inst_id,
+            position: target_pos,
+        };
+        events.call(&mut death_ev);
+        if target_pid.is_none() {
+            despawn_world_entity(sim, target_id, events);
+        }
+    }
+}
+
+fn respawn_dead_player(sim: &mut WorldSimState, pid: PlayerId, events: &GlobalEventHandler) {
+    let Some((inst_id, default_respawn, is_dead)) = sim
+        .players
+        .get(pid)
+        .map(|p| (p.instance.id(), p.respawn_point, p.dead))
+    else {
+        return;
+    };
+    if !is_dead {
+        return;
+    }
+
+    let mut resp_ev = PlayerRespawnEvent {
+        player_id: pid,
+        instance_id: inst_id,
+        respawn_position: default_respawn,
+    };
+    events.call(&mut resp_ev);
+    let dest = resp_ev.respawn_position;
+
+    let mut spawn_ev_info = None;
+    if let Some(p) = sim.players.get_mut(pid) {
+        p.dead = false;
+        p.health = p.max_health;
+        p.velocity = Vec3::ZERO;
+        p.invulnerable_ticks = 20;
+        let _ = p.effects.clear();
+        p.metadata.set_health(p.health);
+        p.metadata.set_pose(EntityPose::Standing);
+
+        let dim = p.instance.dimension_type().clone();
+        let _ = p.send_packet(&RespawnPacket {
+            spawn_info: PlayerSpawnInfo {
+                dimension_type: dim.protocol_id as i32,
+                world: dim.key,
+                hashed_seed: 0,
+                game_mode: p.game_mode,
+                previous_game_mode: None,
+                is_debug: false,
+                is_flat: true,
+                death_location: None,
+                portal_cooldown: 0,
+                sea_level: 63,
+            },
+            copy_data: RespawnPacket::COPY_NONE,
+        });
+        let _ = p.send_packet(&PlayerAbilitiesPacket {
+            flags: ActivePlayer::abilities_flags_for(p.game_mode),
+            ..PlayerAbilitiesPacket::default()
+        });
+        let _ = p.send_packet(&UpdateHealthPacket {
+            health: p.health,
+            food: 20,
+            food_saturation: 5.0,
+        });
+        let attrs = p.attributes.all_synced_wire_properties();
+        if !attrs.is_empty() {
+            let _ = p.send_packet(&EntityAttributesPacket {
+                entity_id: p.entity_id,
+                properties: attrs,
+            });
+        }
+        p.sync_window_zero();
+        spawn_ev_info = Some((p.profile.username.clone(), p.instance.clone()));
+    }
+
+    teleport_player_server_side(sim, pid, dest);
+    sync_player_dirty_metadata(sim, pid);
+
+    if let Some((username, instance)) = spawn_ev_info {
+        let mut spawn_ev = PlayerSpawnEvent {
+            player_id: pid,
+            username,
+            position: dest,
+            instance,
+            first_spawn: false,
+        };
+        events.call(&mut spawn_ev);
     }
 }
 
@@ -1212,17 +1783,66 @@ fn despawn_world_entity(sim: &mut WorldSimState, network_id: i32, events: &Globa
     events.call(&mut ev);
 }
 
+#[allow(clippy::too_many_lines)]
 fn tick_world_entities(sim: &mut WorldSimState, events: &GlobalEventHandler) {
+    // Build per-instance target snapshots for creature AI selectors
+    let mut candidates_by_instance: FxHashMap<InstanceId, Vec<TargetCandidate>> =
+        FxHashMap::default();
+    for (pid, p) in &sim.players {
+        if matches!(p.game_mode, GameMode::Creative | GameMode::Spectator) {
+            continue;
+        }
+        candidates_by_instance
+            .entry(p.instance.id())
+            .or_default()
+            .push(TargetCandidate {
+                network_id: p.entity_id,
+                player_id: Some(pid),
+                entity_type: EntityType::PLAYER,
+                position: p.position,
+                dead: p.dead,
+            });
+    }
+    for (&eid, we) in &sim.entities {
+        if let Some(liv) = &we.entity.living
+            && !we.entity.core.should_remove
+        {
+            candidates_by_instance
+                .entry(we.instance.id())
+                .or_default()
+                .push(TargetCandidate {
+                    network_id: eid,
+                    player_id: None,
+                    entity_type: we.entity.entity_type(),
+                    position: we.entity.core.position,
+                    dead: liv.dead,
+                });
+        }
+    }
+
     let eids: Vec<i32> = sim.entities.keys().copied().collect();
     let mut to_remove = Vec::new();
     let mut instances_needing_reconcile = FxHashSet::default();
+    let mut ai_melee_attacks: Vec<(i32, Pos, i32, f32)> = Vec::new();
 
     for eid in eids {
         let mut sync_step = None;
         let mut dirty_meta = None;
         let mut send_vel = None;
+        let mut expired_effects = Vec::new();
+        let mut dirty_attrs = Vec::new();
 
         if let Some(we) = sim.entities.get_mut(&eid) {
+            let inst_id = we.instance.id();
+            if we.entity.role == EntityRole::Creature
+                && let Some(liv) = &mut we.entity.living
+            {
+                liv.nearby_targets = candidates_by_instance
+                    .get(&inst_id)
+                    .cloned()
+                    .unwrap_or_default();
+            }
+
             let _ = we
                 .instance
                 .chunk_packet_payloads(&[we.entity.core.position.chunk_pos()]);
@@ -1237,7 +1857,14 @@ fn tick_world_entities(sim: &mut WorldSimState, events: &GlobalEventHandler) {
             let head_yaw = we.entity.core.head_yaw;
             let vel = we.entity.core.velocity;
             let on_ground = we.entity.core.on_ground;
-            let inst_id = we.instance.id();
+
+            if let Some(liv) = &mut we.entity.living {
+                expired_effects = std::mem::take(&mut liv.expired_effects);
+                dirty_attrs = liv.attributes.take_dirty_wire_properties();
+                for hit in liv.pending_melee_hits.drain(..) {
+                    ai_melee_attacks.push((eid, new_pos, hit.target_network_id, hit.damage));
+                }
+            }
 
             sync_step = Some((
                 inst_id,
@@ -1297,10 +1924,41 @@ fn tick_world_entities(sim: &mut WorldSimState, events: &GlobalEventHandler) {
                 },
             );
         }
+
+        if !dirty_attrs.is_empty() {
+            sim.send_to_viewers(
+                eid,
+                &EntityAttributesPacket {
+                    entity_id: eid,
+                    properties: dirty_attrs,
+                },
+            );
+        }
+
+        for eff in expired_effects {
+            sim.send_to_viewers(eid, &Potion::to_remove_packet(eff, eid));
+        }
     }
 
     for inst_id in instances_needing_reconcile {
         sim.reconcile_instance_players(inst_id);
+    }
+
+    // Resolve queued AI melee strikes
+    for (attacker_eid, attacker_pos, victim_eid, dmg_amount) in ai_melee_attacks {
+        sim.send_to_viewers(
+            attacker_eid,
+            &EntityAnimationPacket {
+                entity_id: attacker_eid,
+                animation: EntityAnimation::SwingMainArm,
+            },
+        );
+        apply_damage_to_target(
+            sim,
+            events,
+            victim_eid,
+            Damage::from_mob(attacker_eid, attacker_pos, dmg_amount),
+        );
     }
 
     // Check dropped ItemEntities ready for pickup (`pickup_delay_ticks == 0`)
@@ -2273,13 +2931,40 @@ fn handle_play_packet(
             let Ok(pkt) = decode_packet_exact::<ClientAttackPacket>(frame.payload) else {
                 return false;
             };
-            let Some((attacker_eid, inst_id)) =
-                sim.players.get(pid).map(|p| (p.entity_id, p.instance.id()))
+            let Some((attacker_eid, inst_id, attacker_pos, is_dead, gm, attack_dmg)) =
+                sim.players.get(pid).map(|p| {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let base = p.attributes.get_value(Attribute::ATTACK_DAMAGE) as f32;
+                    let weapon = melee_weapon_bonus(p.inventory.item_in_main_hand().material());
+                    let strength = p
+                        .effects
+                        .get(PotionEffect::STRENGTH)
+                        .map_or(0.0, |s| (s.amplifier + 1).max(0) as f32 * 3.0);
+                    (
+                        p.entity_id,
+                        p.instance.id(),
+                        p.position,
+                        p.dead,
+                        p.game_mode,
+                        (base + weapon + strength).max(0.5),
+                    )
+                })
             else {
                 return true;
             };
+            if is_dead || gm == GameMode::Spectator {
+                return true;
+            }
             let mut ev = PlayerAttackEntityEvent::new(pid, attacker_eid, pkt.target_id, inst_id);
             events.call(&mut ev);
+            if !ev.is_cancelled() {
+                apply_damage_to_target(
+                    sim,
+                    events,
+                    pkt.target_id,
+                    Damage::from_player(attacker_eid, attacker_pos, attack_dmg),
+                );
+            }
             true
         }
         0x07 => {
@@ -2338,6 +3023,15 @@ fn handle_play_packet(
                         }
                     }
                 }
+            }
+            true
+        }
+        0x0C => {
+            let Ok(pkt) = decode_packet_exact::<ClientStatusPacket>(frame.payload) else {
+                return false;
+            };
+            if pkt.action == ClientStatusAction::PerformRespawn {
+                respawn_dead_player(sim, pid, events);
             }
             true
         }

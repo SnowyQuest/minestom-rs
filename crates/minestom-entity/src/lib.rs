@@ -11,8 +11,13 @@
 //! assert_eq!(zombie.entity_type(), EntityType::ZOMBIE);
 //! ```
 
+pub mod ai;
+pub mod attribute;
 pub mod collision;
+pub mod damage;
+pub mod effect;
 pub mod metadata;
+pub mod pathfinding;
 pub mod tracker;
 
 use minestom_block::BlockGetter;
@@ -24,8 +29,25 @@ use minestom_protocol::entity::MetadataValue;
 use minestom_text::Component;
 use uuid::Uuid;
 
+pub use ai::{
+    ClosestEntityTarget, EntityAIGroup, FollowTargetGoal, GoalContext, GoalSelector,
+    LastEntityDamagerTarget, MeleeAttackGoal, PendingMeleeHit, RandomLookAroundGoal,
+    RandomStrollGoal, TargetCandidate, TargetSelector,
+};
+pub use attribute::{
+    ATTRIBUTE_SPECS, Attribute, AttributeInstance, AttributeMap, AttributeModifier,
+    AttributeOperation, AttributeSpec,
+};
 pub use collision::{BoundingBox, PhysicsStepOutcome, step_entity_physics};
+pub use damage::{
+    Damage, DamageType, EntityDamageEvent, EntityDeathEvent, PlayerRespawnEvent,
+    compute_knockback_velocity,
+};
+pub use effect::{EffectMap, Potion, PotionEffect};
 pub use metadata::EntityMetadata;
+pub use pathfinding::{
+    Navigator, PathSearchConfig, find_path, find_path_with_config, is_standable,
+};
 pub use tracker::{EntityTracker, ViewerReconcileDiff};
 
 /// Errors returned by entity operations.
@@ -37,6 +59,12 @@ pub enum EntityError {
     /// Unknown vanilla entity type protocol ID.
     #[error("unknown entity type ID: {0}")]
     UnknownEntityType(u32),
+    /// Unknown vanilla entity attribute protocol ID.
+    #[error("unknown attribute ID: {0}")]
+    UnknownAttribute(u32),
+    /// Unknown vanilla potion effect protocol ID.
+    #[error("unknown potion effect ID: {0}")]
+    UnknownPotionEffect(u32),
 }
 
 /// Strongly typed `Copy` handle for a Minecraft 26.2 `EntityType` (`minecraft:entity_type`).
@@ -242,7 +270,8 @@ pub struct EntityCore {
     pub should_remove: bool,
 }
 
-/// Health and mortality state present on living entities and creatures (`LivingEntity` in Minestom).
+/// Health, attributes, potion effects, and AI perception state present on living entities
+/// and creatures (`LivingEntity` in Minestom).
 #[derive(Debug, Clone)]
 pub struct LivingState {
     /// Current health points.
@@ -251,6 +280,20 @@ pub struct LivingState {
     pub max_health: f32,
     /// Whether this entity has died (`health <= 0.0`).
     pub dead: bool,
+    /// Sparse entity attributes (`MAX_HEALTH`, `MOVEMENT_SPEED`, `ATTACK_DAMAGE`, etc.).
+    pub attributes: AttributeMap,
+    /// Active potion effects ticking down at 20 TPS.
+    pub effects: EffectMap,
+    /// Post-hit invulnerability frames (`10` ticks = 0.5s in vanilla).
+    pub invulnerable_ticks: u32,
+    /// Network entity ID of the most recent attacker (`LastEntityDamagerTarget`).
+    pub last_damager_network_id: Option<i32>,
+    /// Snapshot of nearby living candidates populated by the server tick loop before AI ticks.
+    pub nearby_targets: Vec<TargetCandidate>,
+    /// Outgoing melee strikes queued by AI goals during `tick`.
+    pub pending_melee_hits: Vec<PendingMeleeHit>,
+    /// Potion effects that expired during the most recent `tick`.
+    pub expired_effects: Vec<PotionEffect>,
 }
 
 impl Default for LivingState {
@@ -259,6 +302,13 @@ impl Default for LivingState {
             health: 20.0,
             max_health: 20.0,
             dead: false,
+            attributes: AttributeMap::new(),
+            effects: EffectMap::new(),
+            invulnerable_ticks: 0,
+            last_damager_network_id: None,
+            nearby_targets: Vec::new(),
+            pending_melee_hits: Vec::new(),
+            expired_effects: Vec::new(),
         }
     }
 }
@@ -421,6 +471,36 @@ impl Entity {
         self
     }
 
+    /// Sets an initial [`Attribute`] base value on this living entity.
+    #[must_use]
+    pub fn with_attribute(mut self, attribute: Attribute, base_value: f64) -> Self {
+        if let Some(liv) = &mut self.living {
+            liv.attributes.set_base_value(attribute, base_value);
+            if attribute == Attribute::MAX_HEALTH {
+                #[allow(clippy::cast_possible_truncation)]
+                let mh = liv.attributes.get_value(Attribute::MAX_HEALTH) as f32;
+                liv.max_health = mh;
+                liv.health = mh;
+            }
+        }
+        self
+    }
+
+    /// Sets initial and maximum health on this living entity.
+    #[must_use]
+    pub fn with_max_health(self, max_health: f32) -> Self {
+        self.with_attribute(Attribute::MAX_HEALTH, f64::from(max_health))
+    }
+
+    /// Adds an initial [`Potion`] effect to this living entity.
+    #[must_use]
+    pub fn with_potion(mut self, potion: Potion) -> Self {
+        if let Some(liv) = &mut self.living {
+            liv.effects.add(potion);
+        }
+        self
+    }
+
     /// Returns this entity's [`EntityType`].
     #[must_use]
     pub const fn entity_type(&self) -> EntityType {
@@ -440,8 +520,12 @@ impl Entity {
         }
     }
 
-    /// Advances custom behavior and server-side AABB physics by one 50ms tick.
+    /// Advances custom behavior, potion timers, and server-side AABB physics by one 50ms tick.
     pub fn tick(&mut self, world: &dyn BlockGetter) {
+        if let Some(liv) = &mut self.living {
+            liv.invulnerable_ticks = liv.invulnerable_ticks.saturating_sub(1);
+            liv.expired_effects = liv.effects.tick();
+        }
         if let Some(beh) = &mut self.behavior {
             beh.tick(&mut self.core, self.living.as_mut(), world);
         }

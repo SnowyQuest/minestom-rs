@@ -1151,6 +1151,286 @@ impl Decode for ClientAnimationPacket {
     }
 }
 
+/// Clientbound `DamageEventPacket` (`0x19` in [`ConnectionState::Play`], MC 26.2).
+#[derive(Debug, Clone, PartialEq, PacketMeta)]
+pub struct DamageEventPacket {
+    /// Protocol entity ID receiving damage.
+    pub target_entity_id: i32,
+    /// Numeric protocol ID in `minecraft:damage_type`.
+    pub damage_type_id: i32,
+    /// Responsible attacker entity ID, if any (`OptionalVarInt`).
+    pub source_entity_id: Option<i32>,
+    /// Direct damaging entity ID (e.g. projectile or melee attacker), if any.
+    pub source_direct_id: Option<i32>,
+    /// Optional world-space damage origin coordinate.
+    pub source_pos: Option<Vec3>,
+}
+
+impl PacketPayload for DamageEventPacket {
+    const PACKET_ID: i32 = 0x19;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for DamageEventPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.target_entity_id);
+        write_var_int(buf, self.damage_type_id);
+        OptionalVarInt(self.source_entity_id).encode(buf)?;
+        OptionalVarInt(self.source_direct_id).encode(buf)?;
+        match self.source_pos {
+            Some(pos) => {
+                true.encode(buf)?;
+                pos.x.encode(buf)?;
+                pos.y.encode(buf)?;
+                pos.z.encode(buf)
+            }
+            None => false.encode(buf),
+        }
+    }
+}
+
+impl Decode for DamageEventPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let target_entity_id = read_var_int(buf)?;
+        let damage_type_id = read_var_int(buf)?;
+        let source_entity_id = OptionalVarInt::decode(buf)?.0;
+        let source_direct_id = OptionalVarInt::decode(buf)?.0;
+        let source_pos = if bool::decode(buf)? {
+            Some(Vec3::new(
+                f64::decode(buf)?,
+                f64::decode(buf)?,
+                f64::decode(buf)?,
+            ))
+        } else {
+            None
+        };
+        Ok(Self {
+            target_entity_id,
+            damage_type_id,
+            source_entity_id,
+            source_direct_id,
+            source_pos,
+        })
+    }
+}
+
+/// Clientbound `HitAnimationPacket` (`0x2A` in [`ConnectionState::Play`], MC 26.2).
+#[derive(Debug, Clone, Copy, PartialEq, PacketMeta)]
+pub struct HitAnimationPacket {
+    /// Damaged entity protocol ID.
+    pub entity_id: i32,
+    /// Directional tilt yaw angle in degrees.
+    pub yaw: f32,
+}
+
+impl PacketPayload for HitAnimationPacket {
+    const PACKET_ID: i32 = 0x2A;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for HitAnimationPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.entity_id);
+        self.yaw.encode(buf)
+    }
+}
+
+impl Decode for HitAnimationPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            entity_id: read_var_int(buf)?,
+            yaw: f32::decode(buf)?,
+        })
+    }
+}
+
+/// Clientbound `RemoveEntityEffectPacket` (`0x4E` in [`ConnectionState::Play`], MC 26.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PacketMeta)]
+pub struct RemoveEntityEffectPacket {
+    /// Target entity protocol ID.
+    pub entity_id: i32,
+    /// Potion effect protocol ID (`minecraft:mob_effect`).
+    pub potion_effect_id: i32,
+}
+
+impl PacketPayload for RemoveEntityEffectPacket {
+    const PACKET_ID: i32 = 0x4E;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for RemoveEntityEffectPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.entity_id);
+        write_var_int(buf, self.potion_effect_id);
+        Ok(())
+    }
+}
+
+impl Decode for RemoveEntityEffectPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            entity_id: read_var_int(buf)?,
+            potion_effect_id: read_var_int(buf)?,
+        })
+    }
+}
+
+/// Operation discriminant on [`AttributeWireModifier`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
+pub enum AttributeWireOperation {
+    /// `ADD_VALUE` (`0`): adds `amount` directly to the base value.
+    AddValue = 0,
+    /// `ADD_MULTIPLIED_BASE` (`1`): adds `base * amount`.
+    AddMultipliedBase = 1,
+    /// `ADD_MULTIPLIED_TOTAL` (`2`): multiplies running total by `(1.0 + amount)`.
+    AddMultipliedTotal = 2,
+}
+
+/// Wire modifier entry inside [`AttributeProperty`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct AttributeWireModifier {
+    /// Namespaced modifier key (e.g. `"minecraft:sprinting"`).
+    pub id: String,
+    /// Modifier scalar amount.
+    pub amount: f64,
+    /// Operation stage (`0..=2`).
+    pub operation: AttributeWireOperation,
+}
+
+impl Encode for AttributeWireModifier {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_string(buf, &self.id, DEFAULT_MAX_STRING_CHARS)?;
+        self.amount.encode(buf)?;
+        write_var_int(buf, self.operation as i32);
+        Ok(())
+    }
+}
+
+impl Decode for AttributeWireModifier {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let id = read_string(buf, DEFAULT_MAX_STRING_CHARS)?;
+        let amount = f64::decode(buf)?;
+        let operation = match read_var_int(buf)? {
+            0 => AttributeWireOperation::AddValue,
+            1 => AttributeWireOperation::AddMultipliedBase,
+            2 => AttributeWireOperation::AddMultipliedTotal,
+            other => {
+                return Err(ProtocolError::InvalidDiscriminant {
+                    type_name: "AttributeWireOperation",
+                    value: other,
+                });
+            }
+        };
+        Ok(Self {
+            id,
+            amount,
+            operation,
+        })
+    }
+}
+
+/// Single attribute property entry inside [`EntityAttributesPacket`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct AttributeProperty {
+    /// Attribute protocol ID (`minecraft:attribute`).
+    pub attribute_id: i32,
+    /// Base value before modifiers.
+    pub base_value: f64,
+    /// Active modifiers on this attribute.
+    pub modifiers: Vec<AttributeWireModifier>,
+}
+
+impl Encode for AttributeProperty {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.attribute_id);
+        self.base_value.encode(buf)?;
+        write_prefixed_vec(buf, &self.modifiers, 256)
+    }
+}
+
+impl Decode for AttributeProperty {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            attribute_id: read_var_int(buf)?,
+            base_value: f64::decode(buf)?,
+            modifiers: read_prefixed_vec(buf, 256)?,
+        })
+    }
+}
+
+/// Clientbound `EntityAttributesPacket` (`0x83` in [`ConnectionState::Play`], MC 26.2).
+#[derive(Debug, Clone, PartialEq, PacketMeta)]
+pub struct EntityAttributesPacket {
+    /// Target entity protocol ID.
+    pub entity_id: i32,
+    /// Synchronized attribute properties (max `1024`).
+    pub properties: Vec<AttributeProperty>,
+}
+
+impl PacketPayload for EntityAttributesPacket {
+    const PACKET_ID: i32 = 0x83;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for EntityAttributesPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.entity_id);
+        write_prefixed_vec(buf, &self.properties, 1024)
+    }
+}
+
+impl Decode for EntityAttributesPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            entity_id: read_var_int(buf)?,
+            properties: read_prefixed_vec(buf, 1024)?,
+        })
+    }
+}
+
+/// Clientbound `EntityEffectPacket` (`0x84` in [`ConnectionState::Play`], MC 26.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PacketMeta)]
+pub struct EntityEffectPacket {
+    /// Target entity protocol ID.
+    pub entity_id: i32,
+    /// Potion effect protocol ID (`minecraft:mob_effect`).
+    pub effect_id: i32,
+    /// Effect amplifier (`0` = level I).
+    pub amplifier: i32,
+    /// Duration in ticks (`-1` = infinite).
+    pub duration: i32,
+    /// Bitflags (`0x01` ambient, `0x02` particles, `0x04` icon, `0x08` blend).
+    pub flags: u8,
+}
+
+impl PacketPayload for EntityEffectPacket {
+    const PACKET_ID: i32 = 0x84;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for EntityEffectPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.entity_id);
+        write_var_int(buf, self.effect_id);
+        write_var_int(buf, self.amplifier);
+        write_var_int(buf, self.duration);
+        self.flags.encode(buf)
+    }
+}
+
+impl Decode for EntityEffectPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            entity_id: read_var_int(buf)?,
+            effect_id: read_var_int(buf)?,
+            amplifier: read_var_int(buf)?,
+            duration: read_var_int(buf)?,
+            flags: u8::decode(buf)?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
@@ -1197,6 +1477,66 @@ mod tests {
             decode_packet_exact::<EntityMetaDataPacket>(mb).unwrap(),
             meta
         );
+
+        let dmg = DamageEventPacket {
+            target_entity_id: 77,
+            damage_type_id: 34,
+            source_entity_id: Some(1),
+            source_direct_id: Some(1),
+            source_pos: Some(Vec3::new(1.5, 40.0, -2.0)),
+        };
+        let mut db = encode_packet_payload(&dmg).unwrap();
+        assert_eq!(read_var_int(&mut db).unwrap(), 0x19);
+        assert_eq!(decode_packet_exact::<DamageEventPacket>(db).unwrap(), dmg);
+
+        let hit = HitAnimationPacket {
+            entity_id: 77,
+            yaw: 135.0,
+        };
+        let mut hb = encode_packet_payload(&hit).unwrap();
+        assert_eq!(read_var_int(&mut hb).unwrap(), 0x2A);
+        assert_eq!(decode_packet_exact::<HitAnimationPacket>(hb).unwrap(), hit);
+
+        let attrs = EntityAttributesPacket {
+            entity_id: 77,
+            properties: vec![AttributeProperty {
+                attribute_id: 26,
+                base_value: 0.23,
+                modifiers: vec![AttributeWireModifier {
+                    id: "minecraft:sprinting".to_owned(),
+                    amount: 0.3,
+                    operation: AttributeWireOperation::AddMultipliedTotal,
+                }],
+            }],
+        };
+        let mut ab = encode_packet_payload(&attrs).unwrap();
+        assert_eq!(read_var_int(&mut ab).unwrap(), 0x83);
+        assert_eq!(
+            decode_packet_exact::<EntityAttributesPacket>(ab).unwrap(),
+            attrs
+        );
+
+        let eff = EntityEffectPacket {
+            entity_id: 77,
+            effect_id: 0,
+            amplifier: 1,
+            duration: 200,
+            flags: 0x06,
+        };
+        let mut eb = encode_packet_payload(&eff).unwrap();
+        assert_eq!(read_var_int(&mut eb).unwrap(), 0x84);
+        assert_eq!(decode_packet_exact::<EntityEffectPacket>(eb).unwrap(), eff);
+
+        let rem = RemoveEntityEffectPacket {
+            entity_id: 77,
+            potion_effect_id: 0,
+        };
+        let mut rb = encode_packet_payload(&rem).unwrap();
+        assert_eq!(read_var_int(&mut rb).unwrap(), 0x4E);
+        assert_eq!(
+            decode_packet_exact::<RemoveEntityEffectPacket>(rb).unwrap(),
+            rem
+        );
     }
 
     proptest! {
@@ -1230,6 +1570,11 @@ mod tests {
             let _ = decode_packet_exact::<EntityHeadLookPacket>(b.clone());
             let _ = decode_packet_exact::<EntityMetaDataPacket>(b.clone());
             let _ = decode_packet_exact::<EntityVelocityPacket>(b.clone());
+            let _ = decode_packet_exact::<DamageEventPacket>(b.clone());
+            let _ = decode_packet_exact::<HitAnimationPacket>(b.clone());
+            let _ = decode_packet_exact::<RemoveEntityEffectPacket>(b.clone());
+            let _ = decode_packet_exact::<EntityAttributesPacket>(b.clone());
+            let _ = decode_packet_exact::<EntityEffectPacket>(b.clone());
             let _ = decode_packet_exact::<ClientAttackPacket>(b.clone());
             let _ = decode_packet_exact::<ClientInteractEntityPacket>(b.clone());
             let _ = decode_packet_exact::<ClientEntityActionPacket>(b.clone());

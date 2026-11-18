@@ -1525,6 +1525,95 @@ impl Decode for SetTimePacket {
     }
 }
 
+/// Clientbound `RespawnPacket` (`0x52` in [`ConnectionState::Play`], MC 26.2).
+#[derive(Debug, Clone, PartialEq, Eq, PacketMeta)]
+pub struct RespawnPacket {
+    /// Target dimension and game mode spawn info.
+    pub spawn_info: PlayerSpawnInfo,
+    /// Bitmask of retained state (`0x01` attributes, `0x02` metadata, `0x03` all).
+    pub copy_data: u8,
+}
+
+impl RespawnPacket {
+    /// Copy neither attributes nor metadata (`0x00`, used on death respawn).
+    pub const COPY_NONE: u8 = 0x00;
+    /// Copy attributes (`0x01`).
+    pub const COPY_ATTRIBUTES: u8 = 0x01;
+    /// Copy metadata (`0x02`).
+    pub const COPY_METADATA: u8 = 0x02;
+    /// Copy both attributes and metadata (`0x03`, used on dimension transfer).
+    pub const COPY_ALL: u8 = 0x03;
+}
+
+impl PacketPayload for RespawnPacket {
+    const PACKET_ID: i32 = 0x52;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for RespawnPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        self.spawn_info.encode(buf)?;
+        self.copy_data.encode(buf)
+    }
+}
+
+impl Decode for RespawnPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            spawn_info: PlayerSpawnInfo::decode(buf)?,
+            copy_data: u8::decode(buf)?,
+        })
+    }
+}
+
+/// Action discriminant inside [`ClientStatusPacket`] (`0x0C`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
+pub enum ClientStatusAction {
+    /// Respawn after death or exit End credits (`0`).
+    PerformRespawn = 0,
+    /// Request statistics screen values (`1`).
+    RequestStats = 1,
+    /// Request gamerule values (`2`, MC 26.2).
+    RequestGameruleValues = 2,
+}
+
+/// Serverbound `ClientStatusPacket` (`0x0C` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PacketMeta)]
+pub struct ClientStatusPacket {
+    /// Requested client status action.
+    pub action: ClientStatusAction,
+}
+
+impl PacketPayload for ClientStatusPacket {
+    const PACKET_ID: i32 = 0x0C;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for ClientStatusPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.action as i32);
+        Ok(())
+    }
+}
+
+impl Decode for ClientStatusPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let action = match read_var_int(buf)? {
+            0 => ClientStatusAction::PerformRespawn,
+            1 => ClientStatusAction::RequestStats,
+            2 => ClientStatusAction::RequestGameruleValues,
+            other => {
+                return Err(ProtocolError::InvalidDiscriminant {
+                    type_name: "ClientStatusAction",
+                    value: other,
+                });
+            }
+        };
+        Ok(Self { action })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
@@ -1608,6 +1697,21 @@ mod tests {
             decode_packet_exact::<UpdateLightPacket>(b5).unwrap(),
             upd_light
         );
+
+        let respawn = RespawnPacket {
+            spawn_info: join.spawn_info.clone(),
+            copy_data: RespawnPacket::COPY_NONE,
+        };
+        let mut b6 = encode_packet_payload(&respawn).unwrap();
+        assert_eq!(read_var_int(&mut b6).unwrap(), 0x52);
+        assert_eq!(decode_packet_exact::<RespawnPacket>(b6).unwrap(), respawn);
+
+        let cs = ClientStatusPacket {
+            action: ClientStatusAction::PerformRespawn,
+        };
+        let mut b7 = encode_packet_payload(&cs).unwrap();
+        assert_eq!(read_var_int(&mut b7).unwrap(), 0x0C);
+        assert_eq!(decode_packet_exact::<ClientStatusPacket>(b7).unwrap(), cs);
     }
 
     proptest! {
@@ -1622,7 +1726,9 @@ mod tests {
             let _ = decode_packet_exact::<InitializeWorldBorderPacket>(b.clone());
             let _ = decode_packet_exact::<UpdateLightPacket>(b.clone());
             let _ = decode_packet_exact::<WorldBorderLerpSizePacket>(b.clone());
-            let _ = decode_packet_exact::<SetTimePacket>(b);
+            let _ = decode_packet_exact::<SetTimePacket>(b.clone());
+            let _ = decode_packet_exact::<RespawnPacket>(b.clone());
+            let _ = decode_packet_exact::<ClientStatusPacket>(b);
         }
     }
 }

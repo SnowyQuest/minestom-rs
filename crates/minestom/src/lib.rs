@@ -83,9 +83,15 @@ pub mod prelude {
     };
     pub use crate::data::{DATA_VERSION, PROTOCOL_VERSION, VERSION_NAME};
     pub use crate::entity::{
-        BoundingBox, ConfiguringPlayer, Entity, EntityBehavior, EntityCore, EntityDespawnEvent,
-        EntityMetadata, EntityRole, EntitySpawnEvent, EntityTracker, EntityType, LivingState,
-        PlayerAttackEntityEvent, PlayerEntityInteractEvent, PlayerHandAnimationEvent,
+        Attribute, AttributeInstance, AttributeMap, AttributeModifier, AttributeOperation,
+        BoundingBox, ClosestEntityTarget, ConfiguringPlayer, Damage, DamageType, EffectMap, Entity,
+        EntityAIGroup, EntityBehavior, EntityCore, EntityDamageEvent, EntityDeathEvent,
+        EntityDespawnEvent, EntityMetadata, EntityRole, EntitySpawnEvent, EntityTracker,
+        EntityType, FollowTargetGoal, GoalContext, GoalSelector, LastEntityDamagerTarget,
+        LivingState, MeleeAttackGoal, Navigator, PathSearchConfig, PlayerAttackEntityEvent,
+        PlayerEntityInteractEvent, PlayerHandAnimationEvent, PlayerRespawnEvent, Potion,
+        PotionEffect, RandomLookAroundGoal, RandomStrollGoal, TargetCandidate, TargetSelector,
+        find_path, find_path_with_config,
     };
     pub use crate::event::{
         BlockEvent, CancellableEvent, EntityEvent, Event, EventListener, EventNode,

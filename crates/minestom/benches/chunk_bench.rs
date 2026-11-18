@@ -180,3 +180,25 @@ fn scheduler_tick_phase_100_tasks(bencher: divan::Bencher) {
         sched.process_tick_start();
     });
 }
+
+#[divan::bench]
+fn astar_pathfinding_around_obstacle_wall(bencher: divan::Bencher) {
+    let mgr = InstanceManager::new();
+    let inst = mgr.create_instance_container();
+    inst.set_generator(|unit: &mut GenerationUnit| {
+        unit.modifier().fill_height(0, 40, Block::STONE);
+    });
+    let _ = inst.chunk_packet_payloads(&[ChunkPos::new(0, 0), ChunkPos::new(1, 0)]);
+    for z in -3..=3 {
+        inst.set_block(BlockVec::new(5, 40, z), Block::COBBLESTONE);
+        inst.set_block(BlockVec::new(5, 41, z), Block::COBBLESTONE);
+    }
+
+    bencher.bench_local(|| {
+        black_box(find_path(
+            black_box(&inst),
+            BlockVec::new(1, 40, 0),
+            BlockVec::new(10, 40, 0),
+        ))
+    });
+}

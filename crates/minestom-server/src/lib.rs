@@ -16,7 +16,7 @@ use minestom_block::{Block, BlockManager};
 use minestom_command::CommandManager;
 use minestom_core::{BlockVec, PlayerId, Pos, Vec3};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
-use minestom_entity::Entity;
+use minestom_entity::{Attribute, AttributeModifier, Damage, Entity, Potion, PotionEffect};
 use minestom_event::GlobalEventHandler;
 use minestom_item::{Inventory, ItemStack};
 use minestom_nbt::NbtCompound;
@@ -385,6 +385,129 @@ impl MinecraftServer {
             network_id,
             velocity,
         });
+    }
+
+    /// Applies [`Damage`] to any living world entity or online player identified by `target_network_id`
+    /// (firing [`minestom_entity::EntityDamageEvent`], knockback, hit animation, and death handling).
+    pub fn damage_entity(&self, target_network_id: i32, damage: Damage) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::DamageByNetworkId {
+                target_id: target_network_id,
+                damage,
+            });
+    }
+
+    /// Applies [`Damage`] to `player_id`.
+    pub fn damage_player(&self, player_id: PlayerId, damage: Damage) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::DamagePlayer { player_id, damage });
+    }
+
+    /// Restores `player_id` to full maximum health and standing pose.
+    pub fn heal_player(&self, player_id: PlayerId) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::HealPlayer { player_id });
+    }
+
+    /// Sets the base value of `attribute` on `target_network_id` and syncs `EntityAttributesPacket`.
+    pub fn set_entity_attribute(
+        &self,
+        target_network_id: i32,
+        attribute: Attribute,
+        base_value: f64,
+    ) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::SetAttributeBase {
+                target_id: target_network_id,
+                attribute,
+                base_value,
+            });
+    }
+
+    /// Adds or replaces an [`AttributeModifier`] on `target_network_id` and syncs `EntityAttributesPacket`.
+    pub fn add_entity_attribute_modifier(
+        &self,
+        target_network_id: i32,
+        attribute: Attribute,
+        modifier: AttributeModifier,
+    ) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::AddAttributeModifier {
+                target_id: target_network_id,
+                attribute,
+                modifier,
+            });
+    }
+
+    /// Sets the base value of `attribute` on `player_id` and syncs `EntityAttributesPacket`.
+    pub fn set_player_attribute(&self, player_id: PlayerId, attribute: Attribute, base_value: f64) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::SetPlayerAttributeBase {
+                player_id,
+                attribute,
+                base_value,
+            });
+    }
+
+    /// Adds or replaces an [`AttributeModifier`] on `player_id` and syncs `EntityAttributesPacket`.
+    pub fn add_player_attribute_modifier(
+        &self,
+        player_id: PlayerId,
+        attribute: Attribute,
+        modifier: AttributeModifier,
+    ) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::AddPlayerAttributeModifier {
+                player_id,
+                attribute,
+                modifier,
+            });
+    }
+
+    /// Applies `potion` to `target_network_id` and broadcasts `EntityEffectPacket`.
+    pub fn add_entity_effect(&self, target_network_id: i32, potion: Potion) {
+        let _ = self.shared.entity_cmd_tx.send(EntityCommand::AddEffect {
+            target_id: target_network_id,
+            potion,
+        });
+    }
+
+    /// Removes `effect` from `target_network_id` and broadcasts `RemoveEntityEffectPacket`.
+    pub fn remove_entity_effect(&self, target_network_id: i32, effect: PotionEffect) {
+        let _ = self.shared.entity_cmd_tx.send(EntityCommand::RemoveEffect {
+            target_id: target_network_id,
+            effect,
+        });
+    }
+
+    /// Applies `potion` to `player_id` and broadcasts `EntityEffectPacket` to self & viewers.
+    pub fn add_player_effect(&self, player_id: PlayerId, potion: Potion) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::AddPlayerEffect { player_id, potion });
+    }
+
+    /// Removes `effect` from `player_id` and broadcasts `RemoveEntityEffectPacket`.
+    pub fn remove_player_effect(&self, player_id: PlayerId, effect: PotionEffect) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::RemovePlayerEffect { player_id, effect });
     }
 
     /// Spawns a dropped world `ItemEntity` into `instance` at `position` with `velocity` and
