@@ -12,27 +12,30 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 use arc_swap::ArcSwap;
 use bytes::Bytes;
+use minestom_block::{Block, BlockManager};
 use minestom_command::CommandManager;
-use minestom_core::{Pos, Vec3};
+use minestom_core::{BlockVec, Pos, Vec3};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
 use minestom_entity::Entity;
 use minestom_event::GlobalEventHandler;
+use minestom_nbt::NbtCompound;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
 use minestom_registry::Registries;
 use minestom_text::Component;
-use minestom_world::{InstanceContainer, InstanceManager};
+use minestom_world::{AbsoluteBlockBatch, InstanceContainer, InstanceManager};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::watch;
 use tracing::{Instrument, debug, info, info_span};
 
 pub use config::ServerConfig;
 pub use event::{
-    AsyncPlayerConfigurationEvent, ClientPingServerEvent, PlayerChatEvent, PlayerCommandEvent,
-    PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent, ServerListPingEvent,
+    AsyncPlayerConfigurationEvent, ClientPingServerEvent, PlayerBlockBreakEvent,
+    PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent, PlayerDisconnectEvent,
+    PlayerMoveEvent, PlayerSpawnEvent, ServerListPingEvent,
 };
 
 use session::{build_cached_vanilla_config_packets, run_client_session};
-use tick::{EntityCommand, TickMessage, spawn_tick_thread};
+use tick::{EntityCommand, TickMessage, WorldBlockCommand, spawn_tick_thread};
 
 /// Errors returned while configuring, starting, or running [`MinecraftServer`].
 #[derive(Debug, thiserror::Error)]
@@ -66,12 +69,15 @@ pub(crate) struct ServerShared {
     pub(crate) config: ServerConfig,
     pub(crate) registries: Registries,
     pub(crate) instance_manager: InstanceManager,
+    pub(crate) block_manager: BlockManager,
     pub(crate) command_manager: CommandManager,
     pub(crate) events: GlobalEventHandler,
     pub(crate) online_count: Arc<AtomicU32>,
     pub(crate) next_entity_id: AtomicI32,
     pub(crate) entity_cmd_tx: flume::Sender<EntityCommand>,
     pub(crate) entity_cmd_rx: flume::Receiver<EntityCommand>,
+    pub(crate) block_cmd_tx: flume::Sender<WorldBlockCommand>,
+    pub(crate) block_cmd_rx: flume::Receiver<WorldBlockCommand>,
     live_status: ArcSwap<LiveStatusState>,
     pub(crate) cached_registry_packets: Vec<Bytes>,
     pub(crate) cached_tags_packet: Bytes,
@@ -178,17 +184,21 @@ impl MinecraftServerBuilder {
         };
         let (shutdown_tx, _) = watch::channel(false);
         let (entity_cmd_tx, entity_cmd_rx) = flume::unbounded();
+        let (block_cmd_tx, block_cmd_rx) = flume::unbounded();
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
                 registries,
                 instance_manager: InstanceManager::new(),
+                block_manager: BlockManager::new(),
                 command_manager: CommandManager::new(),
                 events: GlobalEventHandler::all("global"),
                 online_count: Arc::new(AtomicU32::new(0)),
                 next_entity_id: AtomicI32::new(1),
                 entity_cmd_tx,
                 entity_cmd_rx,
+                block_cmd_tx,
+                block_cmd_rx,
                 live_status: ArcSwap::from_pointee(live),
                 cached_registry_packets,
                 cached_tags_packet,
@@ -228,6 +238,11 @@ impl MinecraftServer {
     /// Borrows the [`InstanceManager`] (`server.instance_manager()`).
     pub fn instance_manager(&self) -> &InstanceManager {
         &self.shared.instance_manager
+    }
+
+    /// Borrows the [`BlockManager`] (`server.block_manager()`).
+    pub fn block_manager(&self) -> &BlockManager {
+        &self.shared.block_manager
     }
 
     /// Borrows the [`CommandManager`] (`server.command_manager()`).
@@ -315,6 +330,43 @@ impl MinecraftServer {
         });
     }
 
+    /// Writes `block` (and optional block-entity `nbt`) into `instance` at `position` and
+    /// broadcasts `BlockChangePacket` (+ `BlockEntityDataPacket` when applicable) to all chunk viewers!
+    pub fn set_block_synced(
+        &self,
+        instance: &InstanceContainer,
+        position: BlockVec,
+        block: Block,
+        nbt: Option<NbtCompound>,
+    ) {
+        let handler = self.shared.block_manager.get_handler(block.key());
+        instance.set_block_with_data(position, block, nbt.clone(), handler);
+        let _ = self
+            .shared
+            .block_cmd_tx
+            .send(WorldBlockCommand::BroadcastSingle {
+                instance_id: instance.id(),
+                position,
+                block,
+                nbt,
+            });
+    }
+
+    /// Applies an [`AbsoluteBlockBatch`] to `instance` and broadcasts compact per-section
+    /// `MultiBlockChangePacket`s to all chunk viewers!
+    pub fn apply_batch_synced(&self, instance: &InstanceContainer, batch: &AbsoluteBlockBatch) {
+        let packets = batch.apply(instance);
+        if !packets.is_empty() {
+            let _ = self
+                .shared
+                .block_cmd_tx
+                .send(WorldBlockCommand::BroadcastBatch {
+                    instance_id: instance.id(),
+                    packets,
+                });
+        }
+    }
+
     /// Signals a running server loop and its 20 TPS tick thread to stop cleanly.
     pub fn stop_cleanly(&self) {
         let _ = self.shared.shutdown_tx.send(true);
@@ -376,10 +428,12 @@ impl BoundServer {
         let tick_handle = spawn_tick_thread(
             self.server.shared.config.clone(),
             self.server.shared.events.clone(),
+            self.server.shared.block_manager.clone(),
             self.server.shared.command_manager.clone(),
             Arc::clone(&self.server.shared.online_count),
             tick_rx,
             self.server.shared.entity_cmd_rx.clone(),
+            self.server.shared.block_cmd_rx.clone(),
             Arc::clone(&stop_flag),
         )?;
 

@@ -2,9 +2,11 @@
 //! `AsyncPlayerConfigurationEvent`, `PlayerSpawnEvent`, `PlayerMoveEvent`, `PlayerChatEvent`,
 //! `PlayerCommandEvent`, and `PlayerDisconnectEvent`).
 
-use minestom_core::{InstanceId, PlayerId, Pos};
+use minestom_block::Block;
+use minestom_core::{BlockFace, BlockVec, Hand, InstanceId, PlayerId, Pos};
 use minestom_entity::ConfiguringPlayer;
-use minestom_event::{CancellableEvent, Event, InstanceEvent, PlayerEvent};
+use minestom_event::{BlockEvent, CancellableEvent, Event, InstanceEvent, PlayerEvent};
+use minestom_nbt::NbtCompound;
 use minestom_protocol::status::ServerStatus;
 use minestom_text::Component;
 use minestom_world::InstanceContainer;
@@ -343,5 +345,163 @@ impl PlayerEvent for PlayerDisconnectEvent {
 impl InstanceEvent for PlayerDisconnectEvent {
     fn instance_id(&self) -> InstanceId {
         self.instance_id
+    }
+}
+
+/// Fired when a player places a block (`ClientPlayerBlockPlacementPacket` `0x42`).
+///
+/// Listeners can override `block`, attach `block_nbt`, or cancel placement (reverting client
+/// prediction automatically via `BlockChangePacket`).
+#[derive(Debug, Clone)]
+pub struct PlayerBlockPlaceEvent {
+    /// Placing [`PlayerId`].
+    pub player_id: PlayerId,
+    /// Placing player's username.
+    pub username: String,
+    /// Target [`InstanceId`].
+    pub instance_id: InstanceId,
+    /// World coordinate where the block will be placed.
+    pub block_position: BlockVec,
+    /// Clicked supporting [`BlockFace`].
+    pub block_face: BlockFace,
+    /// Hand used (`Main` or `Off`).
+    pub hand: Hand,
+    /// Block state to write (mutable by listeners).
+    pub block: Block,
+    /// Optional block-entity NBT to write alongside `block` (mutable by listeners).
+    pub block_nbt: Option<NbtCompound>,
+    cancelled: bool,
+}
+
+impl Event for PlayerBlockPlaceEvent {}
+
+impl CancellableEvent for PlayerBlockPlaceEvent {
+    fn is_cancelled(&self) -> bool {
+        self.cancelled
+    }
+
+    fn set_cancelled(&mut self, cancelled: bool) {
+        self.cancelled = cancelled;
+    }
+}
+
+impl PlayerEvent for PlayerBlockPlaceEvent {
+    fn player_id(&self) -> PlayerId {
+        self.player_id
+    }
+}
+
+impl InstanceEvent for PlayerBlockPlaceEvent {
+    fn instance_id(&self) -> InstanceId {
+        self.instance_id
+    }
+}
+
+impl BlockEvent for PlayerBlockPlaceEvent {
+    fn block_position(&self) -> BlockVec {
+        self.block_position
+    }
+}
+
+impl PlayerBlockPlaceEvent {
+    /// Creates a new `PlayerBlockPlaceEvent`.
+    #[must_use]
+    pub const fn new(
+        player_id: PlayerId,
+        username: String,
+        instance_id: InstanceId,
+        block_position: BlockVec,
+        block_face: BlockFace,
+        hand: Hand,
+        block: Block,
+    ) -> Self {
+        Self {
+            player_id,
+            username,
+            instance_id,
+            block_position,
+            block_face,
+            hand,
+            block,
+            block_nbt: None,
+            cancelled: false,
+        }
+    }
+}
+
+/// Fired when a player breaks a block (`ClientPlayerActionPacket` `0x29`).
+///
+/// Listeners can customize `result_block` (defaults to [`Block::AIR`]) or cancel breaking
+/// (reverting client prediction automatically via `BlockChangePacket`).
+#[derive(Debug, Clone)]
+pub struct PlayerBlockBreakEvent {
+    /// Breaking [`PlayerId`].
+    pub player_id: PlayerId,
+    /// Breaking player's username.
+    pub username: String,
+    /// Target [`InstanceId`].
+    pub instance_id: InstanceId,
+    /// Broken block position.
+    pub block_position: BlockVec,
+    /// Clicked [`BlockFace`].
+    pub block_face: BlockFace,
+    /// Original [`Block`] being broken.
+    pub block: Block,
+    /// Replacement [`Block`] written when not cancelled (default [`Block::AIR`]).
+    pub result_block: Block,
+    cancelled: bool,
+}
+
+impl Event for PlayerBlockBreakEvent {}
+
+impl CancellableEvent for PlayerBlockBreakEvent {
+    fn is_cancelled(&self) -> bool {
+        self.cancelled
+    }
+
+    fn set_cancelled(&mut self, cancelled: bool) {
+        self.cancelled = cancelled;
+    }
+}
+
+impl PlayerEvent for PlayerBlockBreakEvent {
+    fn player_id(&self) -> PlayerId {
+        self.player_id
+    }
+}
+
+impl InstanceEvent for PlayerBlockBreakEvent {
+    fn instance_id(&self) -> InstanceId {
+        self.instance_id
+    }
+}
+
+impl BlockEvent for PlayerBlockBreakEvent {
+    fn block_position(&self) -> BlockVec {
+        self.block_position
+    }
+}
+
+impl PlayerBlockBreakEvent {
+    /// Creates a new `PlayerBlockBreakEvent` defaulting `result_block` to [`Block::AIR`].
+    #[must_use]
+    pub const fn new(
+        player_id: PlayerId,
+        username: String,
+        instance_id: InstanceId,
+        block_position: BlockVec,
+        block_face: BlockFace,
+        block: Block,
+    ) -> Self {
+        Self {
+            player_id,
+            username,
+            instance_id,
+            block_position,
+            block_face,
+            block,
+            result_block: Block::AIR,
+            cancelled: false,
+        }
     }
 }

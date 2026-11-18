@@ -1,11 +1,15 @@
 //! 16×16×16 `Section` (with MC 26.2 `liquid_count`) and 16×384×16 `Chunk` with cached packet bytes.
 
+use std::sync::Arc;
+
 use bytes::{BufMut, Bytes, BytesMut};
-use minestom_block::Block;
-use minestom_core::ChunkPos;
+use minestom_block::{Block, BlockHandler};
+use minestom_core::{ChunkPos, TagMap};
+use minestom_nbt::{NbtCompound, NbtTag};
 use minestom_protocol::encode_packet_payload;
-use minestom_protocol::play::{ChunkDataPacket, HeightmapType, LightData};
+use minestom_protocol::play::{ChunkBlockEntity, ChunkDataPacket, HeightmapType, LightData};
 use minestom_registry::DimensionType;
+use rustc_hash::FxHashMap;
 
 use crate::WorldError;
 use crate::palette::{Palette, bits_to_represent};
@@ -119,6 +123,27 @@ fn pack_heightmap(heights: &[u16; 256], bits_per_entry: u8) -> Vec<u64> {
     words
 }
 
+/// Sparse per-block metadata (`NbtCompound`, `TagMap`, and optional `BlockHandler`) stored only
+/// for coordinates inside a [`Chunk`] that carry block-entity state or custom handlers.
+#[derive(Clone, Default)]
+pub struct BlockEntityState {
+    /// Client/disk block-entity NBT compound.
+    pub nbt: Option<NbtCompound>,
+    /// Server-side typed [`TagMap`] attached to this block position.
+    pub tags: TagMap,
+    /// Optional attached [`BlockHandler`].
+    pub handler: Option<Arc<dyn BlockHandler>>,
+}
+
+impl std::fmt::Debug for BlockEntityState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockEntityState")
+            .field("has_nbt", &self.nbt.is_some())
+            .field("handler", &self.handler.as_ref().map(|h| h.key()))
+            .finish_non_exhaustive()
+    }
+}
+
 /// A 16×H×16 column of [`Section`]s with lazy packet caching (`CachedPacket` equivalent).
 #[derive(Debug, Clone)]
 pub struct Chunk {
@@ -126,6 +151,7 @@ pub struct Chunk {
     min_y: i32,
     height: i32,
     sections: Vec<Section>,
+    block_entities: FxHashMap<(u8, i16, u8), BlockEntityState>,
     cached_payload: Option<Bytes>,
 }
 
@@ -139,6 +165,7 @@ impl Chunk {
             min_y: dimension.min_y,
             height: dimension.height,
             sections: vec![Section::new(); count],
+            block_entities: FxHashMap::default(),
             cached_payload: None,
         }
     }
@@ -188,7 +215,37 @@ impl Chunk {
         let sec_idx = rel_y >> 4;
         let sec_y = rel_y & 15;
         self.sections[sec_idx].set_block(local_x, sec_y, local_z, block);
+        if block.is_air() {
+            self.block_entities
+                .remove(&(local_x as u8, y as i16, local_z as u8));
+        }
         self.cached_payload = None;
+    }
+
+    /// Borrows the sparse [`BlockEntityState`] at `(local_x, y, local_z)`, if present.
+    #[must_use]
+    pub fn block_entity_state(
+        &self,
+        local_x: usize,
+        y: i32,
+        local_z: usize,
+    ) -> Option<&BlockEntityState> {
+        self.block_entities
+            .get(&(local_x as u8, y as i16, local_z as u8))
+    }
+
+    /// Mutably accesses or initializes the [`BlockEntityState`] at `(local_x, y, local_z)`,
+    /// invalidating cached packet bytes.
+    pub fn block_entity_state_mut(
+        &mut self,
+        local_x: usize,
+        y: i32,
+        local_z: usize,
+    ) -> &mut BlockEntityState {
+        self.cached_payload = None;
+        self.block_entities
+            .entry((local_x as u8, y as i16, local_z as u8))
+            .or_default()
     }
 
     /// Fills horizontal layers `start_y..end_y` (clamped to chunk height bounds) with `block`,
@@ -290,6 +347,18 @@ impl Chunk {
             sec.write_network(&mut sections_buf);
         }
         let (ws, mb) = self.compute_heightmaps();
+        let mut be_records = Vec::new();
+        for (&(lx, y, lz), state) in &self.block_entities {
+            let block = self.get_block(usize::from(lx), i32::from(y), usize::from(lz));
+            if let Some(be_id) = block.block_entity_id() {
+                be_records.push(ChunkBlockEntity {
+                    packed_xz: ((lx & 15) << 4) | (lz & 15),
+                    y,
+                    block_entity_type: i32::from(be_id),
+                    nbt: state.nbt.clone().map_or(NbtTag::End, NbtTag::Compound),
+                });
+            }
+        }
         ChunkDataPacket {
             chunk_x: self.pos.x,
             chunk_z: self.pos.z,
@@ -298,7 +367,7 @@ impl Chunk {
                 (HeightmapType::MotionBlocking, mb),
             ],
             sections_data: sections_buf.to_vec(),
-            block_entities: Vec::new(),
+            block_entities: be_records,
             light_data: LightData::full_skylight(self.sections.len()),
         }
     }

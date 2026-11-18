@@ -104,3 +104,33 @@ fn spatial_entity_tracker_reconcile_1000_entities(bencher: divan::Bencher) {
         black_box(tracker.reconcile_viewer(viewer, 1, inst, black_box(ChunkPos::new(5, 5)), 4))
     });
 }
+
+#[divan::bench]
+fn block_with_property_mixed_radix(bencher: divan::Bencher) {
+    let base = Block::OAK_STAIRS;
+    bencher.bench_local(|| {
+        let b = black_box(base)
+            .with_property("facing", "east")
+            .unwrap()
+            .with_property("half", "top")
+            .unwrap();
+        black_box(b.get_property("facing"))
+    });
+}
+
+#[divan::bench]
+fn relative_batch_apply_125_blocks(bencher: divan::Bencher) {
+    let mgr = InstanceManager::new();
+    let inst = mgr.create_instance_container();
+    let mut cube = RelativeBlockBatch::new();
+    for dx in 0..5 {
+        for dy in 0..5 {
+            for dz in 0..5 {
+                cube.set_relative(dx, dy, dz, Block::STONE);
+            }
+        }
+    }
+    let abs = cube.to_absolute(BlockVec::new(0, 40, 0));
+
+    bencher.bench_local(|| black_box(abs.apply(&inst)));
+}

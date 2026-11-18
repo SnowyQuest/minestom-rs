@@ -1,12 +1,14 @@
 //! World instances (`InstanceContainer`), paletted chunk sections, cached chunk packets,
 //! and parallel `Generator` / `GenerationUnit` / `UnitModifier` API.
 
+pub mod batch;
 pub mod chunk;
 pub mod generator;
 pub mod instance;
 pub mod palette;
 
-pub use chunk::{Chunk, Section};
+pub use batch::{AbsoluteBlockBatch, Batch, RelativeBlockBatch};
+pub use chunk::{BlockEntityState, Chunk, Section};
 pub use generator::{GenerationUnit, Generator, UnitModifier};
 pub use instance::{InstanceContainer, InstanceManager};
 pub use palette::Palette;

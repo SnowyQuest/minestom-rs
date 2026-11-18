@@ -566,6 +566,7 @@ dependencies = [
  "minestom-world",
  "thiserror",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "uuid",
 ]
@@ -576,6 +577,8 @@ version = "0.1.0"
 dependencies = [
  "minestom-core",
  "minestom-data",
+ "parking_lot",
+ "rustc-hash",
  "thiserror",
 ]
 
@@ -715,11 +718,13 @@ dependencies = [
  "arc-swap",
  "bytes",
  "flume",
+ "minestom-block",
  "minestom-command",
  "minestom-core",
  "minestom-data",
  "minestom-entity",
  "minestom-event",
+ "minestom-nbt",
  "minestom-network",
  "minestom-protocol",
  "minestom-registry",

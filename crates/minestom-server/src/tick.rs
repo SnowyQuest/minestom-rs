@@ -9,14 +9,26 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use flume::{Receiver, Sender};
+use minestom_block::{
+    Block, BlockDestroyContext, BlockGetter, BlockInteractContext, BlockManager,
+    BlockPlacementContext, PlacementState,
+};
 use minestom_command::{CommandManager, CommandSender, PlayerSenderInfo, SenderEffect};
-use minestom_core::{ChunkPos, GameMode, Hand, InstanceId, MainHand, PlayerId, Point, Pos, Vec3};
+use minestom_core::{
+    BlockFace, BlockVec, ChunkPos, GameMode, Hand, InstanceId, MainHand, PlayerId, Point, Pos, Vec3,
+};
 use minestom_entity::{
-    Entity, EntityDespawnEvent, EntityMetadata, EntitySpawnEvent, EntityTracker, EntityType,
-    PlayerAttackEntityEvent, PlayerEntityInteractEvent, PlayerHandAnimationEvent,
+    BoundingBox, Entity, EntityDespawnEvent, EntityMetadata, EntitySpawnEvent, EntityTracker,
+    EntityType, PlayerAttackEntityEvent, PlayerEntityInteractEvent, PlayerHandAnimationEvent,
 };
 use minestom_event::{CancellableEvent, GlobalEventHandler};
+use minestom_nbt::NbtCompound;
 use minestom_protocol::RawPacketFrame;
+use minestom_protocol::block::{
+    AcknowledgeBlockChangePacket, BlockChangePacket, BlockEntityDataPacket,
+    ClientPlayerActionPacket, ClientPlayerBlockPlacementPacket, ClientUseItemPacket,
+    MultiBlockChangePacket, PlayerActionStatus,
+};
 use minestom_protocol::chat_command::{
     ClientChatMessagePacket, ClientCommandChatPacket, ClientSignedCommandChatPacket,
     ClientTabCompletePacket, SystemChatPacket, TabCompletePacket,
@@ -48,7 +60,8 @@ use tracing::{debug, trace_span, warn};
 
 use crate::ServerConfig;
 use crate::event::{
-    PlayerChatEvent, PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent,
+    PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent,
+    PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent,
 };
 
 /// Outbound command sent from the tick thread to a player's Tokio writer task.
@@ -74,6 +87,20 @@ pub(crate) enum EntityCommand {
     Teleport { network_id: i32, position: Pos },
     /// Set velocity on an existing world entity.
     SetVelocity { network_id: i32, velocity: Vec3 },
+}
+
+/// Cross-thread command broadcasting server-initiated single/batch block updates to chunk viewers.
+pub(crate) enum WorldBlockCommand {
+    BroadcastSingle {
+        instance_id: InstanceId,
+        position: BlockVec,
+        block: Block,
+        nbt: Option<NbtCompound>,
+    },
+    BroadcastBatch {
+        instance_id: InstanceId,
+        packets: Vec<(ChunkPos, MultiBlockChangePacket)>,
+    },
 }
 
 /// Message sent from async connection tasks into the dedicated 20 TPS tick loop.
@@ -202,6 +229,22 @@ impl WorldSimState {
             player_by_entity_id: FxHashMap::default(),
             entities: FxHashMap::default(),
             tracker: EntityTracker::new(),
+        }
+    }
+
+    fn send_to_chunk_viewers<P: minestom_protocol::PacketPayload>(
+        &self,
+        instance_id: InstanceId,
+        chunk_pos: ChunkPos,
+        pkt: &P,
+    ) {
+        let Ok(bytes) = encode_packet_payload(pkt) else {
+            return;
+        };
+        for p in self.players.values() {
+            if p.instance.id() == instance_id && p.loaded_chunks.contains(&chunk_pos) {
+                let _ = p.send_encoded(bytes.clone());
+            }
         }
     }
 
@@ -480,10 +523,12 @@ impl WorldSimState {
 pub(crate) fn spawn_tick_thread(
     config: ServerConfig,
     events: GlobalEventHandler,
+    block_manager: BlockManager,
     command_manager: CommandManager,
     online_count: Arc<AtomicU32>,
     inbox_rx: Receiver<TickMessage>,
     entity_cmd_rx: Receiver<EntityCommand>,
+    block_cmd_rx: Receiver<WorldBlockCommand>,
     stop_flag: Arc<AtomicBool>,
 ) -> std::io::Result<JoinHandle<()>> {
     thread::Builder::new()
@@ -492,22 +537,27 @@ pub(crate) fn spawn_tick_thread(
             run_tick_loop(
                 &config,
                 &events,
+                &block_manager,
                 &command_manager,
                 &online_count,
                 &inbox_rx,
                 &entity_cmd_rx,
+                &block_cmd_rx,
                 &stop_flag,
             );
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_tick_loop(
     config: &ServerConfig,
     events: &GlobalEventHandler,
+    block_manager: &BlockManager,
     command_manager: &CommandManager,
     online_count: &AtomicU32,
     inbox_rx: &Receiver<TickMessage>,
     entity_cmd_rx: &Receiver<EntityCommand>,
+    block_cmd_rx: &Receiver<WorldBlockCommand>,
     stop_flag: &AtomicBool,
 ) {
     let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(config.ticks_per_second));
@@ -522,8 +572,9 @@ fn run_tick_loop(
         let _span = trace_span!("tick", tick_num).entered();
         let now = Instant::now();
 
-        // 1. Drain queued world EntityCommands (Spawn / Remove / Teleport / SetVelocity)
+        // 1. Drain queued world EntityCommands & WorldBlockCommands
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
+        drain_block_commands(&sim, block_cmd_rx);
 
         // 2. Drain cross-thread player messages & inbound packets
         while let Ok(msg) = inbox_rx.try_recv() {
@@ -580,7 +631,14 @@ fn run_tick_loop(
                     if !sim.players.contains_key(player_id) {
                         continue;
                     }
-                    if !handle_play_packet(player_id, &mut sim, events, command_manager, frame) {
+                    if !handle_play_packet(
+                        player_id,
+                        &mut sim,
+                        events,
+                        block_manager,
+                        command_manager,
+                        frame,
+                    ) {
                         if let Some(p) = sim.players.get(player_id) {
                             let _ = p.outbound_tx.try_send(OutboundCommand::Disconnect(None));
                         }
@@ -611,8 +669,9 @@ fn run_tick_loop(
             }
         }
 
-        // Drain any EntityCommands emitted inside event/command handlers this tick
+        // Drain any EntityCommands / WorldBlockCommands emitted inside event/command handlers this tick
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
+        drain_block_commands(&sim, block_cmd_rx);
 
         // 3. Step 20 TPS World Entities (Behavior + Gravity/Collision + Viewer Delta Sync)
         tick_world_entities(&mut sim, events);
@@ -1233,6 +1292,298 @@ fn dispatch_player_command(
     }
 }
 
+fn drain_block_commands(sim: &WorldSimState, block_cmd_rx: &Receiver<WorldBlockCommand>) {
+    while let Ok(cmd) = block_cmd_rx.try_recv() {
+        match cmd {
+            WorldBlockCommand::BroadcastSingle {
+                instance_id,
+                position,
+                block,
+                nbt,
+            } => {
+                let cpos = position.chunk_pos();
+                sim.send_to_chunk_viewers(
+                    instance_id,
+                    cpos,
+                    &BlockChangePacket {
+                        position,
+                        block_state_id: i32::from(block.state_id()),
+                    },
+                );
+                if let Some(be_id) = block.block_entity_id() {
+                    sim.send_to_chunk_viewers(
+                        instance_id,
+                        cpos,
+                        &BlockEntityDataPacket {
+                            position,
+                            block_entity_type: i32::from(be_id),
+                            data: nbt,
+                        },
+                    );
+                }
+            }
+            WorldBlockCommand::BroadcastBatch {
+                instance_id,
+                packets,
+            } => {
+                for (cpos, pkt) in packets {
+                    sim.send_to_chunk_viewers(instance_id, cpos, &pkt);
+                }
+            }
+        }
+    }
+}
+
+fn face_offset(face: BlockFace) -> (i32, i32, i32) {
+    match face {
+        BlockFace::Down => (0, -1, 0),
+        BlockFace::Up => (0, 1, 0),
+        BlockFace::North => (0, 0, -1),
+        BlockFace::South => (0, 0, 1),
+        BlockFace::West => (-1, 0, 0),
+        BlockFace::East => (1, 0, 0),
+    }
+}
+
+fn process_block_digging(
+    pid: PlayerId,
+    sim: &WorldSimState,
+    events: &GlobalEventHandler,
+    block_manager: &BlockManager,
+    pkt: ClientPlayerActionPacket,
+) {
+    let Some(player) = sim.players.get(pid) else {
+        return;
+    };
+    let _ = player.send_packet(&AcknowledgeBlockChangePacket {
+        sequence: pkt.sequence,
+    });
+
+    let should_break = match pkt.status {
+        PlayerActionStatus::StartedDigging => player.game_mode == GameMode::Creative,
+        PlayerActionStatus::FinishedDigging => {
+            matches!(player.game_mode, GameMode::Survival | GameMode::Creative)
+        }
+        _ => false,
+    };
+    if !should_break {
+        return;
+    }
+
+    let instance = player.instance.clone();
+    let inst_id = instance.id();
+    let current = instance.get_block(pkt.position);
+    if current.is_air() {
+        return;
+    }
+
+    let mut ev = PlayerBlockBreakEvent::new(
+        pid,
+        player.profile.username.clone(),
+        inst_id,
+        pkt.position,
+        pkt.block_face,
+        current,
+    );
+    events.call(&mut ev);
+
+    if ev.is_cancelled() {
+        let _ = player.send_packet(&BlockChangePacket {
+            position: pkt.position,
+            block_state_id: i32::from(current.state_id()),
+        });
+        if let Some(be_id) = current.block_entity_id() {
+            let _ = player.send_packet(&BlockEntityDataPacket {
+                position: pkt.position,
+                block_entity_type: i32::from(be_id),
+                data: instance.get_block_nbt(pkt.position),
+            });
+        }
+        return;
+    }
+
+    let handler = instance
+        .get_block_handler(pkt.position)
+        .or_else(|| block_manager.get_handler(current.key()));
+    if let Some(h) = handler {
+        h.on_destroy(&BlockDestroyContext {
+            block: current,
+            new_block: ev.result_block,
+            instance_id: inst_id,
+            position: pkt.position,
+            player_id: Some(pid),
+        });
+    }
+
+    instance.set_block(pkt.position, ev.result_block);
+    sim.send_to_chunk_viewers(
+        inst_id,
+        pkt.position.chunk_pos(),
+        &BlockChangePacket {
+            position: pkt.position,
+            block_state_id: i32::from(ev.result_block.state_id()),
+        },
+    );
+}
+
+fn process_block_placement(
+    pid: PlayerId,
+    sim: &WorldSimState,
+    events: &GlobalEventHandler,
+    block_manager: &BlockManager,
+    pkt: ClientPlayerBlockPlacementPacket,
+) {
+    let Some(player) = sim.players.get(pid) else {
+        return;
+    };
+    let _ = player.send_packet(&AcknowledgeBlockChangePacket {
+        sequence: pkt.sequence,
+    });
+    if player.game_mode == GameMode::Spectator || player.game_mode == GameMode::Adventure {
+        return;
+    }
+
+    let instance = player.instance.clone();
+    let inst_id = instance.id();
+    let clicked_block = instance.get_block(pkt.position);
+    let cursor = Vec3::new(
+        f64::from(pkt.cursor_x),
+        f64::from(pkt.cursor_y),
+        f64::from(pkt.cursor_z),
+    );
+    let sneaking = player.metadata.is_sneaking();
+
+    if !sneaking {
+        let handler = instance
+            .get_block_handler(pkt.position)
+            .or_else(|| block_manager.get_handler(clicked_block.key()));
+        if let Some(h) = handler
+            && !h.on_interact(&BlockInteractContext {
+                block: clicked_block,
+                instance_id: inst_id,
+                position: pkt.position,
+                block_face: pkt.block_face,
+                cursor_position: cursor,
+                player_id: pid,
+                hand: pkt.hand,
+            })
+        {
+            return;
+        }
+    }
+
+    let place_pos = if clicked_block.is_air() || clicked_block.is_liquid() {
+        pkt.position
+    } else {
+        let (dx, dy, dz) = face_offset(pkt.block_face);
+        pkt.position.offset(dx, dy, dz)
+    };
+    let previous = instance.get_block(place_pos);
+    if !previous.is_air() && !previous.is_liquid() {
+        let _ = player.send_packet(&BlockChangePacket {
+            position: place_pos,
+            block_state_id: i32::from(previous.state_id()),
+        });
+        return;
+    }
+
+    let default_candidate = Block::STONE;
+    let resolved_block = if let Some(rule) = block_manager.get_placement_rule(default_candidate) {
+        let Some(b) = rule.block_place(&PlacementState {
+            world: &instance,
+            block: default_candidate,
+            block_face: pkt.block_face,
+            place_position: place_pos,
+            cursor_position: cursor,
+            player_position: player.position,
+            is_player_shifting: sneaking,
+        }) else {
+            let _ = player.send_packet(&BlockChangePacket {
+                position: place_pos,
+                block_state_id: i32::from(previous.state_id()),
+            });
+            return;
+        };
+        b
+    } else {
+        default_candidate
+    };
+
+    // Prevent placing a solid block inside the placing player's own AABB
+    let player_bbox = if sneaking {
+        BoundingBox::PLAYER_SNEAKING
+    } else {
+        BoundingBox::PLAYER
+    };
+    let block_bbox = BoundingBox::symmetric(1.0, 1.0);
+    let block_anchor = Pos::new(
+        f64::from(place_pos.x) + 0.5,
+        f64::from(place_pos.y),
+        f64::from(place_pos.z) + 0.5,
+    );
+    if resolved_block.is_solid()
+        && player_bbox.intersects_at(&player.position, &block_bbox, &block_anchor)
+    {
+        let _ = player.send_packet(&BlockChangePacket {
+            position: place_pos,
+            block_state_id: i32::from(previous.state_id()),
+        });
+        return;
+    }
+
+    let mut ev = PlayerBlockPlaceEvent::new(
+        pid,
+        player.profile.username.clone(),
+        inst_id,
+        place_pos,
+        pkt.block_face,
+        pkt.hand,
+        resolved_block,
+    );
+    events.call(&mut ev);
+
+    if ev.is_cancelled() {
+        let _ = player.send_packet(&BlockChangePacket {
+            position: place_pos,
+            block_state_id: i32::from(previous.state_id()),
+        });
+        return;
+    }
+
+    let handler = block_manager.get_handler(ev.block.key());
+    instance.set_block_with_data(place_pos, ev.block, ev.block_nbt.clone(), handler.clone());
+    if let Some(h) = handler {
+        h.on_place(&BlockPlacementContext {
+            block: ev.block,
+            previous_block: previous,
+            instance_id: inst_id,
+            position: place_pos,
+            player_id: Some(pid),
+        });
+    }
+
+    let cpos = place_pos.chunk_pos();
+    sim.send_to_chunk_viewers(
+        inst_id,
+        cpos,
+        &BlockChangePacket {
+            position: place_pos,
+            block_state_id: i32::from(ev.block.state_id()),
+        },
+    );
+    if let Some(be_id) = ev.block.block_entity_id() {
+        sim.send_to_chunk_viewers(
+            inst_id,
+            cpos,
+            &BlockEntityDataPacket {
+                position: place_pos,
+                block_entity_type: i32::from(be_id),
+                data: ev.block_nbt,
+            },
+        );
+    }
+}
+
 fn sync_player_dirty_metadata(sim: &mut WorldSimState, pid: PlayerId) {
     let Some((eid, dirty)) = sim.players.get_mut(pid).and_then(|p| {
         p.metadata
@@ -1254,6 +1605,7 @@ fn handle_play_packet(
     pid: PlayerId,
     sim: &mut WorldSimState,
     events: &GlobalEventHandler,
+    block_manager: &BlockManager,
     command_manager: &CommandManager,
     frame: RawPacketFrame,
 ) -> bool {
@@ -1421,6 +1773,13 @@ fn handle_play_packet(
             }
             true
         }
+        0x29 => {
+            let Ok(pkt) = decode_packet_exact::<ClientPlayerActionPacket>(frame.payload) else {
+                return false;
+            };
+            process_block_digging(pid, sim, events, block_manager, pkt);
+            true
+        }
         0x2A => {
             let Ok(pkt) = decode_packet_exact::<ClientEntityActionPacket>(frame.payload) else {
                 return false;
@@ -1476,6 +1835,20 @@ fn handle_play_packet(
                     },
                 );
             }
+            true
+        }
+        0x42 => {
+            let Ok(pkt) = decode_packet_exact::<ClientPlayerBlockPlacementPacket>(frame.payload)
+            else {
+                return false;
+            };
+            process_block_placement(pid, sim, events, block_manager, pkt);
+            true
+        }
+        0x43 => {
+            let Ok(_pkt) = decode_packet_exact::<ClientUseItemPacket>(frame.payload) else {
+                return false;
+            };
             true
         }
         _ => true,

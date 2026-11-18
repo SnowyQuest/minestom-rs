@@ -68,7 +68,11 @@ pub enum Error {
 /// Convenient prelude re-exporting the most frequently used `minestom-rs` types and traits.
 pub mod prelude {
     pub use crate::Error;
-    pub use crate::block::{Block, BlockGetter};
+    pub use crate::block::{
+        AxisPlacementRule, Block, BlockDestroyContext, BlockGetter, BlockHandler,
+        BlockInteractContext, BlockManager, BlockPlacementContext, BlockPlacementRule, BlockSetter,
+        HorizontalFacingPlacementRule, PlacementState, UpdateState,
+    };
     pub use crate::command::{
         Argument, Command, CommandContext, CommandError, CommandManager, CommandSender, Suggestion,
         SuggestionEntry,
@@ -93,12 +97,13 @@ pub mod prelude {
     pub use crate::scheduler::ExecutionType;
     pub use crate::server::{
         AsyncPlayerConfigurationEvent, BoundServer, ClientPingServerEvent, MinecraftServer,
-        PlayerChatEvent, PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent,
-        PlayerSpawnEvent, ServerConfig, ServerListPingEvent,
+        PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent,
+        PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent, ServerConfig,
+        ServerListPingEvent,
     };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};
     pub use crate::world::{
-        Chunk, GenerationUnit, Generator, InstanceContainer, InstanceManager, Palette, Section,
-        UnitModifier,
+        AbsoluteBlockBatch, Batch, BlockEntityState, Chunk, GenerationUnit, Generator,
+        InstanceContainer, InstanceManager, Palette, RelativeBlockBatch, Section, UnitModifier,
     };
 }

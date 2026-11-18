@@ -4,8 +4,10 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwapOption;
 use bytes::Bytes;
-use minestom_block::{Block, BlockGetter};
-use minestom_core::{BlockVec, ChunkPos, InstanceId, Point};
+use minestom_block::{Block, BlockGetter, BlockHandler};
+use minestom_core::{BlockVec, ChunkPos, InstanceId, Point, Tag, tag::TagSerializable};
+use minestom_nbt::NbtCompound;
+use minestom_protocol::block::MultiBlockChangePacket;
 use minestom_registry::DimensionType;
 use parking_lot::RwLock;
 use rayon::prelude::*;
@@ -77,6 +79,131 @@ impl InstanceContainer {
         if let Some(chunk) = self.inner.chunks.write().get_mut(&cpos) {
             chunk.set_block(lx, pos.block_y(), lz, block);
         }
+    }
+
+    /// Sets `block` along with block-entity `nbt` and optional `handler` at `pos`.
+    pub fn set_block_with_data(
+        &self,
+        pos: impl Point,
+        block: Block,
+        nbt: Option<NbtCompound>,
+        handler: Option<Arc<dyn BlockHandler>>,
+    ) {
+        let cpos = pos.chunk_pos();
+        self.ensure_chunks_generated(&[cpos]);
+        let lx = pos.block_x().rem_euclid(16) as usize;
+        let lz = pos.block_z().rem_euclid(16) as usize;
+        let y = pos.block_y();
+        if let Some(chunk) = self.inner.chunks.write().get_mut(&cpos) {
+            chunk.set_block(lx, y, lz, block);
+            if nbt.is_some() || handler.is_some() {
+                let st = chunk.block_entity_state_mut(lx, y, lz);
+                st.nbt = nbt;
+                st.handler = handler;
+            }
+        }
+    }
+
+    /// Reads the client/disk block-entity [`NbtCompound`] at `pos`, if set.
+    #[must_use]
+    pub fn get_block_nbt(&self, pos: impl Point) -> Option<NbtCompound> {
+        let cpos = pos.chunk_pos();
+        let lx = pos.block_x().rem_euclid(16) as usize;
+        let lz = pos.block_z().rem_euclid(16) as usize;
+        self.inner
+            .chunks
+            .read()
+            .get(&cpos)
+            .and_then(|c| c.block_entity_state(lx, pos.block_y(), lz))
+            .and_then(|s| s.nbt.clone())
+    }
+
+    /// Writes a typed [`Tag<T>`] onto the block at `pos`.
+    pub fn set_block_tag<T: TagSerializable>(&self, pos: impl Point, tag: &Tag<T>, value: T) {
+        let cpos = pos.chunk_pos();
+        self.ensure_chunks_generated(&[cpos]);
+        let lx = pos.block_x().rem_euclid(16) as usize;
+        let lz = pos.block_z().rem_euclid(16) as usize;
+        if let Some(chunk) = self.inner.chunks.write().get_mut(&cpos) {
+            chunk
+                .block_entity_state_mut(lx, pos.block_y(), lz)
+                .tags
+                .set_tag(tag, value);
+        }
+    }
+
+    /// Reads a typed [`Tag<T>`] from the block at `pos`.
+    #[must_use]
+    pub fn get_block_tag<T: TagSerializable>(&self, pos: impl Point, tag: &Tag<T>) -> Option<T> {
+        let cpos = pos.chunk_pos();
+        let lx = pos.block_x().rem_euclid(16) as usize;
+        let lz = pos.block_z().rem_euclid(16) as usize;
+        self.inner
+            .chunks
+            .read()
+            .get(&cpos)
+            .and_then(|c| c.block_entity_state(lx, pos.block_y(), lz))
+            .and_then(|s| s.tags.get_tag(tag))
+    }
+
+    /// Reads the attached [`BlockHandler`] at `pos`, if any.
+    #[must_use]
+    pub fn get_block_handler(&self, pos: impl Point) -> Option<Arc<dyn BlockHandler>> {
+        let cpos = pos.chunk_pos();
+        let lx = pos.block_x().rem_euclid(16) as usize;
+        let lz = pos.block_z().rem_euclid(16) as usize;
+        self.inner
+            .chunks
+            .read()
+            .get(&cpos)
+            .and_then(|c| c.block_entity_state(lx, pos.block_y(), lz))
+            .and_then(|s| s.handler.clone())
+    }
+
+    pub(crate) fn apply_absolute_batch(
+        &self,
+        by_chunk: &FxHashMap<ChunkPos, Vec<(BlockVec, Block)>>,
+    ) -> Vec<(ChunkPos, MultiBlockChangePacket)> {
+        let chunk_keys: Vec<ChunkPos> = by_chunk.keys().copied().collect();
+        self.ensure_chunks_generated(&chunk_keys);
+
+        let mut packets = Vec::new();
+        let mut guard = self.inner.chunks.write();
+
+        for (&cpos, changes) in by_chunk {
+            let Some(chunk) = guard.get_mut(&cpos) else {
+                continue;
+            };
+            let mut per_section: FxHashMap<i32, Vec<(u8, u8, u8, u16)>> = FxHashMap::default();
+            for &(bv, block) in changes {
+                if bv.y < chunk.min_y() || bv.y >= chunk.max_y() {
+                    continue;
+                }
+                let lx = bv.x.rem_euclid(16) as usize;
+                let lz = bv.z.rem_euclid(16) as usize;
+                chunk.set_block(lx, bv.y, lz, block);
+                let section_y = bv.y.div_euclid(16);
+                let ly = bv.y.rem_euclid(16) as u8;
+                per_section.entry(section_y).or_default().push((
+                    lx as u8,
+                    ly,
+                    lz as u8,
+                    block.state_id(),
+                ));
+            }
+            for (sec_y, sec_entries) in per_section {
+                packets.push((
+                    cpos,
+                    MultiBlockChangePacket::from_section_entries(
+                        cpos.x,
+                        sec_y,
+                        cpos.z,
+                        &sec_entries,
+                    ),
+                ));
+            }
+        }
+        packets
     }
 
     /// Generates any missing chunks in `positions` in parallel on `rayon` worker threads.

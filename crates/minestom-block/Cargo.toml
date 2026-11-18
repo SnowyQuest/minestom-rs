@@ -10,6 +10,8 @@ repository.workspace = true
 [dependencies]
 minestom-core.workspace = true
 minestom-data.workspace = true
+parking_lot.workspace = true
+rustc-hash.workspace = true
 thiserror.workspace = true
 
 [lints]
