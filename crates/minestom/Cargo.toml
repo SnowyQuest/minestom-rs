@@ -28,5 +28,16 @@ minestom-text.workspace = true
 minestom-world.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+bytes.workspace = true
+divan.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[[bench]]
+name = "protocol_bench"
+harness = false
+
 [lints]
 workspace = true

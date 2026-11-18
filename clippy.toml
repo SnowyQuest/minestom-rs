@@ -6,6 +6,7 @@ doc-valid-idents = [
     "BossBar",
     "Brigadier",
     "BungeeCord",
+    "GZip",
     "GameMode",
     "Java",
     "MiniMessage",

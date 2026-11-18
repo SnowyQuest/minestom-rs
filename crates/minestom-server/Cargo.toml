@@ -8,10 +8,18 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+arc-swap.workspace = true
+minestom-core.workspace = true
+minestom-data.workspace = true
 minestom-network.workspace = true
 minestom-protocol.workspace = true
+minestom-text.workspace = true
 minestom-world.workspace = true
+serde.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

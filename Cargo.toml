@@ -49,8 +49,19 @@ minestom-server = { path = "crates/minestom-server", version = "0.1.0" }
 minestom-text = { path = "crates/minestom-text", version = "0.1.0" }
 minestom-world = { path = "crates/minestom-world", version = "0.1.0" }
 
-# Serialization, compression, hashing, errors & macros (expanded per milestone)
+# Async runtime & I/O
+bytes = "1.12"
+tokio = { version = "1.54", default-features = false, features = ["net", "io-util", "rt-multi-thread", "sync", "time", "macros", "signal"] }
+
+# Synchronization & data structures
+arc-swap = "1.9"
+indexmap = { version = "2.14", features = ["serde"] }
+slotmap = "1.1"
+
+# Serialization, compression, hashing, IDs, logging & errors
+base64 = "0.23"
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+md-5 = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -59,6 +70,14 @@ sha2 = "0.11"
 syn = { version = "2.0", features = ["full"] }
 tar = "0.4"
 thiserror = "2.0"
+toml = "1.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1.29", features = ["v3", "v4", "serde"] }
+
+# Testing & benchmarking
+divan = "0.1"
+proptest = "1.12"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

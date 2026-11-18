@@ -1,5 +1,21 @@
-//! Minecraft: Java Edition 26.2 (protocol 776) wire primitives, packet framing,
+//! Minecraft: Java Edition **26.2** (protocol **776**) wire primitives, packet framing,
 //! and clientbound/serverbound packet structs.
+
+pub mod codec;
+pub mod frame;
+pub mod handshake;
+pub mod login;
+pub mod status;
+
+pub use codec::{
+    DEFAULT_MAX_STRING_CHARS, Decode, Encode, OptionalVarInt, PacketPayload, VarInt, VarLong,
+    read_byte_array, read_prefixed_vec, read_string, read_var_int, read_var_long, var_int_len,
+    write_byte_array, write_prefixed_vec, write_string, write_var_int, write_var_long,
+};
+pub use frame::{
+    FrameCodec, MAX_PACKET_SIZE, MAX_PACKET_SIZE_PRE_AUTH, RawPacketFrame, decode_packet_exact,
+    encode_packet_payload,
+};
 
 /// Protocol states in the Minecraft connection lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -47,6 +63,14 @@ pub enum ProtocolError {
         /// Maximum permitted length.
         max: usize,
     },
+    /// Packet frame exceeded maximum permitted byte size.
+    #[error("packet frame length {len} exceeds maximum ({max})")]
+    PacketTooLarge {
+        /// Declared frame size.
+        len: usize,
+        /// Maximum allowed size.
+        max: usize,
+    },
     /// Unknown packet ID for a given connection state.
     #[error("unknown packet ID 0x{id:02x} in state {state:?}")]
     UnknownPacketId {
@@ -69,6 +93,9 @@ pub enum ProtocolError {
     /// Frame compression or decompression error.
     #[error("packet compression error: {0}")]
     Compression(String),
+    /// Invalid payload format (e.g. invalid base64 PNG favicon).
+    #[error("invalid packet field: {0}")]
+    InvalidField(String),
     /// Underlying NBT error.
     #[error("protocol NBT error: {0}")]
     Nbt(#[from] minestom_nbt::NbtError),
