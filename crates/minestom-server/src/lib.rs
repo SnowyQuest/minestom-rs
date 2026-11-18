@@ -20,6 +20,7 @@ use minestom_entity::Entity;
 use minestom_event::GlobalEventHandler;
 use minestom_item::{Inventory, ItemStack};
 use minestom_nbt::NbtCompound;
+use minestom_network::{MojangSessionClient, ServerEncryptionKeys};
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
 use minestom_registry::Registries;
 use minestom_scheduler::SchedulerManager;
@@ -31,7 +32,7 @@ use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::watch;
 use tracing::{Instrument, debug, info, info_span};
 
-pub use config::ServerConfig;
+pub use config::{AuthMode, ServerConfig};
 pub use event::{
     AsyncPlayerConfigurationEvent, ClientPingServerEvent, PlayerBlockBreakEvent,
     PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent, PlayerDisconnectEvent,
@@ -74,6 +75,8 @@ struct LiveStatusState {
 
 pub(crate) struct ServerShared {
     pub(crate) config: ServerConfig,
+    pub(crate) encryption_keys: Option<ServerEncryptionKeys>,
+    pub(crate) session_client: Option<MojangSessionClient>,
     pub(crate) registries: Registries,
     pub(crate) instance_manager: InstanceManager,
     pub(crate) block_manager: BlockManager,
@@ -180,9 +183,36 @@ impl MinecraftServerBuilder {
         self
     }
 
+    /// Sets the player authentication & proxy forwarding mode ([`AuthMode`]).
+    #[must_use]
+    pub fn auth(mut self, auth: AuthMode) -> Self {
+        self.config.auth = auth;
+        self
+    }
+
+    /// Sets the per-connection sustained inbound packet rate limit (`None` disables rate limiting).
+    #[must_use]
+    pub const fn max_packets_per_second(mut self, max_pps: Option<u32>) -> Self {
+        self.config.max_packets_per_second = max_pps;
+        self
+    }
+
     /// Validates configuration, pre-caches vanilla Configuration packets, and builds a [`MinecraftServer`] handle.
     pub fn build(self) -> Result<MinecraftServer, ServerError> {
         self.config.validate()?;
+        let (encryption_keys, session_client) = match &self.config.auth {
+            AuthMode::Online {
+                session_server_url,
+                prevent_proxy_connections,
+            } => (
+                Some(ServerEncryptionKeys::generate()?),
+                Some(MojangSessionClient::new(
+                    session_server_url.clone(),
+                    *prevent_proxy_connections,
+                )),
+            ),
+            _ => (None, None),
+        };
         let registries = Registries::vanilla();
         let (cached_registry_packets, cached_tags_packet) =
             build_cached_vanilla_config_packets(&registries)?;
@@ -203,6 +233,8 @@ impl MinecraftServerBuilder {
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
+                encryption_keys,
+                session_client,
                 registries,
                 instance_manager: InstanceManager::new(),
                 block_manager: BlockManager::new(),
@@ -597,6 +629,19 @@ impl BoundServer {
         let _ = tick_tx.send(TickMessage::Shutdown);
         stop_flag.store(true, Ordering::Release);
         let _ = tokio::task::spawn_blocking(move || tick_handle.join()).await;
+        // Allow async writer tasks to flush PlayDisconnectPacket frames cleanly
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // Persist all non-shared world instances that have a configured ChunkLoader!
+        let instances = self.server.shared.instance_manager.instances();
+        let _ = tokio::task::spawn_blocking(move || {
+            for inst in instances {
+                if !inst.is_shared() {
+                    let _ = inst.save_chunks_to_loader();
+                }
+            }
+        })
+        .await;
         Ok(())
     }
 }

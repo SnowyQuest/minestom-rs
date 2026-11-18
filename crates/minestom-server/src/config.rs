@@ -1,11 +1,89 @@
 //! Typed `ServerConfig` with builder and TOML serialization support.
 
+use std::collections::BTreeSet;
+
 use minestom_core::Difficulty;
+use minestom_network::DEFAULT_MOJANG_HAS_JOINED_URL;
 use minestom_protocol::status::StatusPlayerSample;
 use minestom_text::Component;
 use serde::{Deserialize, Serialize};
 
 use crate::ServerError;
+
+/// Authentication and proxy forwarding mode (`Auth` in Minestom).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum AuthMode {
+    /// Offline mode (derives deterministic v3 UUID from username if client sends nil UUID).
+    #[default]
+    Offline,
+    /// Mojang Online Mode (RSA-1024 + AES-128-CFB8 + `hasJoined` Yggdrasil session verification).
+    Online {
+        /// Session verification URL (defaults to [`DEFAULT_MOJANG_HAS_JOINED_URL`]).
+        session_server_url: String,
+        /// Whether to append `&ip=<client_ip>` to `hasJoined` queries.
+        prevent_proxy_connections: bool,
+    },
+    /// Velocity modern login-plugin forwarding (`velocity:player_info` HMAC-SHA256 v1).
+    Velocity {
+        /// Shared `forwarding.secret` string configured in Velocity.
+        secret: String,
+    },
+    /// `BungeeCord` / `BungeeGuard` legacy `\0`-delimited handshake forwarding.
+    Bungee {
+        /// Optional set of allowed `bungeeguard-token` secrets (`None` = standard unguarded `BungeeCord`).
+        guard_tokens: Option<BTreeSet<String>>,
+    },
+}
+
+impl AuthMode {
+    /// Standard Mojang Online Mode using the official session server URL.
+    #[must_use]
+    pub fn online() -> Self {
+        Self::Online {
+            session_server_url: DEFAULT_MOJANG_HAS_JOINED_URL.to_owned(),
+            prevent_proxy_connections: false,
+        }
+    }
+
+    /// Online Mode pointing at a custom Yggdrasil/mock `hasJoined` endpoint URL.
+    #[must_use]
+    pub fn online_with_url(
+        session_server_url: impl Into<String>,
+        prevent_proxy_connections: bool,
+    ) -> Self {
+        Self::Online {
+            session_server_url: session_server_url.into(),
+            prevent_proxy_connections,
+        }
+    }
+
+    /// Velocity modern forwarding with shared `secret`.
+    #[must_use]
+    pub fn velocity(secret: impl Into<String>) -> Self {
+        Self::Velocity {
+            secret: secret.into(),
+        }
+    }
+
+    /// Standard `BungeeCord` IP forwarding without `BungeeGuard` token enforcement.
+    #[must_use]
+    pub const fn bungee() -> Self {
+        Self::Bungee { guard_tokens: None }
+    }
+
+    /// `BungeeGuard` IP forwarding requiring one of `tokens` in `bungeeguard-token`.
+    #[must_use]
+    pub fn bungee_guard<I, S>(tokens: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self::Bungee {
+            guard_tokens: Some(tokens.into_iter().map(Into::into).collect()),
+        }
+    }
+}
 
 /// Strongly typed configuration for [`crate::MinecraftServer`], replacing Minestom's JVM `-D` flags.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,6 +116,12 @@ pub struct ServerConfig {
     /// Optional hover sample entries shown in the server list.
     #[serde(default)]
     pub player_sample: Vec<StatusPlayerSample>,
+    /// Player authentication & proxy forwarding mode (default [`AuthMode::Offline`]).
+    #[serde(default)]
+    pub auth: AuthMode,
+    /// Optional sustained inbound packet rate limit per connection (`None` disables rate limiting; default `Some(500)`).
+    #[serde(default)]
+    pub max_packets_per_second: Option<u32>,
 }
 
 impl Default for ServerConfig {
@@ -56,6 +140,8 @@ impl Default for ServerConfig {
             keep_alive_timeout_ms: 15_000,
             favicon: None,
             player_sample: Vec::new(),
+            auth: AuthMode::Offline,
+            max_packets_per_second: Some(500),
         }
     }
 }
@@ -81,6 +167,26 @@ impl ServerConfig {
         if self.keep_alive_interval_ms == 0 || self.keep_alive_timeout_ms == 0 {
             return Err(ServerError::Config(
                 "keep_alive intervals must be > 0".to_owned(),
+            ));
+        }
+        match &self.auth {
+            AuthMode::Velocity { secret } if secret.is_empty() => {
+                return Err(ServerError::Config(
+                    "Velocity forwarding secret cannot be empty".to_owned(),
+                ));
+            }
+            AuthMode::Bungee {
+                guard_tokens: Some(tokens),
+            } if tokens.is_empty() => {
+                return Err(ServerError::Config(
+                    "BungeeGuard token set cannot be empty".to_owned(),
+                ));
+            }
+            _ => {}
+        }
+        if self.max_packets_per_second == Some(0) {
+            return Err(ServerError::Config(
+                "max_packets_per_second must be > 0 when enabled".to_owned(),
             ));
         }
         Ok(())

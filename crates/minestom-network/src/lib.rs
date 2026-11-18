@@ -1,7 +1,10 @@
-//! Asynchronous Tokio networking layer, framed packet streams, and split reader/writer channels.
+//! Asynchronous Tokio networking layer, framed packet streams, AES-128-CFB8 transport encryption,
+//! Online/Velocity/BungeeCord authentication, and token-bucket rate limiting.
 
-use std::net::SocketAddr;
-use std::time::Duration;
+pub mod auth;
+
+use std::net::{IpAddr, SocketAddr};
+use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 use minestom_protocol::{
@@ -12,10 +15,18 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
+pub use auth::{
+    Aes128Cfb8Decryptor, Aes128Cfb8Encryptor, DEFAULT_MOJANG_HAS_JOINED_URL, ForwardedPlayer,
+    MojangSessionClient, PacketRateLimiter, ServerEncryptionKeys, VELOCITY_FORWARDING_VERSION,
+    VELOCITY_PLAYER_INFO_CHANNEL, encode_velocity_player_info, encrypt_rsa_pkcs1v15,
+    mojang_sha1_server_id, parse_bungee_handshake, parse_flexible_uuid, sha1_bytes_to_mojang_hex,
+    verify_velocity_player_info,
+};
+
 /// Default pre-authentication socket read timeout (`15s`, matching Minestom).
 pub const PRE_AUTH_SOCKET_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Errors returned by network transport, framing, and authentication.
+/// Errors returned by network transport, framing, authentication, and rate limiting.
 #[derive(Debug, thiserror::Error)]
 pub enum NetworkError {
     /// Socket I/O error.
@@ -24,6 +35,12 @@ pub enum NetworkError {
     /// Protocol framing/codec error.
     #[error("protocol error: {0}")]
     Protocol(#[from] ProtocolError),
+    /// Cryptographic, Mojang session, or proxy forwarding verification error.
+    #[error("authentication error: {0}")]
+    Auth(String),
+    /// Peer exceeded the configured per-connection packet rate limit.
+    #[error("packet rate limit exceeded")]
+    RateLimited,
     /// Peer timed out waiting for packet data.
     #[error("connection timed out")]
     Timeout,
@@ -40,6 +57,9 @@ pub struct PacketStream {
     codec: FrameCodec,
     read_buf: BytesMut,
     write_buf: BytesMut,
+    decryptor: Option<Aes128Cfb8Decryptor>,
+    encryptor: Option<Aes128Cfb8Encryptor>,
+    rate_limiter: Option<PacketRateLimiter>,
 }
 
 impl PacketStream {
@@ -55,13 +75,43 @@ impl PacketStream {
             codec: FrameCodec::new(max_inbound_size),
             read_buf: BytesMut::with_capacity(4096),
             write_buf: BytesMut::with_capacity(4096),
+            decryptor: None,
+            encryptor: None,
+            rate_limiter: None,
         })
     }
 
-    /// Remote socket address of this peer.
+    /// Remote socket address of this peer (updated when Velocity/BungeeCord IP forwarding is active).
     #[must_use]
     pub const fn peer_addr(&self) -> SocketAddr {
         self.peer_addr
+    }
+
+    /// Overrides the peer IP address after proxy forwarding validation.
+    pub const fn set_peer_ip(&mut self, ip: IpAddr) {
+        self.peer_addr.set_ip(ip);
+    }
+
+    /// Enables stateful AES-128-CFB8 encryption and decryption on this stream using `shared_secret`
+    /// as both key and IV, immediately decrypting any trailing encrypted bytes already buffered!
+    pub fn enable_encryption(&mut self, shared_secret: &[u8; 16]) {
+        let mut dec = Aes128Cfb8Decryptor::new(shared_secret);
+        if !self.read_buf.is_empty() {
+            dec.decrypt_in_place(&mut self.read_buf);
+        }
+        self.decryptor = Some(dec);
+        self.encryptor = Some(Aes128Cfb8Encryptor::new(shared_secret));
+    }
+
+    /// Returns `true` if AES-128-CFB8 transport encryption is active on this stream.
+    #[must_use]
+    pub const fn is_encrypted(&self) -> bool {
+        self.encryptor.is_some()
+    }
+
+    /// Attaches or removes a per-connection [`PacketRateLimiter`].
+    pub fn set_rate_limiter(&mut self, limiter: Option<PacketRateLimiter>) {
+        self.rate_limiter = limiter;
     }
 
     /// Updates the Zlib compression threshold on this stream.
@@ -81,9 +131,15 @@ impl PacketStream {
     ) -> Result<Option<RawPacketFrame>, NetworkError> {
         loop {
             if let Some(frame) = self.codec.try_decode_frame(&mut self.read_buf)? {
+                if let Some(limiter) = &mut self.rate_limiter
+                    && !limiter.try_acquire(Instant::now())
+                {
+                    return Err(NetworkError::RateLimited);
+                }
                 return Ok(Some(frame));
             }
 
+            let prev_len = self.read_buf.len();
             let read_res = tokio::time::timeout(timeout, self.stream.read_buf(&mut self.read_buf))
                 .await
                 .map_err(|_| NetworkError::Timeout)?;
@@ -94,23 +150,32 @@ impl PacketStream {
                 }
                 return Err(NetworkError::Protocol(ProtocolError::UnexpectedEof));
             }
+            if let Some(dec) = &mut self.decryptor {
+                dec.decrypt_in_place(&mut self.read_buf[prev_len..]);
+            }
         }
     }
 
-    /// Encodes `packet` and flushes it onto the underlying TCP socket.
+    /// Encodes `packet` (encrypting if enabled) and flushes it onto the underlying TCP socket.
     pub async fn send_packet<P: PacketPayload>(&mut self, packet: &P) -> Result<(), NetworkError> {
         self.write_buf.clear();
         self.codec.encode_packet(packet, &mut self.write_buf)?;
+        if let Some(enc) = &mut self.encryptor {
+            enc.encrypt_in_place(&mut self.write_buf);
+        }
         self.stream.write_all(&self.write_buf).await?;
         self.stream.flush().await?;
         Ok(())
     }
 
-    /// Frames and sends an already-encoded `[VarInt packet_id][payload]` byte slice (e.g. cached registries or chunks).
+    /// Frames and sends an already-encoded `[VarInt packet_id][payload]` byte slice (encrypting if enabled).
     pub async fn send_raw_body(&mut self, uncompressed_body: &[u8]) -> Result<(), NetworkError> {
         self.write_buf.clear();
         self.codec
             .encode_raw_body(uncompressed_body, &mut self.write_buf)?;
+        if let Some(enc) = &mut self.encryptor {
+            enc.encrypt_in_place(&mut self.write_buf);
+        }
         self.stream.write_all(&self.write_buf).await?;
         self.stream.flush().await?;
         Ok(())
@@ -122,7 +187,8 @@ impl PacketStream {
         Ok(())
     }
 
-    /// Splits this stream into independent [`PacketReader`] and [`PacketWriter`] halves for Play state.
+    /// Splits this stream into independent [`PacketReader`] and [`PacketWriter`] halves for Play state,
+    /// preserving compression, AES-128-CFB8 stream ciphers, and rate-limiter state!
     #[must_use]
     pub fn into_split(self) -> (PacketReader, PacketWriter) {
         let mut reader_codec = self.codec.clone();
@@ -134,11 +200,14 @@ impl PacketStream {
                 stream: read_half,
                 codec: reader_codec,
                 read_buf: self.read_buf,
+                decryptor: self.decryptor,
+                rate_limiter: self.rate_limiter,
             },
             PacketWriter {
                 stream: write_half,
                 codec: writer_codec,
                 write_buf: self.write_buf,
+                encryptor: self.encryptor,
             },
         )
     }
@@ -149,6 +218,8 @@ pub struct PacketReader {
     stream: OwnedReadHalf,
     codec: FrameCodec,
     read_buf: BytesMut,
+    decryptor: Option<Aes128Cfb8Decryptor>,
+    rate_limiter: Option<PacketRateLimiter>,
 }
 
 impl PacketReader {
@@ -159,8 +230,14 @@ impl PacketReader {
     ) -> Result<Option<RawPacketFrame>, NetworkError> {
         loop {
             if let Some(frame) = self.codec.try_decode_frame(&mut self.read_buf)? {
+                if let Some(limiter) = &mut self.rate_limiter
+                    && !limiter.try_acquire(Instant::now())
+                {
+                    return Err(NetworkError::RateLimited);
+                }
                 return Ok(Some(frame));
             }
+            let prev_len = self.read_buf.len();
             let read_res = tokio::time::timeout(timeout, self.stream.read_buf(&mut self.read_buf))
                 .await
                 .map_err(|_| NetworkError::Timeout)?;
@@ -171,6 +248,9 @@ impl PacketReader {
                 }
                 return Err(NetworkError::Protocol(ProtocolError::UnexpectedEof));
             }
+            if let Some(dec) = &mut self.decryptor {
+                dec.decrypt_in_place(&mut self.read_buf[prev_len..]);
+            }
         }
     }
 }
@@ -180,14 +260,18 @@ pub struct PacketWriter {
     stream: OwnedWriteHalf,
     codec: FrameCodec,
     write_buf: BytesMut,
+    encryptor: Option<Aes128Cfb8Encryptor>,
 }
 
 impl PacketWriter {
-    /// Frames and writes a pre-encoded `[VarInt packet_id][payload]` body, flushing immediately.
+    /// Frames and writes a pre-encoded `[VarInt packet_id][payload]` body (encrypting if enabled).
     pub async fn send_raw_body(&mut self, uncompressed_body: &[u8]) -> Result<(), NetworkError> {
         self.write_buf.clear();
         self.codec
             .encode_raw_body(uncompressed_body, &mut self.write_buf)?;
+        if let Some(enc) = &mut self.encryptor {
+            enc.encrypt_in_place(&mut self.write_buf);
+        }
         self.stream.write_all(&self.write_buf).await?;
         self.stream.flush().await?;
         Ok(())

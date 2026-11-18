@@ -103,9 +103,9 @@ pub mod prelude {
         ExecutionType, Scheduler, SchedulerManager, TaskBuilder, TaskHandle, TaskId, TaskSchedule,
     };
     pub use crate::server::{
-        AsyncPlayerConfigurationEvent, BoundServer, ClientPingServerEvent, MinecraftServer,
-        PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent,
-        PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent, ServerConfig,
+        AsyncPlayerConfigurationEvent, AuthMode, BoundServer, ClientPingServerEvent,
+        MinecraftServer, PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent,
+        PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent, ServerConfig,
         ServerListPingEvent,
     };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};

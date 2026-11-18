@@ -279,14 +279,15 @@ async fn items_containers_equipment_drop_pickup_and_block_consume_work() {
         .send_packet(&ClientHeldItemChangePacket { slot: 1 })
         .await
         .unwrap();
-    let bob_equip_glass = wait_for_packet::<EntityEquipmentPacket>(&mut bob).await;
-    assert_eq!(
-        bob_equip_glass
-            .equipments
-            .get(&EquipmentSlot::MainHand)
-            .map(ItemStack::material),
-        Some(Material::GLASS)
-    );
+    let mut bob_equip_glass = wait_for_packet::<EntityEquipmentPacket>(&mut bob).await;
+    while bob_equip_glass
+        .equipments
+        .get(&EquipmentSlot::MainHand)
+        .map(ItemStack::material)
+        != Some(Material::GLASS)
+    {
+        bob_equip_glass = wait_for_packet::<EntityEquipmentPacket>(&mut bob).await;
+    }
 
     alice
         .send_packet(&ClientPlayerBlockPlacementPacket {

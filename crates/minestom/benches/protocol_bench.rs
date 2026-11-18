@@ -136,3 +136,17 @@ fn inventory_quick_move_and_pickup_cycle(bencher: divan::Bencher) {
         black_box((o1.changed, o2.changed))
     });
 }
+
+#[divan::bench]
+fn aes128_cfb8_stream_roundtrip_1kb(bencher: divan::Bencher) {
+    let secret = [0x42_u8; 16];
+    let mut enc = minestom::network::Aes128Cfb8Encryptor::new(&secret);
+    let mut dec = minestom::network::Aes128Cfb8Decryptor::new(&secret);
+    let mut buf = [0xAB_u8; 1024];
+
+    bencher.bench_local(|| {
+        enc.encrypt_in_place(black_box(&mut buf));
+        dec.decrypt_in_place(black_box(&mut buf));
+        black_box(buf[0])
+    });
+}

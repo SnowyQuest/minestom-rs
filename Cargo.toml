@@ -63,14 +63,20 @@ rustc-hash = "2.1"
 slotmap = "1.1"
 smallvec = { version = "1.16", features = ["const_generics"] }
 
-# Serialization, compression, hashing, IDs, logging & errors
+# Serialization, compression, crypto, hashing, HTTP, IDs, logging & errors
+aes = "0.9"
 base64 = "0.23"
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+hmac = "0.13"
 md-5 = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+rsa = { version = "0.10", features = ["pkcs1v15"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha1 = "0.11"
 sha2 = "0.11"
 syn = { version = "2.0", features = ["full"] }
 tar = "0.4"

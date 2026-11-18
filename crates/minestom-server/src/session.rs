@@ -1,5 +1,6 @@
 //! Per-connection Tokio state machine driving `Handshake` → `Status` OR
-//! `Login` → `Configuration` → `Play`.
+//! `Login` (`Offline` / `Online` RSA+AES-CFB8 / `Velocity` HMAC-SHA256 / `BungeeGuard`) →
+//! `Configuration` → `Play`, with per-connection token-bucket rate limiting.
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -11,7 +12,11 @@ use minestom_core::{MainHand, offline_player_uuid};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
 use minestom_entity::ConfiguringPlayer;
 use minestom_event::CancellableEvent;
-use minestom_network::{NetworkError, PRE_AUTH_SOCKET_TIMEOUT, PacketStream};
+use minestom_network::{
+    NetworkError, PRE_AUTH_SOCKET_TIMEOUT, PacketRateLimiter, PacketStream, ServerEncryptionKeys,
+    VELOCITY_PLAYER_INFO_CHANNEL, mojang_sha1_server_id, parse_bungee_handshake,
+    verify_velocity_player_info,
+};
 use minestom_protocol::config::{
     ClientConfigKeepAlivePacket, ClientConfigPluginMessagePacket, ClientFinishConfigurationPacket,
     ClientSelectKnownPacksPacket, ClientSettingsPacket, ConfigDisconnectPacket,
@@ -21,9 +26,11 @@ use minestom_protocol::config::{
 };
 use minestom_protocol::handshake::{ClientHandshakePacket, HandshakeIntent};
 use minestom_protocol::login::{
-    ClientLoginAcknowledgedPacket, ClientLoginStartPacket, GameProfile, LoginDisconnectPacket,
-    LoginSuccessPacket, SetCompressionPacket,
+    ClientEncryptionResponsePacket, ClientLoginAcknowledgedPacket, ClientLoginPluginResponsePacket,
+    ClientLoginStartPacket, EncryptionRequestPacket, GameProfile, LoginDisconnectPacket,
+    LoginPluginRequestPacket, LoginSuccessPacket, ProfileProperty, SetCompressionPacket,
 };
+use minestom_protocol::play::PlayDisconnectPacket;
 use minestom_protocol::status::{
     StatusPingRequestPacket, StatusPongResponsePacket, StatusRequestPacket, StatusResponsePacket,
 };
@@ -36,9 +43,9 @@ use minestom_text::{Component, NamedTextColor};
 use tokio::net::TcpStream;
 use uuid::Uuid;
 
-use crate::ServerShared;
 use crate::event::{AsyncPlayerConfigurationEvent, ClientPingServerEvent, ServerListPingEvent};
 use crate::tick::{OutboundCommand, TickMessage};
+use crate::{AuthMode, ServerShared};
 
 const PLAY_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -110,12 +117,28 @@ fn build_full_nbt_registry_packets(registries: &Registries) -> Result<Vec<Bytes>
     Ok(out)
 }
 
+async fn login_kick(conn: &mut PacketStream, msg: &str) -> Result<(), NetworkError> {
+    conn.send_packet(&LoginDisconnectPacket {
+        reason: Component::text(msg).color(NamedTextColor::Red),
+    })
+    .await?;
+    let _ = conn.shutdown().await;
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines)]
 pub(crate) async fn run_client_session(
     tcp: TcpStream,
     shared: Arc<ServerShared>,
     tick_tx: Sender<TickMessage>,
 ) -> Result<(), NetworkError> {
     let mut conn = PacketStream::new(tcp, MAX_PACKET_SIZE_PRE_AUTH)?;
+    if let Some(pps) = shared.config.max_packets_per_second {
+        conn.set_rate_limiter(Some(PacketRateLimiter::new(
+            pps,
+            pps.saturating_mul(2).max(128),
+        )));
+    }
 
     // 1. Handshake
     let Some(first_frame) = conn.read_frame_timeout(PRE_AUTH_SOCKET_TIMEOUT).await? else {
@@ -129,6 +152,8 @@ pub(crate) async fn run_client_session(
     }
     let handshake = decode_packet_exact::<ClientHandshakePacket>(first_frame.payload)?;
 
+    let mut bungee_forwarded: Option<(Uuid, Vec<ProfileProperty>)> = None;
+
     match handshake.intent {
         HandshakeIntent::Status => return handle_status_phase(&mut conn, &shared).await,
         HandshakeIntent::Transfer => {
@@ -141,18 +166,33 @@ pub(crate) async fn run_client_session(
         }
         HandshakeIntent::Login => {
             if handshake.protocol_version != PROTOCOL_VERSION {
-                conn.send_packet(&LoginDisconnectPacket {
-                    reason: Component::text(format!("Invalid Version, please use {VERSION_NAME}"))
-                        .color(NamedTextColor::Red),
-                })
-                .await?;
-                let _ = conn.shutdown().await;
-                return Ok(());
+                return login_kick(
+                    &mut conn,
+                    &format!("Invalid Version, please use {VERSION_NAME}"),
+                )
+                .await;
+            }
+            if let AuthMode::Bungee { guard_tokens } = &shared.config.auth {
+                match parse_bungee_handshake(&handshake.server_address, guard_tokens.as_ref()) {
+                    Ok((_, client_ip, buuid, bprops)) => {
+                        conn.set_peer_ip(client_ip);
+                        bungee_forwarded = Some((buuid, bprops));
+                    }
+                    Err(_) => {
+                        return login_kick(
+                            &mut conn,
+                            "Invalid connection, please connect through the BungeeCord proxy.",
+                        )
+                        .await;
+                    }
+                }
+            } else if handshake.server_address.len() > 255 {
+                return login_kick(&mut conn, "Server address too long!").await;
             }
         }
     }
 
-    // 2. Offline Login
+    // 2. Login Phase (`Offline`, `Bungee`, `Velocity`, or `Online`)
     let Some(login_frame) = conn.read_frame_timeout(PRE_AUTH_SOCKET_TIMEOUT).await? else {
         return Ok(());
     };
@@ -164,23 +204,106 @@ pub(crate) async fn run_client_session(
     }
     let login_start = decode_packet_exact::<ClientLoginStartPacket>(login_frame.payload)?;
     if !is_valid_username(&login_start.username) {
-        conn.send_packet(&LoginDisconnectPacket {
-            reason: Component::text("Malformed username!").color(NamedTextColor::Red),
-        })
-        .await?;
-        let _ = conn.shutdown().await;
-        return Ok(());
+        return login_kick(&mut conn, "Malformed username!").await;
     }
 
-    let player_uuid = if login_start.profile_id.is_nil() {
-        offline_player_uuid(&login_start.username)
-    } else {
-        login_start.profile_id
-    };
-    let profile = GameProfile {
-        uuid: player_uuid,
-        username: login_start.username,
-        properties: Vec::new(),
+    let profile = match &shared.config.auth {
+        AuthMode::Offline => {
+            let player_uuid = if login_start.profile_id.is_nil() {
+                offline_player_uuid(&login_start.username)
+            } else {
+                login_start.profile_id
+            };
+            GameProfile {
+                uuid: player_uuid,
+                username: login_start.username,
+                properties: Vec::new(),
+            }
+        }
+        AuthMode::Bungee { .. } => {
+            let Some((buuid, bprops)) = bungee_forwarded else {
+                return login_kick(&mut conn, "Missing BungeeCord forwarding!").await;
+            };
+            GameProfile {
+                uuid: buuid,
+                username: login_start.username,
+                properties: bprops,
+            }
+        }
+        AuthMode::Velocity { secret } => {
+            let query_id = 1_i32;
+            conn.send_packet(&LoginPluginRequestPacket {
+                message_id: query_id,
+                channel: VELOCITY_PLAYER_INFO_CHANNEL.to_owned(),
+                data: Vec::new(),
+            })
+            .await?;
+
+            let Some(plug_frame) = conn.read_frame_timeout(PRE_AUTH_SOCKET_TIMEOUT).await? else {
+                return Ok(());
+            };
+            if plug_frame.packet_id != ClientLoginPluginResponsePacket::PACKET_ID {
+                return login_kick(&mut conn, "Expected Velocity plugin response!").await;
+            }
+            let resp = decode_packet_exact::<ClientLoginPluginResponsePacket>(plug_frame.payload)?;
+            let Some(raw_data) = resp.data.filter(|_| resp.message_id == query_id) else {
+                return login_kick(&mut conn, "Invalid proxy response!").await;
+            };
+            let Ok(forwarded) = verify_velocity_player_info(secret.as_bytes(), &raw_data) else {
+                return login_kick(&mut conn, "Invalid proxy response!").await;
+            };
+            conn.set_peer_ip(forwarded.client_ip);
+            forwarded.profile
+        }
+        AuthMode::Online { .. } => {
+            let (Some(keys), Some(session_client)) =
+                (&shared.encryption_keys, &shared.session_client)
+            else {
+                return login_kick(&mut conn, "Online encryption not initialized!").await;
+            };
+            let nonce = ServerEncryptionKeys::generate_verify_token();
+            conn.send_packet(&EncryptionRequestPacket {
+                server_id: String::new(),
+                public_key: keys.public_key_der().to_vec(),
+                verify_token: nonce.to_vec(),
+                should_authenticate: true,
+            })
+            .await?;
+
+            let Some(enc_frame) = conn.read_frame_timeout(PRE_AUTH_SOCKET_TIMEOUT).await? else {
+                return Ok(());
+            };
+            if enc_frame.packet_id != ClientEncryptionResponsePacket::PACKET_ID {
+                return login_kick(&mut conn, "Expected EncryptionResponse!").await;
+            }
+            let enc_resp =
+                decode_packet_exact::<ClientEncryptionResponsePacket>(enc_frame.payload)?;
+            let Ok(shared_secret) = keys.verify_encryption_response(
+                &nonce,
+                &enc_resp.shared_secret,
+                &enc_resp.encrypted_verify_token,
+            ) else {
+                return login_kick(&mut conn, "Encryption verification failed!").await;
+            };
+
+            // Enable AES-128-CFB8 stream cipher immediately after ClientEncryptionResponsePacket!
+            conn.enable_encryption(&shared_secret);
+
+            let server_hash = mojang_sha1_server_id("", &shared_secret, keys.public_key_der());
+            match session_client
+                .verify_has_joined(
+                    &login_start.username,
+                    &server_hash,
+                    Some(conn.peer_addr().ip()),
+                )
+                .await
+            {
+                Ok(verified_profile) => verified_profile,
+                Err(_) => {
+                    return login_kick(&mut conn, "Failed to verify username!").await;
+                }
+            }
+        }
     };
 
     if let Some(threshold) = shared.config.compression_threshold
@@ -288,7 +411,6 @@ pub(crate) async fn run_client_session(
                 let _ = decode_packet_exact::<ClientFinishConfigurationPacket>(cfg_frame.payload)?;
                 break;
             }
-            // Ignore benign CookieResponse / ResourcePackStatus / CodeOfConduct packets
             0x01 | 0x05 | 0x06 | 0x08 | 0x09 => {}
             other => {
                 return Err(NetworkError::Protocol(ProtocolError::UnknownPacketId {
@@ -303,6 +425,7 @@ pub(crate) async fn run_client_session(
     let entity_id = shared.next_entity_id.fetch_add(1, Ordering::Relaxed);
     let (mut reader, mut writer) = conn.into_split();
     let (outbound_tx, outbound_rx) = flume::bounded::<OutboundCommand>(1024);
+    let writer_kick_tx = outbound_tx.clone();
     let (pid_tx, pid_rx) = flume::bounded(1);
 
     if tick_tx
@@ -348,20 +471,35 @@ pub(crate) async fn run_client_session(
         }
     });
 
-    while let Ok(Some(frame)) = reader.read_frame_timeout(PLAY_READ_TIMEOUT).await {
-        if tick_tx
-            .send_async(TickMessage::InboundPacket { player_id, frame })
-            .await
-            .is_err()
-        {
-            break;
+    loop {
+        match reader.read_frame_timeout(PLAY_READ_TIMEOUT).await {
+            Ok(Some(frame)) => {
+                if tick_tx
+                    .send_async(TickMessage::InboundPacket { player_id, frame })
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+            Err(NetworkError::RateLimited) => {
+                let kick = encode_packet_payload(&PlayDisconnectPacket {
+                    message: Component::text("Packet rate limit exceeded!")
+                        .color(NamedTextColor::Red),
+                })
+                .ok();
+                let _ = writer_kick_tx.try_send(OutboundCommand::Disconnect(kick));
+                break;
+            }
+            Ok(None) | Err(_) => break,
         }
     }
 
     let _ = tick_tx
         .send_async(TickMessage::PlayerDisconnected { player_id })
         .await;
-    writer_handle.abort();
+    let _ = writer_kick_tx.try_send(OutboundCommand::Disconnect(None));
+    let _ = tokio::time::timeout(Duration::from_millis(100), writer_handle).await;
     Ok(())
 }
 
