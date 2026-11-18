@@ -22,6 +22,7 @@ minestom-nbt.workspace = true
 minestom-network.workspace = true
 minestom-protocol.workspace = true
 minestom-registry.workspace = true
+minestom-scheduler.workspace = true
 minestom-text.workspace = true
 minestom-world.workspace = true
 rustc-hash.workspace = true

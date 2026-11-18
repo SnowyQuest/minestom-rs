@@ -721,6 +721,9 @@ dependencies = [
 [[package]]
 name = "minestom-scheduler"
 version = "0.1.0"
+dependencies = [
+ "parking_lot",
+]
 
 [[package]]
 name = "minestom-server"
@@ -740,6 +743,7 @@ dependencies = [
  "minestom-network",
  "minestom-protocol",
  "minestom-registry",
+ "minestom-scheduler",
  "minestom-text",
  "minestom-world",
  "rustc-hash",

@@ -1,5 +1,7 @@
 //! Play state (`ConnectionState::Play`) packets for protocol 776 (MC 26.2).
 
+use std::collections::BTreeMap;
+
 use bytes::{Buf, BufMut};
 use minestom_core::{BlockVec, Difficulty, GameMode, Pos, Vec3};
 use minestom_macros::PacketMeta;
@@ -10,8 +12,8 @@ use uuid::Uuid;
 use crate::login::ProfileProperty;
 use crate::{
     ConnectionState, DEFAULT_MAX_STRING_CHARS, Decode, Encode, PacketPayload, ProtocolError,
-    read_byte_array, read_prefixed_vec, read_string, read_var_int, write_byte_array,
-    write_prefixed_vec, write_string, write_var_int,
+    read_byte_array, read_prefixed_vec, read_string, read_var_int, read_var_long, write_byte_array,
+    write_prefixed_vec, write_string, write_var_int, write_var_long,
 };
 
 fn write_vec3<B: BufMut>(buf: &mut B, v: Vec3) -> Result<(), ProtocolError> {
@@ -340,6 +342,10 @@ pub enum GameStateReason {
     BeginRaining = 2,
     /// `3` — Change player game mode.
     ChangeGameMode = 3,
+    /// `7` — Rain level (`0.0..=1.0`).
+    RainLevelChange = 7,
+    /// `8` — Thunder level (`0.0..=1.0`).
+    ThunderLevelChange = 8,
     /// `13` — Dismiss "Loading terrain..." screen and begin rendering level chunks!
     LevelChunksLoadStart = 13,
 }
@@ -351,6 +357,8 @@ impl GameStateReason {
             1 => Ok(Self::EndRaining),
             2 => Ok(Self::BeginRaining),
             3 => Ok(Self::ChangeGameMode),
+            7 => Ok(Self::RainLevelChange),
+            8 => Ok(Self::ThunderLevelChange),
             13 => Ok(Self::LevelChunksLoadStart),
             other => Err(ProtocolError::InvalidDiscriminant {
                 type_name: "GameStateReason",
@@ -1188,6 +1196,335 @@ impl Decode for ClientPlayerLoadedPacket {
     }
 }
 
+/// Clientbound `InitializeWorldBorderPacket` (`0x2B` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, PacketMeta)]
+pub struct InitializeWorldBorderPacket {
+    /// Center X coordinate.
+    pub x: f64,
+    /// Center Z coordinate.
+    pub z: f64,
+    /// Previous diameter.
+    pub old_diameter: f64,
+    /// Target diameter.
+    pub new_diameter: f64,
+    /// Lerp duration in milliseconds (`0` for instant).
+    pub speed: i64,
+    /// Portal teleport boundary (`29_999_984` default).
+    pub portal_teleport_boundary: i32,
+    /// Warning time in seconds.
+    pub warning_time: i32,
+    /// Warning distance in blocks.
+    pub warning_blocks: i32,
+}
+
+impl PacketPayload for InitializeWorldBorderPacket {
+    const PACKET_ID: i32 = 0x2B;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for InitializeWorldBorderPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        self.x.encode(buf)?;
+        self.z.encode(buf)?;
+        self.old_diameter.encode(buf)?;
+        self.new_diameter.encode(buf)?;
+        write_var_long(buf, self.speed);
+        write_var_int(buf, self.portal_teleport_boundary);
+        write_var_int(buf, self.warning_time);
+        write_var_int(buf, self.warning_blocks);
+        Ok(())
+    }
+}
+
+impl Decode for InitializeWorldBorderPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            x: f64::decode(buf)?,
+            z: f64::decode(buf)?,
+            old_diameter: f64::decode(buf)?,
+            new_diameter: f64::decode(buf)?,
+            speed: read_var_long(buf)?,
+            portal_teleport_boundary: read_var_int(buf)?,
+            warning_time: read_var_int(buf)?,
+            warning_blocks: read_var_int(buf)?,
+        })
+    }
+}
+
+/// Clientbound `UpdateLightPacket` (`0x30` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, PartialEq, Eq, PacketMeta)]
+pub struct UpdateLightPacket {
+    /// Chunk X coordinate.
+    pub chunk_x: i32,
+    /// Chunk Z coordinate.
+    pub chunk_z: i32,
+    /// Updated sky & block light sections.
+    pub light_data: LightData,
+}
+
+impl PacketPayload for UpdateLightPacket {
+    const PACKET_ID: i32 = 0x30;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for UpdateLightPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.chunk_x);
+        write_var_int(buf, self.chunk_z);
+        self.light_data.encode(buf)
+    }
+}
+
+impl Decode for UpdateLightPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            chunk_x: read_var_int(buf)?,
+            chunk_z: read_var_int(buf)?,
+            light_data: LightData::decode(buf)?,
+        })
+    }
+}
+
+/// Clientbound `WorldBorderCenterPacket` (`0x58` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, PacketMeta)]
+pub struct WorldBorderCenterPacket {
+    /// Center X coordinate.
+    pub x: f64,
+    /// Center Z coordinate.
+    pub z: f64,
+}
+
+impl PacketPayload for WorldBorderCenterPacket {
+    const PACKET_ID: i32 = 0x58;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for WorldBorderCenterPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        self.x.encode(buf)?;
+        self.z.encode(buf)
+    }
+}
+
+impl Decode for WorldBorderCenterPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            x: f64::decode(buf)?,
+            z: f64::decode(buf)?,
+        })
+    }
+}
+
+/// Clientbound `WorldBorderLerpSizePacket` (`0x59` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, PacketMeta)]
+pub struct WorldBorderLerpSizePacket {
+    /// Starting diameter.
+    pub old_diameter: f64,
+    /// Target diameter.
+    pub new_diameter: f64,
+    /// Lerp duration in milliseconds.
+    pub speed: i64,
+}
+
+impl PacketPayload for WorldBorderLerpSizePacket {
+    const PACKET_ID: i32 = 0x59;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for WorldBorderLerpSizePacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        self.old_diameter.encode(buf)?;
+        self.new_diameter.encode(buf)?;
+        write_var_long(buf, self.speed);
+        Ok(())
+    }
+}
+
+impl Decode for WorldBorderLerpSizePacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            old_diameter: f64::decode(buf)?,
+            new_diameter: f64::decode(buf)?,
+            speed: read_var_long(buf)?,
+        })
+    }
+}
+
+/// Clientbound `WorldBorderSizePacket` (`0x5A` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, PacketMeta)]
+pub struct WorldBorderSizePacket {
+    /// New diameter.
+    pub diameter: f64,
+}
+
+impl PacketPayload for WorldBorderSizePacket {
+    const PACKET_ID: i32 = 0x5A;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for WorldBorderSizePacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        self.diameter.encode(buf)
+    }
+}
+
+impl Decode for WorldBorderSizePacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            diameter: f64::decode(buf)?,
+        })
+    }
+}
+
+/// Clientbound `WorldBorderWarningDelayPacket` (`0x5B` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PacketMeta)]
+pub struct WorldBorderWarningDelayPacket {
+    /// Warning time in seconds.
+    pub warning_time: i32,
+}
+
+impl PacketPayload for WorldBorderWarningDelayPacket {
+    const PACKET_ID: i32 = 0x5B;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for WorldBorderWarningDelayPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.warning_time);
+        Ok(())
+    }
+}
+
+impl Decode for WorldBorderWarningDelayPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            warning_time: read_var_int(buf)?,
+        })
+    }
+}
+
+/// Clientbound `WorldBorderWarningReachPacket` (`0x5C` in [`ConnectionState::Play`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PacketMeta)]
+pub struct WorldBorderWarningReachPacket {
+    /// Warning distance in blocks.
+    pub warning_blocks: i32,
+}
+
+impl PacketPayload for WorldBorderWarningReachPacket {
+    const PACKET_ID: i32 = 0x5C;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for WorldBorderWarningReachPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_int(buf, self.warning_blocks);
+        Ok(())
+    }
+}
+
+impl Decode for WorldBorderWarningReachPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            warning_blocks: read_var_int(buf)?,
+        })
+    }
+}
+
+/// State of a single `minecraft:world_clock` inside [`SetTimePacket`] (MC 26.2).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClockState {
+    /// Total ticks elapsed on this clock (e.g. `0..24_000` day time).
+    pub total_ticks: i64,
+    /// Partial sub-tick fraction (`0.0` on full sync).
+    pub partial_tick: f32,
+    /// Tick progression rate (`1.0` = normal 20 TPS, `0.0` = frozen `doDaylightCycle=false`).
+    pub rate: f32,
+}
+
+impl Encode for ClockState {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        write_var_long(buf, self.total_ticks);
+        self.partial_tick.encode(buf)?;
+        self.rate.encode(buf)
+    }
+}
+
+impl Decode for ClockState {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            total_ticks: read_var_long(buf)?,
+            partial_tick: f32::decode(buf)?,
+            rate: f32::decode(buf)?,
+        })
+    }
+}
+
+/// Clientbound `SetTimePacket` (`0x71` in [`ConnectionState::Play`], MC 26.2 multi-clock format!).
+#[derive(Debug, Clone, PartialEq, PacketMeta)]
+pub struct SetTimePacket {
+    /// Total world game time in ticks.
+    pub game_time: i64,
+    /// Map of `(world_clock_registry_id -> ClockState)` (`0` = `minecraft:overworld`, `1` = `minecraft:the_end`).
+    pub clocks: BTreeMap<i32, ClockState>,
+}
+
+impl SetTimePacket {
+    /// Constructs a standard Overworld [`SetTimePacket`] (`clock_id = 0` = `minecraft:overworld`).
+    #[must_use]
+    pub fn overworld(game_time: i64, day_ticks: i64, rate: f32) -> Self {
+        let mut clocks = BTreeMap::new();
+        clocks.insert(
+            0,
+            ClockState {
+                total_ticks: day_ticks,
+                partial_tick: 0.0,
+                rate,
+            },
+        );
+        Self { game_time, clocks }
+    }
+}
+
+impl PacketPayload for SetTimePacket {
+    const PACKET_ID: i32 = 0x71;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for SetTimePacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        if self.clocks.len() > 64 {
+            return Err(ProtocolError::InvalidLength {
+                len: self.clocks.len() as i32,
+                max: 64,
+            });
+        }
+        self.game_time.encode(buf)?;
+        write_var_int(buf, self.clocks.len() as i32);
+        for (&clock_id, state) in &self.clocks {
+            write_var_int(buf, clock_id);
+            state.encode(buf)?;
+        }
+        Ok(())
+    }
+}
+
+impl Decode for SetTimePacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let game_time = i64::decode(buf)?;
+        let len = read_var_int(buf)?;
+        if !(0..=64).contains(&len) {
+            return Err(ProtocolError::InvalidLength { len, max: 64 });
+        }
+        let mut clocks = BTreeMap::new();
+        for _ in 0..len {
+            let cid = read_var_int(buf)?;
+            let state = ClockState::decode(buf)?;
+            clocks.insert(cid, state);
+        }
+        Ok(Self { game_time, clocks })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
@@ -1237,6 +1574,40 @@ mod tests {
         let mut b2 = encode_packet_payload(&chunk).unwrap();
         assert_eq!(read_var_int(&mut b2).unwrap(), 0x2D);
         assert_eq!(decode_packet_exact::<ChunkDataPacket>(b2).unwrap(), chunk);
+
+        let border = InitializeWorldBorderPacket {
+            x: 0.0,
+            z: 0.0,
+            old_diameter: 1000.0,
+            new_diameter: 500.0,
+            speed: 5000,
+            portal_teleport_boundary: 29_999_984,
+            warning_time: 15,
+            warning_blocks: 5,
+        };
+        let mut b3 = encode_packet_payload(&border).unwrap();
+        assert_eq!(read_var_int(&mut b3).unwrap(), 0x2B);
+        assert_eq!(
+            decode_packet_exact::<InitializeWorldBorderPacket>(b3).unwrap(),
+            border
+        );
+
+        let time_pkt = SetTimePacket::overworld(12_345, 6_000, 1.0);
+        let mut b4 = encode_packet_payload(&time_pkt).unwrap();
+        assert_eq!(read_var_int(&mut b4).unwrap(), 0x71);
+        assert_eq!(decode_packet_exact::<SetTimePacket>(b4).unwrap(), time_pkt);
+
+        let upd_light = UpdateLightPacket {
+            chunk_x: 1,
+            chunk_z: -1,
+            light_data: LightData::full_skylight(24),
+        };
+        let mut b5 = encode_packet_payload(&upd_light).unwrap();
+        assert_eq!(read_var_int(&mut b5).unwrap(), 0x30);
+        assert_eq!(
+            decode_packet_exact::<UpdateLightPacket>(b5).unwrap(),
+            upd_light
+        );
     }
 
     proptest! {
@@ -1247,7 +1618,11 @@ mod tests {
             let _ = decode_packet_exact::<ChunkDataPacket>(b.clone());
             let _ = decode_packet_exact::<PlayerPositionAndLookPacket>(b.clone());
             let _ = decode_packet_exact::<ClientPlayerPositionAndRotationPacket>(b.clone());
-            let _ = decode_packet_exact::<ClientPlayerPositionPacket>(b);
+            let _ = decode_packet_exact::<ClientPlayerPositionPacket>(b.clone());
+            let _ = decode_packet_exact::<InitializeWorldBorderPacket>(b.clone());
+            let _ = decode_packet_exact::<UpdateLightPacket>(b.clone());
+            let _ = decode_packet_exact::<WorldBorderLerpSizePacket>(b.clone());
+            let _ = decode_packet_exact::<SetTimePacket>(b);
         }
     }
 }

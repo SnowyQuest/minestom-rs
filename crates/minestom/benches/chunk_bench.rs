@@ -134,3 +134,49 @@ fn relative_batch_apply_125_blocks(bencher: divan::Bencher) {
 
     bencher.bench_local(|| black_box(abs.apply(&inst)));
 }
+
+#[divan::bench]
+fn bfs_chunk_lighting_sky_and_block(bencher: divan::Bencher) {
+    let dim = DimensionType::overworld();
+    let mut chunk = Chunk::new(ChunkPos::new(0, 0), &dim);
+    chunk.fill_height(0, 40, Block::STONE);
+    chunk.fill_height(50, 51, Block::GLASS);
+    chunk.set_block(8, 42, 8, Block::GLOWSTONE);
+
+    bencher.bench_local(|| black_box(compute_chunk_light(black_box(&chunk))));
+}
+
+#[divan::bench]
+fn anvil_chunk_nbt_roundtrip(bencher: divan::Bencher) {
+    let dim = DimensionType::overworld();
+    let pos = ChunkPos::new(0, 0);
+    let mut chunk = Chunk::new(pos, &dim);
+    chunk.fill_height(0, 40, Block::STONE);
+    chunk.set_block(4, 41, 4, Block::OAK_LOG.with_property("axis", "x").unwrap());
+    chunk.set_block(5, 41, 5, Block::CHEST);
+
+    bencher.bench_local(|| {
+        let nbt = minestom::world::encode_chunk_to_anvil_nbt(black_box(&chunk), 1000);
+        black_box(minestom::world::decode_chunk_from_anvil_nbt(
+            pos, &dim, &nbt,
+        ))
+    });
+}
+
+#[divan::bench]
+fn scheduler_tick_phase_100_tasks(bencher: divan::Bencher) {
+    let sched = Scheduler::new();
+    for _ in 0..100 {
+        let _ = sched
+            .build_task(|| {
+                black_box(1_u64);
+            })
+            .repeat(TaskSchedule::Tick(1))
+            .schedule();
+    }
+    sched.process_tick_start();
+
+    bencher.bench_local(|| {
+        sched.process_tick_start();
+    });
+}

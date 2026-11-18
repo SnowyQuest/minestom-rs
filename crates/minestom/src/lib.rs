@@ -99,7 +99,9 @@ pub mod prelude {
     pub use crate::nbt::{NbtCompound, NbtTag};
     pub use crate::protocol::ConnectionState;
     pub use crate::registry::{DimensionType, Registries};
-    pub use crate::scheduler::ExecutionType;
+    pub use crate::scheduler::{
+        ExecutionType, Scheduler, SchedulerManager, TaskBuilder, TaskHandle, TaskId, TaskSchedule,
+    };
     pub use crate::server::{
         AsyncPlayerConfigurationEvent, BoundServer, ClientPingServerEvent, MinecraftServer,
         PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent,
@@ -108,7 +110,9 @@ pub mod prelude {
     };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};
     pub use crate::world::{
-        AbsoluteBlockBatch, Batch, BlockEntityState, Chunk, GenerationUnit, Generator,
-        InstanceContainer, InstanceManager, Palette, RelativeBlockBatch, Section, UnitModifier,
+        AbsoluteBlockBatch, AnvilLoader, Batch, BlockEntityState, Chunk, ChunkLoader,
+        GenerationUnit, Generator, InstanceContainer, InstanceManager, Palette, RelativeBlockBatch,
+        Section, SharedInstance, UnitModifier, Weather, WorldBorder, WorldTime,
+        compute_chunk_light,
     };
 }

@@ -22,8 +22,11 @@ use minestom_item::{Inventory, ItemStack};
 use minestom_nbt::NbtCompound;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
 use minestom_registry::Registries;
+use minestom_scheduler::SchedulerManager;
 use minestom_text::Component;
-use minestom_world::{AbsoluteBlockBatch, InstanceContainer, InstanceManager};
+use minestom_world::{
+    AbsoluteBlockBatch, InstanceContainer, InstanceManager, Weather, WorldBorder, WorldTime,
+};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::watch;
 use tracing::{Instrument, debug, info, info_span};
@@ -36,7 +39,10 @@ pub use event::{
 };
 
 use session::{build_cached_vanilla_config_packets, run_client_session};
-use tick::{EntityCommand, PlayerInvCommand, TickMessage, WorldBlockCommand, spawn_tick_thread};
+use tick::{
+    EntityCommand, PlayerInvCommand, TickMessage, WorldBlockCommand, WorldEnvCommand,
+    spawn_tick_thread,
+};
 
 /// Errors returned while configuring, starting, or running [`MinecraftServer`].
 #[derive(Debug, thiserror::Error)]
@@ -72,6 +78,7 @@ pub(crate) struct ServerShared {
     pub(crate) instance_manager: InstanceManager,
     pub(crate) block_manager: BlockManager,
     pub(crate) command_manager: CommandManager,
+    pub(crate) scheduler_manager: SchedulerManager,
     pub(crate) events: GlobalEventHandler,
     pub(crate) online_count: Arc<AtomicU32>,
     pub(crate) next_entity_id: Arc<AtomicI32>,
@@ -81,6 +88,8 @@ pub(crate) struct ServerShared {
     pub(crate) block_cmd_rx: flume::Receiver<WorldBlockCommand>,
     pub(crate) inv_cmd_tx: flume::Sender<PlayerInvCommand>,
     pub(crate) inv_cmd_rx: flume::Receiver<PlayerInvCommand>,
+    pub(crate) env_cmd_tx: flume::Sender<WorldEnvCommand>,
+    pub(crate) env_cmd_rx: flume::Receiver<WorldEnvCommand>,
     live_status: ArcSwap<LiveStatusState>,
     pub(crate) cached_registry_packets: Vec<Bytes>,
     pub(crate) cached_tags_packet: Bytes,
@@ -189,6 +198,8 @@ impl MinecraftServerBuilder {
         let (entity_cmd_tx, entity_cmd_rx) = flume::unbounded();
         let (block_cmd_tx, block_cmd_rx) = flume::unbounded();
         let (inv_cmd_tx, inv_cmd_rx) = flume::unbounded();
+        let (env_cmd_tx, env_cmd_rx) = flume::unbounded();
+        let tps = self.config.ticks_per_second;
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
@@ -196,6 +207,7 @@ impl MinecraftServerBuilder {
                 instance_manager: InstanceManager::new(),
                 block_manager: BlockManager::new(),
                 command_manager: CommandManager::new(),
+                scheduler_manager: SchedulerManager::with_tps(tps),
                 events: GlobalEventHandler::all("global"),
                 online_count: Arc::new(AtomicU32::new(0)),
                 next_entity_id: Arc::new(AtomicI32::new(1)),
@@ -205,6 +217,8 @@ impl MinecraftServerBuilder {
                 block_cmd_rx,
                 inv_cmd_tx,
                 inv_cmd_rx,
+                env_cmd_tx,
+                env_cmd_rx,
                 live_status: ArcSwap::from_pointee(live),
                 cached_registry_packets,
                 cached_tags_packet,
@@ -254,6 +268,11 @@ impl MinecraftServer {
     /// Borrows the [`CommandManager`] (`server.command_manager()`).
     pub fn command_manager(&self) -> &CommandManager {
         &self.shared.command_manager
+    }
+
+    /// Borrows the deterministic 20 TPS [`SchedulerManager`] (`server.scheduler_manager()`).
+    pub fn scheduler_manager(&self) -> &SchedulerManager {
+        &self.shared.scheduler_manager
     }
 
     /// Borrows the root [`GlobalEventHandler`] (`server.global_event_handler()`).
@@ -399,7 +418,7 @@ impl MinecraftServer {
             .shared
             .block_cmd_tx
             .send(WorldBlockCommand::BroadcastSingle {
-                instance_id: instance.id(),
+                instance: instance.clone(),
                 position,
                 block,
                 nbt,
@@ -415,10 +434,58 @@ impl MinecraftServer {
                 .shared
                 .block_cmd_tx
                 .send(WorldBlockCommand::BroadcastBatch {
-                    instance_id: instance.id(),
+                    instance: instance.clone(),
                     packets,
                 });
         }
+    }
+
+    /// Updates `instance`'s [`WorldBorder`] and broadcasts border packets (`lerp_ms = 0` for instant).
+    pub fn set_world_border(
+        &self,
+        instance: &InstanceContainer,
+        border: WorldBorder,
+        lerp_ms: i64,
+    ) {
+        let old_diameter = instance.world_border().diameter;
+        instance.set_world_border(border);
+        let _ = self.shared.env_cmd_tx.send(WorldEnvCommand::Border {
+            instance_id: instance.id(),
+            old_diameter,
+            border,
+            lerp_ms,
+        });
+    }
+
+    /// Updates `instance`'s [`WorldTime`] and immediately broadcasts MC 26.2 `SetTimePacket`.
+    pub fn set_world_time(&self, instance: &InstanceContainer, time: WorldTime) {
+        instance.set_world_time(time);
+        let _ = self.shared.env_cmd_tx.send(WorldEnvCommand::Time {
+            instance_id: instance.id(),
+            time,
+        });
+    }
+
+    /// Updates `instance`'s [`Weather`] and broadcasts rain/thunder `ChangeGameStatePacket`s.
+    pub fn set_weather(&self, instance: &InstanceContainer, weather: Weather) {
+        instance.set_weather(weather);
+        let _ = self.shared.env_cmd_tx.send(WorldEnvCommand::Weather {
+            instance_id: instance.id(),
+            weather,
+        });
+    }
+
+    /// Saves all loaded chunks of `instance` via its [`minestom_world::ChunkLoader`] on Tokio's
+    /// blocking thread pool (never blocking async I/O workers!).
+    pub async fn save_instance_async(
+        &self,
+        instance: &InstanceContainer,
+    ) -> Result<usize, ServerError> {
+        let inst = instance.clone();
+        let saved = tokio::task::spawn_blocking(move || inst.save_chunks_to_loader())
+            .await
+            .map_err(|e| ServerError::Io(std::io::Error::other(e.to_string())))??;
+        Ok(saved)
     }
 
     /// Signals a running server loop and its 20 TPS tick thread to stop cleanly.
@@ -482,14 +549,17 @@ impl BoundServer {
         let tick_handle = spawn_tick_thread(
             self.server.shared.config.clone(),
             self.server.shared.events.clone(),
+            self.server.shared.instance_manager.clone(),
             self.server.shared.block_manager.clone(),
             self.server.shared.command_manager.clone(),
+            self.server.shared.scheduler_manager.clone(),
             Arc::clone(&self.server.shared.online_count),
             Arc::clone(&self.server.shared.next_entity_id),
             tick_rx,
             self.server.shared.entity_cmd_rx.clone(),
             self.server.shared.block_cmd_rx.clone(),
             self.server.shared.inv_cmd_rx.clone(),
+            self.server.shared.env_cmd_rx.clone(),
             Arc::clone(&stop_flag),
         )?;
 

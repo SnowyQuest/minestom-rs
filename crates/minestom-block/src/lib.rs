@@ -201,6 +201,22 @@ impl Block {
             .unwrap_or(false)
     }
 
+    /// Returns the light opacity (`0..=15`) of this block (`0` for air/glass, `15` for opaque stone).
+    #[must_use]
+    pub fn light_opacity(self) -> u8 {
+        self.info().light_block
+    }
+
+    /// Returns the emitted block light (`0..=15`) of this block state (respecting `lit=false` states!).
+    #[must_use]
+    pub fn light_emission(self) -> u8 {
+        let base = self.info().light_emission;
+        if base > 0 && self.get_property("lit") == Some("false") {
+            return 0;
+        }
+        base
+    }
+
     /// Reads the value of block state property `name` in O(properties) without allocating!
     #[must_use]
     pub fn get_property(self, name: &str) -> Option<&'static str> {

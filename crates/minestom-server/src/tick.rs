@@ -58,14 +58,16 @@ use minestom_protocol::login::GameProfile;
 use minestom_protocol::play::{
     ChangeGameStatePacket, ChunkBatchFinishedPacket, ChunkBatchStartPacket,
     ClientPlayKeepAlivePacket, ClientPlayerPositionAndRotationPacket, ClientPlayerPositionPacket,
-    ClientPlayerRotationPacket, ClientTeleportConfirmPacket, GameStateReason, JoinGamePacket,
-    PlayDisconnectPacket, PlayKeepAlivePacket, PlayerAbilitiesPacket, PlayerInfoAddEntry,
-    PlayerInfoUpdatePacket, PlayerPositionAndLookPacket, PlayerSpawnInfo, ServerDifficultyPacket,
-    SpawnPositionPacket, UpdateHealthPacket, UpdateViewPositionPacket, WorldPos,
+    ClientPlayerRotationPacket, ClientTeleportConfirmPacket, GameStateReason,
+    InitializeWorldBorderPacket, JoinGamePacket, PlayDisconnectPacket, PlayKeepAlivePacket,
+    PlayerAbilitiesPacket, PlayerInfoAddEntry, PlayerInfoUpdatePacket, PlayerPositionAndLookPacket,
+    PlayerSpawnInfo, ServerDifficultyPacket, SpawnPositionPacket, UpdateHealthPacket,
+    UpdateViewPositionPacket, WorldPos,
 };
 use minestom_protocol::{decode_packet_exact, encode_packet_payload};
+use minestom_scheduler::SchedulerManager;
 use minestom_text::{Component, NamedTextColor};
-use minestom_world::InstanceContainer;
+use minestom_world::{InstanceContainer, InstanceManager, Weather, WorldBorder, WorldTime};
 use rustc_hash::{FxHashMap, FxHashSet};
 use slotmap::SlotMap;
 use tracing::{debug, trace_span, warn};
@@ -104,14 +106,32 @@ pub(crate) enum EntityCommand {
 /// Cross-thread command broadcasting server-initiated single/batch block updates to chunk viewers.
 pub(crate) enum WorldBlockCommand {
     BroadcastSingle {
-        instance_id: InstanceId,
+        instance: InstanceContainer,
         position: BlockVec,
         block: Block,
         nbt: Option<NbtCompound>,
     },
     BroadcastBatch {
-        instance_id: InstanceId,
+        instance: InstanceContainer,
         packets: Vec<(ChunkPos, MultiBlockChangePacket)>,
+    },
+}
+
+/// Cross-thread command syncing world border, MC 26.2 clock time, and weather to instance players.
+pub(crate) enum WorldEnvCommand {
+    Border {
+        instance_id: InstanceId,
+        old_diameter: f64,
+        border: WorldBorder,
+        lerp_ms: i64,
+    },
+    Time {
+        instance_id: InstanceId,
+        time: WorldTime,
+    },
+    Weather {
+        instance_id: InstanceId,
+        weather: Weather,
     },
 }
 
@@ -321,9 +341,9 @@ impl WorldSimState {
         }
     }
 
-    fn send_to_chunk_viewers<P: minestom_protocol::PacketPayload>(
+    fn send_to_storage_chunk_viewers<P: minestom_protocol::PacketPayload>(
         &self,
-        instance_id: InstanceId,
+        source_instance: &InstanceContainer,
         chunk_pos: ChunkPos,
         pkt: &P,
     ) {
@@ -331,7 +351,24 @@ impl WorldSimState {
             return;
         };
         for p in self.players.values() {
-            if p.instance.id() == instance_id && p.loaded_chunks.contains(&chunk_pos) {
+            if p.instance.shares_storage_with(source_instance)
+                && p.loaded_chunks.contains(&chunk_pos)
+            {
+                let _ = p.send_encoded(bytes.clone());
+            }
+        }
+    }
+
+    fn send_to_instance_players<P: minestom_protocol::PacketPayload>(
+        &self,
+        instance_id: InstanceId,
+        pkt: &P,
+    ) {
+        let Ok(bytes) = encode_packet_payload(pkt) else {
+            return;
+        };
+        for p in self.players.values() {
+            if p.instance.id() == instance_id {
                 let _ = p.send_encoded(bytes.clone());
             }
         }
@@ -654,14 +691,17 @@ fn sim_player_equip(
 pub(crate) fn spawn_tick_thread(
     config: ServerConfig,
     events: GlobalEventHandler,
+    instance_manager: InstanceManager,
     block_manager: BlockManager,
     command_manager: CommandManager,
+    scheduler_manager: SchedulerManager,
     online_count: Arc<AtomicU32>,
     next_entity_id: Arc<AtomicI32>,
     inbox_rx: Receiver<TickMessage>,
     entity_cmd_rx: Receiver<EntityCommand>,
     block_cmd_rx: Receiver<WorldBlockCommand>,
     inv_cmd_rx: Receiver<PlayerInvCommand>,
+    env_cmd_rx: Receiver<WorldEnvCommand>,
     stop_flag: Arc<AtomicBool>,
 ) -> std::io::Result<JoinHandle<()>> {
     thread::Builder::new()
@@ -670,31 +710,37 @@ pub(crate) fn spawn_tick_thread(
             run_tick_loop(
                 &config,
                 &events,
+                &instance_manager,
                 &block_manager,
                 &command_manager,
+                &scheduler_manager,
                 &online_count,
                 &next_entity_id,
                 &inbox_rx,
                 &entity_cmd_rx,
                 &block_cmd_rx,
                 &inv_cmd_rx,
+                &env_cmd_rx,
                 &stop_flag,
             );
         })
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn run_tick_loop(
     config: &ServerConfig,
     events: &GlobalEventHandler,
+    instance_manager: &InstanceManager,
     block_manager: &BlockManager,
     command_manager: &CommandManager,
+    scheduler_manager: &SchedulerManager,
     online_count: &AtomicU32,
     next_entity_id: &AtomicI32,
     inbox_rx: &Receiver<TickMessage>,
     entity_cmd_rx: &Receiver<EntityCommand>,
     block_cmd_rx: &Receiver<WorldBlockCommand>,
     inv_cmd_rx: &Receiver<PlayerInvCommand>,
+    env_cmd_rx: &Receiver<WorldEnvCommand>,
     stop_flag: &AtomicBool,
 ) {
     let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(config.ticks_per_second));
@@ -709,10 +755,14 @@ fn run_tick_loop(
         let _span = trace_span!("tick", tick_num).entered();
         let now = Instant::now();
 
-        // 1. Drain queued world EntityCommands, WorldBlockCommands & PlayerInvCommands
+        // 0. TickStart scheduled tasks
+        scheduler_manager.process_tick_start();
+
+        // 1. Drain queued world EntityCommands, WorldBlockCommands, PlayerInvCommands & WorldEnvCommands
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
         drain_block_commands(&sim, block_cmd_rx);
         drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
+        drain_env_commands(&sim, env_cmd_rx);
 
         // 2. Drain cross-thread player messages & inbound packets
         while let Ok(msg) = inbox_rx.try_recv() {
@@ -793,19 +843,7 @@ fn run_tick_loop(
                     online_count.store(sim.players.len() as u32, Ordering::Relaxed);
                 }
                 TickMessage::Shutdown => {
-                    let pids: Vec<PlayerId> = sim.players.keys().collect();
-                    for pid in pids {
-                        if let Some(p) = sim.players.get(pid) {
-                            let kick = encode_packet_payload(&PlayDisconnectPacket {
-                                message: Component::text("Server closed")
-                                    .color(NamedTextColor::Red),
-                            })
-                            .ok();
-                            let _ = p.outbound_tx.try_send(OutboundCommand::Disconnect(kick));
-                        }
-                        sim.remove_and_cleanup_player(pid, events);
-                    }
-                    online_count.store(0, Ordering::Relaxed);
+                    shutdown_tick_loop(&mut sim, scheduler_manager, events, online_count);
                     return;
                 }
             }
@@ -815,9 +853,23 @@ fn run_tick_loop(
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
         drain_block_commands(&sim, block_cmd_rx);
         drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
+        drain_env_commands(&sim, env_cmd_rx);
 
-        // 3. Step 20 TPS World Entities (Behavior + Gravity/Collision + Viewer Delta Sync)
+        // 3. Advance world clocks & step 20 TPS World Entities
+        for inst in instance_manager.instances() {
+            let wt = inst.tick_time();
+            if tick_num.is_multiple_of(20) {
+                sim.send_to_instance_players(inst.id(), &wt.to_set_time_packet());
+            }
+        }
         tick_world_entities(&mut sim, events);
+
+        // 4. TickEnd scheduled tasks + final command drain
+        scheduler_manager.process_tick_end();
+        drain_entity_commands(&mut sim, entity_cmd_rx, events);
+        drain_block_commands(&sim, block_cmd_rx);
+        drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
+        drain_env_commands(&sim, env_cmd_rx);
 
         // 4. Per-tick KeepAlive check
         let mut timed_out = Vec::new();
@@ -860,6 +912,29 @@ fn run_tick_loop(
             next_tick_deadline = after + tick_duration;
         }
     }
+
+    shutdown_tick_loop(&mut sim, scheduler_manager, events, online_count);
+}
+
+fn shutdown_tick_loop(
+    sim: &mut WorldSimState,
+    scheduler_manager: &SchedulerManager,
+    events: &GlobalEventHandler,
+    online_count: &AtomicU32,
+) {
+    scheduler_manager.shutdown();
+    let pids: Vec<PlayerId> = sim.players.keys().collect();
+    for pid in pids {
+        if let Some(p) = sim.players.get(pid) {
+            let kick = encode_packet_payload(&PlayDisconnectPacket {
+                message: Component::text("Server closed").color(NamedTextColor::Red),
+            })
+            .ok();
+            let _ = p.outbound_tx.try_send(OutboundCommand::Disconnect(kick));
+        }
+        sim.remove_and_cleanup_player(pid, events);
+    }
+    online_count.store(0, Ordering::Relaxed);
 }
 
 fn spawn_world_entity_direct(
@@ -1420,6 +1495,23 @@ fn initialize_joining_player(
             difficulty: config.difficulty,
             locked: true,
         });
+        let _ = player.send_packet(&player.instance.world_border().to_initialize_packet());
+        let _ = player.send_packet(&player.instance.world_time().to_set_time_packet());
+        let weather = player.instance.weather();
+        if weather.is_raining() || weather.thunder_level > 0.0 {
+            let _ = player.send_packet(&ChangeGameStatePacket {
+                reason: GameStateReason::BeginRaining,
+                value: 0.0,
+            });
+            let _ = player.send_packet(&ChangeGameStatePacket {
+                reason: GameStateReason::RainLevelChange,
+                value: weather.rain_level,
+            });
+            let _ = player.send_packet(&ChangeGameStatePacket {
+                reason: GameStateReason::ThunderLevelChange,
+                value: weather.thunder_level,
+            });
+        }
         let _ = player.send_packet(&SpawnPositionPacket {
             world_pos: WorldPos {
                 dimension: dim.key,
@@ -1725,18 +1817,78 @@ fn dispatch_player_command(
     }
 }
 
+fn drain_env_commands(sim: &WorldSimState, env_cmd_rx: &Receiver<WorldEnvCommand>) {
+    while let Ok(cmd) = env_cmd_rx.try_recv() {
+        match cmd {
+            WorldEnvCommand::Border {
+                instance_id,
+                old_diameter,
+                border,
+                lerp_ms,
+            } => {
+                sim.send_to_instance_players(
+                    instance_id,
+                    &InitializeWorldBorderPacket {
+                        x: border.center_x,
+                        z: border.center_z,
+                        old_diameter,
+                        new_diameter: border.diameter,
+                        speed: lerp_ms.max(0),
+                        portal_teleport_boundary: border.portal_teleport_boundary,
+                        warning_time: border.warning_time,
+                        warning_blocks: border.warning_blocks,
+                    },
+                );
+            }
+            WorldEnvCommand::Time { instance_id, time } => {
+                sim.send_to_instance_players(instance_id, &time.to_set_time_packet());
+            }
+            WorldEnvCommand::Weather {
+                instance_id,
+                weather,
+            } => {
+                sim.send_to_instance_players(
+                    instance_id,
+                    &ChangeGameStatePacket {
+                        reason: if weather.is_raining() {
+                            GameStateReason::BeginRaining
+                        } else {
+                            GameStateReason::EndRaining
+                        },
+                        value: 0.0,
+                    },
+                );
+                sim.send_to_instance_players(
+                    instance_id,
+                    &ChangeGameStatePacket {
+                        reason: GameStateReason::RainLevelChange,
+                        value: weather.rain_level,
+                    },
+                );
+                sim.send_to_instance_players(
+                    instance_id,
+                    &ChangeGameStatePacket {
+                        reason: GameStateReason::ThunderLevelChange,
+                        value: weather.thunder_level,
+                    },
+                );
+            }
+        }
+    }
+}
+
 fn drain_block_commands(sim: &WorldSimState, block_cmd_rx: &Receiver<WorldBlockCommand>) {
     while let Ok(cmd) = block_cmd_rx.try_recv() {
         match cmd {
             WorldBlockCommand::BroadcastSingle {
-                instance_id,
+                instance,
                 position,
                 block,
                 nbt,
             } => {
                 let cpos = position.chunk_pos();
-                sim.send_to_chunk_viewers(
-                    instance_id,
+                sim.send_to_storage_chunk_viewers(
+                    &instance,
                     cpos,
                     &BlockChangePacket {
                         position,
@@ -1744,8 +1896,8 @@ fn drain_block_commands(sim: &WorldSimState, block_cmd_rx: &Receiver<WorldBlockC
                     },
                 );
                 if let Some(be_id) = block.block_entity_id() {
-                    sim.send_to_chunk_viewers(
-                        instance_id,
+                    sim.send_to_storage_chunk_viewers(
+                        &instance,
                         cpos,
                         &BlockEntityDataPacket {
                             position,
@@ -1754,13 +1906,22 @@ fn drain_block_commands(sim: &WorldSimState, block_cmd_rx: &Receiver<WorldBlockC
                         },
                     );
                 }
+                if let Some(light_pkt) = instance.build_light_update_packet(cpos) {
+                    sim.send_to_storage_chunk_viewers(&instance, cpos, &light_pkt);
+                }
             }
-            WorldBlockCommand::BroadcastBatch {
-                instance_id,
-                packets,
-            } => {
+            WorldBlockCommand::BroadcastBatch { instance, packets } => {
+                let mut touched_chunks = FxHashSet::default();
                 for (cpos, pkt) in packets {
-                    sim.send_to_chunk_viewers(instance_id, cpos, &pkt);
+                    sim.send_to_storage_chunk_viewers(&instance, cpos, &pkt);
+                    touched_chunks.insert(cpos);
+                }
+                if instance.is_lighting_enabled() {
+                    for cpos in touched_chunks {
+                        if let Some(light_pkt) = instance.build_light_update_packet(cpos) {
+                            sim.send_to_storage_chunk_viewers(&instance, cpos, &light_pkt);
+                        }
+                    }
                 }
             }
         }
@@ -1848,15 +2009,19 @@ fn process_block_digging(
         });
     }
 
+    let cpos = pkt.position.chunk_pos();
     instance.set_block(pkt.position, ev.result_block);
-    sim.send_to_chunk_viewers(
-        inst_id,
-        pkt.position.chunk_pos(),
+    sim.send_to_storage_chunk_viewers(
+        &instance,
+        cpos,
         &BlockChangePacket {
             position: pkt.position,
             block_state_id: i32::from(ev.result_block.state_id()),
         },
     );
+    if let Some(light_pkt) = instance.build_light_update_packet(cpos) {
+        sim.send_to_storage_chunk_viewers(&instance, cpos, &light_pkt);
+    }
 }
 
 fn process_block_placement(
@@ -2041,8 +2206,8 @@ fn process_block_placement(
     }
 
     let cpos = place_pos.chunk_pos();
-    sim.send_to_chunk_viewers(
-        inst_id,
+    sim.send_to_storage_chunk_viewers(
+        &instance,
         cpos,
         &BlockChangePacket {
             position: place_pos,
@@ -2050,8 +2215,8 @@ fn process_block_placement(
         },
     );
     if let Some(be_id) = ev.block.block_entity_id() {
-        sim.send_to_chunk_viewers(
-            inst_id,
+        sim.send_to_storage_chunk_viewers(
+            &instance,
             cpos,
             &BlockEntityDataPacket {
                 position: place_pos,
@@ -2059,6 +2224,9 @@ fn process_block_placement(
                 data: ev.block_nbt,
             },
         );
+    }
+    if let Some(light_pkt) = instance.build_light_update_packet(cpos) {
+        sim.send_to_storage_chunk_viewers(&instance, cpos, &light_pkt);
     }
 }
 

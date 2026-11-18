@@ -12,6 +12,7 @@ use minestom_registry::DimensionType;
 use rustc_hash::FxHashMap;
 
 use crate::WorldError;
+use crate::light::compute_chunk_light;
 use crate::palette::{Palette, bits_to_represent};
 
 /// Single 16×16×16 vertical chunk section.
@@ -152,6 +153,7 @@ pub struct Chunk {
     height: i32,
     sections: Vec<Section>,
     block_entities: FxHashMap<(u8, i16, u8), BlockEntityState>,
+    lighting_enabled: bool,
     cached_payload: Option<Bytes>,
 }
 
@@ -166,8 +168,29 @@ impl Chunk {
             height: dimension.height,
             sections: vec![Section::new(); count],
             block_entities: FxHashMap::default(),
+            lighting_enabled: false,
             cached_payload: None,
         }
+    }
+
+    /// Enables or disables dynamic 3D BFS sky & block lighting for this chunk (`LightingChunk` mode).
+    pub fn set_lighting_enabled(&mut self, enabled: bool) {
+        if self.lighting_enabled != enabled {
+            self.lighting_enabled = enabled;
+            self.cached_payload = None;
+        }
+    }
+
+    /// Returns `true` if dynamic 3D BFS sky & block lighting is enabled on this chunk.
+    #[must_use]
+    pub const fn is_lighting_enabled(&self) -> bool {
+        self.lighting_enabled
+    }
+
+    /// Borrows all sparse block-entity records `(local_x, world_y, local_z) -> BlockEntityState`.
+    #[must_use]
+    pub const fn block_entities(&self) -> &FxHashMap<(u8, i16, u8), BlockEntityState> {
+        &self.block_entities
     }
 
     /// Returns this chunk's `(chunk_x, chunk_z)` position.
@@ -359,6 +382,11 @@ impl Chunk {
                 });
             }
         }
+        let light_data = if self.lighting_enabled {
+            compute_chunk_light(self)
+        } else {
+            LightData::full_skylight(self.sections.len())
+        };
         ChunkDataPacket {
             chunk_x: self.pos.x,
             chunk_z: self.pos.z,
@@ -368,7 +396,7 @@ impl Chunk {
             ],
             sections_data: sections_buf.to_vec(),
             block_entities: be_records,
-            light_data: LightData::full_skylight(self.sections.len()),
+            light_data,
         }
     }
 
