@@ -5,7 +5,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 use serde::{Deserialize, Serialize};
 
 /// Common coordinate accessors shared by [`Vec3`], [`Pos`], and [`BlockVec`].
-pub trait Point {
+pub trait Point: Copy {
     /// X coordinate in world units.
     fn x(&self) -> f64;
     /// Y coordinate in world units.

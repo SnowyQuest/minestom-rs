@@ -11,6 +11,10 @@ pub mod generated {
     pub mod attributes {
         include!("generated/attributes.rs");
     }
+    /// Generated block state tables and default state constants (`minecraft:block`).
+    pub mod block_states {
+        include!("generated/block_states.rs");
+    }
     /// Generated Block IDs (`minecraft:block`).
     pub mod blocks {
         include!("generated/blocks.rs");
@@ -18,6 +22,10 @@ pub mod generated {
     /// Generated target Minecraft version and protocol constants.
     pub mod constants {
         include!("generated/constants.rs");
+    }
+    /// Generated MC 26.2 configuration dynamic registries (`27` registries).
+    pub mod dynamic_registries {
+        include!("generated/dynamic_registries.rs");
     }
     /// Generated `EntityType` IDs (`minecraft:entity_type`).
     pub mod entity_types {
@@ -43,6 +51,10 @@ pub mod generated {
     pub mod potion_effects {
         include!("generated/potion_effects.rs");
     }
+    /// Generated resolved tag lists for all 32 client tag registries.
+    pub mod registry_tags {
+        include!("generated/registry_tags.rs");
+    }
     /// Generated `SoundEvent` IDs (`minecraft:sound_event`).
     pub mod sounds {
         include!("generated/sounds.rs");
@@ -62,5 +74,10 @@ mod tests {
         assert_eq!(DATA_VERSION, 4903);
         assert_eq!(RESOURCE_PACK_VERSION, (88, 0));
         assert_eq!(DATA_PACK_VERSION, (107, 1));
+        assert_eq!(
+            generated::dynamic_registries::CONFIGURATION_REGISTRIES.len(),
+            27
+        );
+        assert_eq!(generated::registry_tags::CLIENT_TAG_REGISTRIES.len(), 32);
     }
 }

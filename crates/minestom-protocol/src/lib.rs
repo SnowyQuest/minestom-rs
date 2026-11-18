@@ -2,9 +2,11 @@
 //! and clientbound/serverbound packet structs.
 
 pub mod codec;
+pub mod config;
 pub mod frame;
 pub mod handshake;
 pub mod login;
+pub mod play;
 pub mod status;
 
 pub use codec::{

@@ -55,8 +55,13 @@ tokio = { version = "1.54", default-features = false, features = ["net", "io-uti
 
 # Synchronization & data structures
 arc-swap = "1.9"
+flume = "0.12"
 indexmap = { version = "2.14", features = ["serde"] }
+parking_lot = "0.13"
+rayon = "1.12"
+rustc-hash = "2.1"
 slotmap = "1.1"
+smallvec = { version = "1.16", features = ["const_generics"] }
 
 # Serialization, compression, hashing, IDs, logging & errors
 base64 = "0.23"

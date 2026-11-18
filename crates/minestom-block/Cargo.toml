@@ -8,6 +8,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+minestom-core.workspace = true
+minestom-data.workspace = true
 thiserror.workspace = true
 
 [lints]

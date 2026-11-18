@@ -68,15 +68,24 @@ pub enum Error {
 /// Convenient prelude re-exporting the most frequently used `minestom-rs` types and traits.
 pub mod prelude {
     pub use crate::Error;
+    pub use crate::block::{Block, BlockGetter};
     pub use crate::core::{
         BlockFace, BlockVec, ChunkPos, Color, Difficulty, Direction, EntityId, GameMode, Hand,
         InstanceId, Key, MainHand, NamespaceId, PlayerId, Point, Pos, Tag, TagMap, Vec3,
     };
     pub use crate::data::{DATA_VERSION, PROTOCOL_VERSION, VERSION_NAME};
-    pub use crate::event::{CancellableEvent, Event};
+    pub use crate::entity::ConfiguringPlayer;
+    pub use crate::event::{CancellableEvent, Event, EventNode, GlobalEventHandler};
     pub use crate::nbt::{NbtCompound, NbtTag};
     pub use crate::protocol::ConnectionState;
+    pub use crate::registry::{DimensionType, Registries};
     pub use crate::scheduler::ExecutionType;
-    pub use crate::server::{BoundServer, MinecraftServer, ServerConfig};
+    pub use crate::server::{
+        AsyncPlayerConfigurationEvent, BoundServer, MinecraftServer, PlayerSpawnEvent, ServerConfig,
+    };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};
+    pub use crate::world::{
+        Chunk, GenerationUnit, Generator, InstanceContainer, InstanceManager, Palette, Section,
+        UnitModifier,
+    };
 }

@@ -39,5 +39,9 @@ uuid.workspace = true
 name = "protocol_bench"
 harness = false
 
+[[bench]]
+name = "chunk_bench"
+harness = false
+
 [lints]
 workspace = true

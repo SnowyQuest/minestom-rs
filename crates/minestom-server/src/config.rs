@@ -28,6 +28,10 @@ pub struct ServerConfig {
     pub motd: Component,
     /// Whether secure chat signatures are enforced.
     pub enforces_secure_chat: bool,
+    /// Interval between Play `KeepAlive` challenges in milliseconds (default `10_000`).
+    pub keep_alive_interval_ms: u64,
+    /// Maximum time to wait for a `KeepAlive` reply before kicking in milliseconds (default `15_000`).
+    pub keep_alive_timeout_ms: u64,
     /// Optional raw 64×64 PNG bytes for the server list favicon.
     #[serde(skip)]
     pub favicon: Option<Vec<u8>>,
@@ -48,6 +52,8 @@ impl Default for ServerConfig {
             max_players: 100,
             motd: Component::text("A minestom-rs Server"),
             enforces_secure_chat: false,
+            keep_alive_interval_ms: 10_000,
+            keep_alive_timeout_ms: 15_000,
             favicon: None,
             player_sample: Vec::new(),
         }
@@ -70,6 +76,11 @@ impl ServerConfig {
         if !(1..=32).contains(&self.entity_view_distance) {
             return Err(ServerError::Config(
                 "entity_view_distance must be in 1..=32".to_owned(),
+            ));
+        }
+        if self.keep_alive_interval_ms == 0 || self.keep_alive_timeout_ms == 0 {
+            return Err(ServerError::Config(
+                "keep_alive intervals must be > 0".to_owned(),
             ));
         }
         Ok(())

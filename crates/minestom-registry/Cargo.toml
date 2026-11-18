@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+minestom-data.workspace = true
+minestom-nbt.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 
 [lints]

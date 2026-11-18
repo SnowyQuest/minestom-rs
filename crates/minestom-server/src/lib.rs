@@ -1,22 +1,32 @@
 //! `MinecraftServer` runtime, explicit cloneable handle, `ServerConfig`,
-//! and TCP listener lifecycle.
+//! dedicated 20 TPS tick loop (`Ms-TickScheduler`), and TCP listener lifecycle.
 
 pub mod config;
+pub mod event;
+mod session;
+mod tick;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 use arc_swap::ArcSwap;
+use bytes::Bytes;
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
-use minestom_network::{StatusHandler, run_accept_loop};
+use minestom_event::GlobalEventHandler;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
+use minestom_registry::Registries;
 use minestom_text::Component;
+use minestom_world::InstanceManager;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::watch;
-use tracing::info;
+use tracing::{Instrument, debug, info, info_span};
 
 pub use config::ServerConfig;
+pub use event::{AsyncPlayerConfigurationEvent, PlayerSpawnEvent};
+
+use session::{build_cached_vanilla_config_packets, run_client_session};
+use tick::{TickMessage, spawn_tick_thread};
 
 /// Errors returned while configuring, starting, or running [`MinecraftServer`].
 #[derive(Debug, thiserror::Error)]
@@ -46,15 +56,21 @@ struct LiveStatusState {
     enforces_secure_chat: bool,
 }
 
-struct ServerShared {
-    config: ServerConfig,
-    online_count: AtomicU32,
+pub(crate) struct ServerShared {
+    pub(crate) config: ServerConfig,
+    pub(crate) registries: Registries,
+    pub(crate) instance_manager: InstanceManager,
+    pub(crate) events: GlobalEventHandler,
+    pub(crate) online_count: Arc<AtomicU32>,
+    pub(crate) next_entity_id: AtomicI32,
     live_status: ArcSwap<LiveStatusState>,
+    pub(crate) cached_registry_packets: Vec<Bytes>,
+    pub(crate) cached_tags_packet: Bytes,
     shutdown_tx: watch::Sender<bool>,
 }
 
-impl StatusHandler for ServerShared {
-    fn build_status(&self, _peer: SocketAddr, _client_protocol: i32) -> ServerStatus {
+impl ServerShared {
+    pub(crate) fn build_status(&self) -> ServerStatus {
         let snap = self.live_status.load();
         let online = self.online_count.load(Ordering::Relaxed);
         ServerStatus {
@@ -130,9 +146,20 @@ impl MinecraftServerBuilder {
         self
     }
 
-    /// Validates configuration and builds a [`MinecraftServer`] handle.
+    /// Sets the Zlib compression threshold (`None` disables compression; default `Some(256)`).
+    #[must_use]
+    pub const fn compression_threshold(mut self, threshold: Option<usize>) -> Self {
+        self.config.compression_threshold = threshold;
+        self
+    }
+
+    /// Validates configuration, pre-caches vanilla Configuration packets, and builds a [`MinecraftServer`] handle.
     pub fn build(self) -> Result<MinecraftServer, ServerError> {
         self.config.validate()?;
+        let registries = Registries::vanilla();
+        let (cached_registry_packets, cached_tags_packet) =
+            build_cached_vanilla_config_packets(&registries)?;
+
         let live = LiveStatusState {
             motd: self.config.motd.clone(),
             favicon: self.config.favicon.clone(),
@@ -144,8 +171,14 @@ impl MinecraftServerBuilder {
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
-                online_count: AtomicU32::new(0),
+                registries,
+                instance_manager: InstanceManager::new(),
+                events: GlobalEventHandler::all("global"),
+                online_count: Arc::new(AtomicU32::new(0)),
+                next_entity_id: AtomicI32::new(1),
                 live_status: ArcSwap::from_pointee(live),
+                cached_registry_packets,
+                cached_tags_packet,
                 shutdown_tx,
             }),
         })
@@ -174,9 +207,29 @@ impl MinecraftServer {
         MinecraftServerBuilder::default()
     }
 
-    /// Borrows the initial [`ServerConfig`].
+    /// Borrows the [`ServerConfig`].
     pub fn config(&self) -> &ServerConfig {
         &self.shared.config
+    }
+
+    /// Borrows the [`InstanceManager`] (`server.instance_manager()`).
+    pub fn instance_manager(&self) -> &InstanceManager {
+        &self.shared.instance_manager
+    }
+
+    /// Borrows the root [`GlobalEventHandler`] (`server.global_event_handler()`).
+    pub fn global_event_handler(&self) -> &GlobalEventHandler {
+        &self.shared.events
+    }
+
+    /// Borrows the server [`Registries`].
+    pub fn registries(&self) -> &Registries {
+        &self.shared.registries
+    }
+
+    /// Returns the number of players currently connected in the `Play` state.
+    pub fn online_count(&self) -> u32 {
+        self.shared.online_count.load(Ordering::Relaxed)
     }
 
     /// Dynamically updates the server list MOTD without restarting.
@@ -202,12 +255,12 @@ impl MinecraftServer {
         });
     }
 
-    /// Updates the advertised online player count (used before/alongside live Play sessions).
+    /// Overrides the advertised online player count (useful for status-only frontends).
     pub fn set_online_count(&self, count: u32) {
         self.shared.online_count.store(count, Ordering::Relaxed);
     }
 
-    /// Signals a running server loop to stop accepting new connections and shut down cleanly.
+    /// Signals a running server loop and its 20 TPS tick thread to stop cleanly.
     pub fn stop_cleanly(&self) {
         let _ = self.shared.shutdown_tx.send(true);
     }
@@ -224,7 +277,8 @@ impl MinecraftServer {
         })
     }
 
-    /// Binds `addr` and runs the server until [`Self::stop_cleanly`] is called.
+    /// Binds `addr`, starts the dedicated 20 TPS tick thread, and runs the network accept loop
+    /// until [`Self::stop_cleanly`] is called.
     pub async fn start<A: ToSocketAddrs>(&self, addr: A) -> Result<(), ServerError> {
         let bound = self.bind(addr).await?;
         bound.run().await
@@ -251,17 +305,61 @@ impl BoundServer {
         self.server.clone()
     }
 
-    /// Runs the network accept loop until [`MinecraftServer::stop_cleanly`] is invoked.
+    /// Starts the dedicated 20 TPS tick thread (`Ms-TickScheduler`) and runs the Tokio accept loop
+    /// until [`MinecraftServer::stop_cleanly`] is invoked.
     pub async fn run(self) -> Result<(), ServerError> {
         info!(
             address = %self.local_addr,
             version = VERSION_NAME,
             protocol = PROTOCOL_VERSION,
+            tps = self.server.shared.config.ticks_per_second,
             "minestom-rs listening"
         );
-        let shutdown_rx = self.server.shared.shutdown_tx.subscribe();
-        let handler: Arc<dyn StatusHandler> = Arc::clone(&self.server.shared) as _;
-        run_accept_loop(self.listener, handler, shutdown_rx).await?;
+
+        let (tick_tx, tick_rx) = flume::bounded::<TickMessage>(4096);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let tick_handle = spawn_tick_thread(
+            self.server.shared.config.clone(),
+            self.server.shared.events.clone(),
+            Arc::clone(&self.server.shared.online_count),
+            tick_rx,
+            Arc::clone(&stop_flag),
+        )?;
+
+        let mut shutdown_rx = self.server.shared.shutdown_tx.subscribe();
+        loop {
+            tokio::select! {
+                changed = shutdown_rx.changed() => {
+                    if changed.is_err() || *shutdown_rx.borrow() {
+                        break;
+                    }
+                }
+                accepted = self.listener.accept() => {
+                    let (tcp, peer_addr) = match accepted {
+                        Ok(pair) => pair,
+                        Err(err) => {
+                            debug!(%err, "transient TCP accept error");
+                            continue;
+                        }
+                    };
+                    let shared = Arc::clone(&self.server.shared);
+                    let tx = tick_tx.clone();
+                    let span = info_span!("connection", %peer_addr);
+                    tokio::spawn(
+                        async move {
+                            if let Err(err) = run_client_session(tcp, shared, tx).await {
+                                debug!(%err, "client connection closed");
+                            }
+                        }
+                        .instrument(span),
+                    );
+                }
+            }
+        }
+
+        let _ = tick_tx.send(TickMessage::Shutdown);
+        stop_flag.store(true, Ordering::Release);
+        let _ = tokio::task::spawn_blocking(move || tick_handle.join()).await;
         Ok(())
     }
 }
