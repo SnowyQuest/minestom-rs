@@ -4,6 +4,7 @@
 pub mod chat_command;
 pub mod codec;
 pub mod config;
+pub mod entity;
 pub mod frame;
 pub mod handshake;
 pub mod login;

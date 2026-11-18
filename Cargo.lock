@@ -615,7 +615,14 @@ version = "0.1.0"
 name = "minestom-entity"
 version = "0.1.0"
 dependencies = [
+ "minestom-block",
  "minestom-core",
+ "minestom-data",
+ "minestom-event",
+ "minestom-protocol",
+ "minestom-text",
+ "rustc-hash",
+ "slotmap",
  "thiserror",
  "uuid",
 ]

@@ -13,12 +13,14 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use arc_swap::ArcSwap;
 use bytes::Bytes;
 use minestom_command::CommandManager;
+use minestom_core::{Pos, Vec3};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
+use minestom_entity::Entity;
 use minestom_event::GlobalEventHandler;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
 use minestom_registry::Registries;
 use minestom_text::Component;
-use minestom_world::InstanceManager;
+use minestom_world::{InstanceContainer, InstanceManager};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::watch;
 use tracing::{Instrument, debug, info, info_span};
@@ -30,7 +32,7 @@ pub use event::{
 };
 
 use session::{build_cached_vanilla_config_packets, run_client_session};
-use tick::{TickMessage, spawn_tick_thread};
+use tick::{EntityCommand, TickMessage, spawn_tick_thread};
 
 /// Errors returned while configuring, starting, or running [`MinecraftServer`].
 #[derive(Debug, thiserror::Error)]
@@ -68,6 +70,8 @@ pub(crate) struct ServerShared {
     pub(crate) events: GlobalEventHandler,
     pub(crate) online_count: Arc<AtomicU32>,
     pub(crate) next_entity_id: AtomicI32,
+    pub(crate) entity_cmd_tx: flume::Sender<EntityCommand>,
+    pub(crate) entity_cmd_rx: flume::Receiver<EntityCommand>,
     live_status: ArcSwap<LiveStatusState>,
     pub(crate) cached_registry_packets: Vec<Bytes>,
     pub(crate) cached_tags_packet: Bytes,
@@ -173,6 +177,7 @@ impl MinecraftServerBuilder {
             enforces_secure_chat: self.config.enforces_secure_chat,
         };
         let (shutdown_tx, _) = watch::channel(false);
+        let (entity_cmd_tx, entity_cmd_rx) = flume::unbounded();
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
@@ -182,6 +187,8 @@ impl MinecraftServerBuilder {
                 events: GlobalEventHandler::all("global"),
                 online_count: Arc::new(AtomicU32::new(0)),
                 next_entity_id: AtomicI32::new(1),
+                entity_cmd_tx,
+                entity_cmd_rx,
                 live_status: ArcSwap::from_pointee(live),
                 cached_registry_packets,
                 cached_tags_packet,
@@ -271,6 +278,43 @@ impl MinecraftServer {
         self.shared.online_count.store(count, Ordering::Relaxed);
     }
 
+    /// Spawns a non-player [`Entity`] into `instance` at `position`, returning its assigned
+    /// runtime network `entity_id`. Can be called before or after [`Self::start`]!
+    pub fn spawn_entity(&self, instance: &InstanceContainer, entity: Entity, position: Pos) -> i32 {
+        let network_id = self.shared.next_entity_id.fetch_add(1, Ordering::Relaxed);
+        let _ = self.shared.entity_cmd_tx.send(EntityCommand::Spawn {
+            network_id,
+            instance: instance.clone(),
+            entity: Box::new(entity),
+            position,
+        });
+        network_id
+    }
+
+    /// Schedules removal/despawn of a spawned world entity by its `network_id`.
+    pub fn remove_entity(&self, network_id: i32) {
+        let _ = self
+            .shared
+            .entity_cmd_tx
+            .send(EntityCommand::Remove { network_id });
+    }
+
+    /// Teleports a spawned world entity to `position` and syncs all viewers.
+    pub fn teleport_entity(&self, network_id: i32, position: Pos) {
+        let _ = self.shared.entity_cmd_tx.send(EntityCommand::Teleport {
+            network_id,
+            position,
+        });
+    }
+
+    /// Sets the velocity of a spawned world entity and broadcasts `EntityVelocityPacket`.
+    pub fn set_entity_velocity(&self, network_id: i32, velocity: Vec3) {
+        let _ = self.shared.entity_cmd_tx.send(EntityCommand::SetVelocity {
+            network_id,
+            velocity,
+        });
+    }
+
     /// Signals a running server loop and its 20 TPS tick thread to stop cleanly.
     pub fn stop_cleanly(&self) {
         let _ = self.shared.shutdown_tx.send(true);
@@ -335,6 +379,7 @@ impl BoundServer {
             self.server.shared.command_manager.clone(),
             Arc::clone(&self.server.shared.online_count),
             tick_rx,
+            self.server.shared.entity_cmd_rx.clone(),
             Arc::clone(&stop_flag),
         )?;
 

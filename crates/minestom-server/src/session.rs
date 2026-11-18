@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use flume::Sender;
-use minestom_core::offline_player_uuid;
+use minestom_core::{MainHand, offline_player_uuid};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
 use minestom_entity::ConfiguringPlayer;
 use minestom_event::CancellableEvent;
@@ -242,6 +242,8 @@ pub(crate) async fn run_client_session(
         .await?;
 
     let mut client_view_distance = shared.config.chunk_view_distance;
+    let mut client_main_hand = MainHand::Right;
+    let mut client_skin_parts = 0x7F_u8;
     let mut finish_sent = false;
 
     loop {
@@ -255,6 +257,8 @@ pub(crate) async fn run_client_session(
                     client_view_distance =
                         (settings.view_distance as u8).min(shared.config.chunk_view_distance);
                 }
+                client_main_hand = settings.main_hand;
+                client_skin_parts = settings.displayed_skin_parts;
             }
             ClientConfigPluginMessagePacket::PACKET_ID => {
                 let _ = decode_packet_exact::<ClientConfigPluginMessagePacket>(cfg_frame.payload)?;
@@ -307,6 +311,8 @@ pub(crate) async fn run_client_session(
             profile,
             game_mode: configured_player.game_mode(),
             permission_level: configured_player.permission_level(),
+            main_hand: client_main_hand,
+            displayed_skin_parts: client_skin_parts,
             spawn_pos: configured_player.respawn_point(),
             view_distance: client_view_distance,
             instance: spawning_instance,

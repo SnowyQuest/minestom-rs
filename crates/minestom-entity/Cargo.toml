@@ -8,9 +8,18 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+minestom-block.workspace = true
 minestom-core.workspace = true
+minestom-data.workspace = true
+minestom-event.workspace = true
+minestom-protocol.workspace = true
+minestom-text.workspace = true
+rustc-hash.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+slotmap.workspace = true
 
 [lints]
 workspace = true

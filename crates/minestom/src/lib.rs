@@ -78,7 +78,11 @@ pub mod prelude {
         InstanceId, Key, MainHand, NamespaceId, PlayerId, Point, Pos, Tag, TagMap, Vec3,
     };
     pub use crate::data::{DATA_VERSION, PROTOCOL_VERSION, VERSION_NAME};
-    pub use crate::entity::ConfiguringPlayer;
+    pub use crate::entity::{
+        BoundingBox, ConfiguringPlayer, Entity, EntityBehavior, EntityCore, EntityDespawnEvent,
+        EntityMetadata, EntityRole, EntitySpawnEvent, EntityTracker, EntityType, LivingState,
+        PlayerAttackEntityEvent, PlayerEntityInteractEvent, PlayerHandAnimationEvent,
+    };
     pub use crate::event::{
         BlockEvent, CancellableEvent, EntityEvent, Event, EventListener, EventNode,
         GlobalEventHandler, InstanceEvent, ListenerHandle, PlayerEvent,

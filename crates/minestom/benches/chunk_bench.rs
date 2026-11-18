@@ -88,3 +88,19 @@ fn command_manager_parse_and_execute(bencher: divan::Bencher) {
         manager.execute(&mut sender, black_box("give 32")).unwrap();
     });
 }
+
+#[divan::bench]
+fn spatial_entity_tracker_reconcile_1000_entities(bencher: divan::Bencher) {
+    let mut tracker = EntityTracker::new();
+    let inst = InstanceId::default();
+    for i in 0..1000_i32 {
+        let x = f64::from((i % 40) * 12);
+        let z = f64::from((i / 40) * 12);
+        tracker.register(i + 1, inst, Pos::new(x, 40.0, z));
+    }
+    let viewer = PlayerId::default();
+
+    bencher.bench_local(|| {
+        black_box(tracker.reconcile_viewer(viewer, 1, inst, black_box(ChunkPos::new(5, 5)), 4))
+    });
+}
