@@ -1,5 +1,8 @@
 //! Common gameplay enums, RGB/ARGB colors, generational IDs, and offline UUID derivation.
 
+use std::fmt;
+use std::str::FromStr;
+
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use slotmap::new_key_type;
@@ -74,7 +77,7 @@ impl AlphaColor {
 }
 
 /// Cardinal/vertical 6-way axis direction (`Down = 0` .. `East = 5`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Direction {
     /// `-Y` (`0`).
@@ -95,6 +98,19 @@ pub enum Direction {
 pub type BlockFace = Direction;
 
 impl Direction {
+    /// All 6 block faces in protocol ordinal order (`Down..=East`).
+    pub const ALL: [Self; 6] = [
+        Self::Down,
+        Self::Up,
+        Self::North,
+        Self::South,
+        Self::West,
+        Self::East,
+    ];
+
+    /// All 4 horizontal cardinal faces (`North`, `South`, `West`, `East`).
+    pub const HORIZONTALS: [Self; 4] = [Self::North, Self::South, Self::West, Self::East];
+
     /// Converts a protocol face ID (`0..=5`) into a [`Direction`].
     pub const fn from_id(id: i32) -> Result<Self, CoreError> {
         match id {
@@ -111,6 +127,41 @@ impl Direction {
         }
     }
 
+    /// Lowercase vanilla block-property string (`"down"`, `"up"`, `"north"`, `"south"`, `"west"`, `"east"`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Down => "down",
+            Self::Up => "up",
+            Self::North => "north",
+            Self::South => "south",
+            Self::West => "west",
+            Self::East => "east",
+        }
+    }
+
+    /// Axis name (`"x"`, `"y"`, or `"z"`).
+    #[must_use]
+    pub const fn axis_str(self) -> &'static str {
+        match self {
+            Self::West | Self::East => "x",
+            Self::Down | Self::Up => "y",
+            Self::North | Self::South => "z",
+        }
+    }
+
+    /// Returns `true` if `North`, `South`, `West`, or `East`.
+    #[must_use]
+    pub const fn is_horizontal(self) -> bool {
+        matches!(self, Self::North | Self::South | Self::West | Self::East)
+    }
+
+    /// Returns `true` if `Up` or `Down`.
+    #[must_use]
+    pub const fn is_vertical(self) -> bool {
+        matches!(self, Self::Up | Self::Down)
+    }
+
     /// Returns the opposite face.
     #[must_use]
     pub const fn opposite(self) -> Self {
@@ -124,6 +175,56 @@ impl Direction {
         }
     }
 
+    /// Rotates horizontal faces 90° clockwise around `+Y` (`North -> East -> South -> West`).
+    #[must_use]
+    pub const fn rotate_y_cw(self) -> Self {
+        match self {
+            Self::North => Self::East,
+            Self::East => Self::South,
+            Self::South => Self::West,
+            Self::West => Self::North,
+            vertical => vertical,
+        }
+    }
+
+    /// Rotates horizontal faces 90° counter-clockwise around `+Y` (`North -> West -> South -> East`).
+    #[must_use]
+    pub const fn rotate_y_ccw(self) -> Self {
+        match self {
+            Self::North => Self::West,
+            Self::West => Self::South,
+            Self::South => Self::East,
+            Self::East => Self::North,
+            vertical => vertical,
+        }
+    }
+
+    /// Integer block offset `(dx, dy, dz)` pointing outward from this face.
+    #[must_use]
+    pub const fn block_offset(self) -> (i32, i32, i32) {
+        match self {
+            Self::Down => (0, -1, 0),
+            Self::Up => (0, 1, 0),
+            Self::North => (0, 0, -1),
+            Self::South => (0, 0, 1),
+            Self::West => (-1, 0, 0),
+            Self::East => (1, 0, 0),
+        }
+    }
+
+    /// Resolves a player's horizontal look `yaw` (in degrees) to the cardinal [`Direction`]
+    /// they are facing (`0° = South`, `90° = West`, `180° = North`, `-90° = East`).
+    #[must_use]
+    pub fn from_horizontal_yaw(yaw: f32) -> Self {
+        let sector = ((f64::from(yaw) / 90.0 + 0.5).floor() as i32).rem_euclid(4);
+        match sector {
+            0 => Self::South,
+            1 => Self::West,
+            2 => Self::North,
+            _ => Self::East,
+        }
+    }
+
     /// Unit normal vector pointing outward from this face.
     #[must_use]
     pub const fn normal(self) -> Vec3 {
@@ -134,6 +235,31 @@ impl Direction {
             Self::South => Vec3::new(0.0, 0.0, 1.0),
             Self::West => Vec3::new(-1.0, 0.0, 0.0),
             Self::East => Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+}
+
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for Direction {
+    type Err = CoreError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "down" => Ok(Self::Down),
+            "up" => Ok(Self::Up),
+            "north" => Ok(Self::North),
+            "south" => Ok(Self::South),
+            "west" => Ok(Self::West),
+            "east" => Ok(Self::East),
+            _ => Err(CoreError::InvalidEnumId {
+                kind: "Direction",
+                value: -1,
+            }),
         }
     }
 }

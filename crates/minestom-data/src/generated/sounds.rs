@@ -1975,6 +1975,1985 @@ pub static ENTRIES: &[(u32, &str)] = &[
     (1967, "minecraft:entity.small_sulfur_cube.eat"),
 ];
 
+/// Sorted `(bare_key, id)` slice for zero-allocation O(log N) lookup.
+pub static SORTED_KEYS: &[(&str, u32)] = &[
+    ("ambient.basalt_deltas.additions", 8),
+    ("ambient.basalt_deltas.loop", 9),
+    ("ambient.basalt_deltas.mood", 10),
+    ("ambient.cave", 7),
+    ("ambient.crimson_forest.additions", 11),
+    ("ambient.crimson_forest.loop", 12),
+    ("ambient.crimson_forest.mood", 13),
+    ("ambient.nether_wastes.additions", 14),
+    ("ambient.nether_wastes.loop", 15),
+    ("ambient.nether_wastes.mood", 16),
+    ("ambient.soul_sand_valley.additions", 17),
+    ("ambient.soul_sand_valley.loop", 18),
+    ("ambient.soul_sand_valley.mood", 19),
+    ("ambient.underwater.enter", 23),
+    ("ambient.underwater.exit", 24),
+    ("ambient.underwater.loop", 25),
+    ("ambient.underwater.loop.additions", 26),
+    ("ambient.underwater.loop.additions.rare", 27),
+    ("ambient.underwater.loop.additions.ultra_rare", 28),
+    ("ambient.warped_forest.additions", 20),
+    ("ambient.warped_forest.loop", 21),
+    ("ambient.warped_forest.mood", 22),
+    ("block.amethyst_block.break", 29),
+    ("block.amethyst_block.chime", 30),
+    ("block.amethyst_block.fall", 31),
+    ("block.amethyst_block.hit", 32),
+    ("block.amethyst_block.place", 33),
+    ("block.amethyst_block.resonate", 34),
+    ("block.amethyst_block.step", 35),
+    ("block.amethyst_cluster.break", 36),
+    ("block.amethyst_cluster.fall", 37),
+    ("block.amethyst_cluster.hit", 38),
+    ("block.amethyst_cluster.place", 39),
+    ("block.amethyst_cluster.step", 40),
+    ("block.ancient_debris.break", 41),
+    ("block.ancient_debris.fall", 45),
+    ("block.ancient_debris.hit", 44),
+    ("block.ancient_debris.place", 43),
+    ("block.ancient_debris.step", 42),
+    ("block.anvil.break", 46),
+    ("block.anvil.destroy", 47),
+    ("block.anvil.fall", 48),
+    ("block.anvil.hit", 49),
+    ("block.anvil.land", 50),
+    ("block.anvil.place", 51),
+    ("block.anvil.step", 52),
+    ("block.anvil.use", 53),
+    ("block.azalea.break", 98),
+    ("block.azalea.fall", 99),
+    ("block.azalea.hit", 100),
+    ("block.azalea.place", 101),
+    ("block.azalea.step", 102),
+    ("block.azalea_leaves.break", 103),
+    ("block.azalea_leaves.fall", 104),
+    ("block.azalea_leaves.hit", 105),
+    ("block.azalea_leaves.place", 106),
+    ("block.azalea_leaves.step", 107),
+    ("block.bamboo.break", 117),
+    ("block.bamboo.fall", 118),
+    ("block.bamboo.hit", 119),
+    ("block.bamboo.place", 120),
+    ("block.bamboo.step", 121),
+    ("block.bamboo_sapling.break", 122),
+    ("block.bamboo_sapling.hit", 123),
+    ("block.bamboo_sapling.place", 124),
+    ("block.bamboo_wood.break", 125),
+    ("block.bamboo_wood.fall", 126),
+    ("block.bamboo_wood.hit", 127),
+    ("block.bamboo_wood.place", 128),
+    ("block.bamboo_wood.step", 129),
+    ("block.bamboo_wood_button.click_off", 134),
+    ("block.bamboo_wood_button.click_on", 135),
+    ("block.bamboo_wood_door.close", 130),
+    ("block.bamboo_wood_door.open", 131),
+    ("block.bamboo_wood_fence_gate.close", 138),
+    ("block.bamboo_wood_fence_gate.open", 139),
+    ("block.bamboo_wood_hanging_sign.break", 800),
+    ("block.bamboo_wood_hanging_sign.fall", 801),
+    ("block.bamboo_wood_hanging_sign.hit", 802),
+    ("block.bamboo_wood_hanging_sign.place", 803),
+    ("block.bamboo_wood_hanging_sign.step", 799),
+    ("block.bamboo_wood_pressure_plate.click_off", 136),
+    ("block.bamboo_wood_pressure_plate.click_on", 137),
+    ("block.bamboo_wood_trapdoor.close", 132),
+    ("block.bamboo_wood_trapdoor.open", 133),
+    ("block.barrel.close", 140),
+    ("block.barrel.open", 141),
+    ("block.basalt.break", 142),
+    ("block.basalt.fall", 146),
+    ("block.basalt.hit", 145),
+    ("block.basalt.place", 144),
+    ("block.basalt.step", 143),
+    ("block.beacon.activate", 152),
+    ("block.beacon.ambient", 153),
+    ("block.beacon.deactivate", 154),
+    ("block.beacon.power_select", 155),
+    ("block.beehive.drip", 162),
+    ("block.beehive.enter", 163),
+    ("block.beehive.exit", 164),
+    ("block.beehive.shear", 165),
+    ("block.beehive.work", 166),
+    ("block.bell.resonate", 168),
+    ("block.bell.use", 167),
+    ("block.big_dripleaf.break", 169),
+    ("block.big_dripleaf.fall", 170),
+    ("block.big_dripleaf.hit", 171),
+    ("block.big_dripleaf.place", 172),
+    ("block.big_dripleaf.step", 173),
+    ("block.big_dripleaf.tilt_down", 560),
+    ("block.big_dripleaf.tilt_up", 561),
+    ("block.blastfurnace.fire_crackle", 194),
+    ("block.bone_block.break", 186),
+    ("block.bone_block.fall", 187),
+    ("block.bone_block.hit", 188),
+    ("block.bone_block.place", 189),
+    ("block.bone_block.step", 190),
+    ("block.brewing_stand.brew", 211),
+    ("block.bubble_column.bubble_pop", 217),
+    ("block.bubble_column.upwards_ambient", 218),
+    ("block.bubble_column.upwards_inside", 219),
+    ("block.bubble_column.whirlpool_ambient", 220),
+    ("block.bubble_column.whirlpool_inside", 221),
+    ("block.cactus_flower.break", 241),
+    ("block.cactus_flower.place", 242),
+    ("block.cake.add_candle", 243),
+    ("block.calcite.break", 244),
+    ("block.calcite.fall", 248),
+    ("block.calcite.hit", 247),
+    ("block.calcite.place", 246),
+    ("block.calcite.step", 245),
+    ("block.campfire.crackle", 271),
+    ("block.candle.ambient", 272),
+    ("block.candle.break", 273),
+    ("block.candle.extinguish", 274),
+    ("block.candle.fall", 275),
+    ("block.candle.hit", 276),
+    ("block.candle.place", 277),
+    ("block.candle.step", 278),
+    ("block.cave_vines.break", 306),
+    ("block.cave_vines.fall", 307),
+    ("block.cave_vines.hit", 308),
+    ("block.cave_vines.pick_berries", 311),
+    ("block.cave_vines.place", 309),
+    ("block.cave_vines.step", 310),
+    ("block.chain.break", 312),
+    ("block.chain.fall", 313),
+    ("block.chain.hit", 314),
+    ("block.chain.place", 315),
+    ("block.chain.step", 316),
+    ("block.cherry_leaves.break", 327),
+    ("block.cherry_leaves.fall", 328),
+    ("block.cherry_leaves.hit", 329),
+    ("block.cherry_leaves.place", 330),
+    ("block.cherry_leaves.step", 331),
+    ("block.cherry_sapling.break", 322),
+    ("block.cherry_sapling.fall", 323),
+    ("block.cherry_sapling.hit", 324),
+    ("block.cherry_sapling.place", 325),
+    ("block.cherry_sapling.step", 326),
+    ("block.cherry_wood.break", 317),
+    ("block.cherry_wood.fall", 318),
+    ("block.cherry_wood.hit", 319),
+    ("block.cherry_wood.place", 320),
+    ("block.cherry_wood.step", 321),
+    ("block.cherry_wood_button.click_off", 341),
+    ("block.cherry_wood_button.click_on", 342),
+    ("block.cherry_wood_door.close", 337),
+    ("block.cherry_wood_door.open", 338),
+    ("block.cherry_wood_fence_gate.close", 345),
+    ("block.cherry_wood_fence_gate.open", 346),
+    ("block.cherry_wood_hanging_sign.break", 333),
+    ("block.cherry_wood_hanging_sign.fall", 334),
+    ("block.cherry_wood_hanging_sign.hit", 335),
+    ("block.cherry_wood_hanging_sign.place", 336),
+    ("block.cherry_wood_hanging_sign.step", 332),
+    ("block.cherry_wood_pressure_plate.click_off", 343),
+    ("block.cherry_wood_pressure_plate.click_on", 344),
+    ("block.cherry_wood_trapdoor.close", 339),
+    ("block.cherry_wood_trapdoor.open", 340),
+    ("block.chest.close", 347),
+    ("block.chest.locked", 348),
+    ("block.chest.open", 349),
+    ("block.chiseled_bookshelf.break", 362),
+    ("block.chiseled_bookshelf.fall", 363),
+    ("block.chiseled_bookshelf.hit", 364),
+    ("block.chiseled_bookshelf.insert", 365),
+    ("block.chiseled_bookshelf.insert.enchanted", 366),
+    ("block.chiseled_bookshelf.pickup", 368),
+    ("block.chiseled_bookshelf.pickup.enchanted", 369),
+    ("block.chiseled_bookshelf.place", 370),
+    ("block.chiseled_bookshelf.step", 367),
+    ("block.chorus_flower.death", 371),
+    ("block.chorus_flower.grow", 372),
+    ("block.cinnabar.break", 1926),
+    ("block.cinnabar.fall", 1930),
+    ("block.cinnabar.hit", 1929),
+    ("block.cinnabar.place", 1928),
+    ("block.cinnabar.step", 1927),
+    ("block.cobweb.break", 374),
+    ("block.cobweb.fall", 378),
+    ("block.cobweb.hit", 377),
+    ("block.cobweb.place", 376),
+    ("block.cobweb.step", 375),
+    ("block.comparator.click", 383),
+    ("block.composter.empty", 384),
+    ("block.composter.fill", 385),
+    ("block.composter.fill_success", 386),
+    ("block.composter.ready", 387),
+    ("block.conduit.activate", 388),
+    ("block.conduit.ambient", 389),
+    ("block.conduit.ambient.short", 390),
+    ("block.conduit.attack.target", 391),
+    ("block.conduit.deactivate", 392),
+    ("block.copper.break", 400),
+    ("block.copper.fall", 404),
+    ("block.copper.hit", 403),
+    ("block.copper.place", 402),
+    ("block.copper.step", 401),
+    ("block.copper_bulb.break", 393),
+    ("block.copper_bulb.fall", 397),
+    ("block.copper_bulb.hit", 396),
+    ("block.copper_bulb.place", 395),
+    ("block.copper_bulb.step", 394),
+    ("block.copper_bulb.turn_off", 399),
+    ("block.copper_bulb.turn_on", 398),
+    ("block.copper_chest.close", 405),
+    ("block.copper_chest.open", 406),
+    ("block.copper_chest_oxidized.close", 409),
+    ("block.copper_chest_oxidized.open", 410),
+    ("block.copper_chest_weathered.close", 407),
+    ("block.copper_chest_weathered.open", 408),
+    ("block.copper_door.close", 411),
+    ("block.copper_door.open", 412),
+    ("block.copper_golem_statue.break", 430),
+    ("block.copper_golem_statue.fall", 434),
+    ("block.copper_golem_statue.hit", 432),
+    ("block.copper_golem_statue.place", 431),
+    ("block.copper_golem_statue.step", 433),
+    ("block.copper_grate.break", 437),
+    ("block.copper_grate.fall", 441),
+    ("block.copper_grate.hit", 440),
+    ("block.copper_grate.place", 439),
+    ("block.copper_grate.step", 438),
+    ("block.copper_trapdoor.close", 442),
+    ("block.copper_trapdoor.open", 443),
+    ("block.coral_block.break", 444),
+    ("block.coral_block.fall", 445),
+    ("block.coral_block.hit", 446),
+    ("block.coral_block.place", 447),
+    ("block.coral_block.step", 448),
+    ("block.crafter.craft", 458),
+    ("block.crafter.fail", 459),
+    ("block.creaking_heart.break", 471),
+    ("block.creaking_heart.fall", 472),
+    ("block.creaking_heart.hit", 473),
+    ("block.creaking_heart.hurt", 474),
+    ("block.creaking_heart.idle", 477),
+    ("block.creaking_heart.place", 475),
+    ("block.creaking_heart.spawn", 478),
+    ("block.creaking_heart.step", 476),
+    ("block.crop.break", 482),
+    ("block.deadbush.idle", 492),
+    ("block.decorated_pot.break", 493),
+    ("block.decorated_pot.fall", 494),
+    ("block.decorated_pot.hit", 495),
+    ("block.decorated_pot.insert", 496),
+    ("block.decorated_pot.insert_fail", 497),
+    ("block.decorated_pot.place", 499),
+    ("block.decorated_pot.shatter", 500),
+    ("block.decorated_pot.step", 498),
+    ("block.deepslate.break", 506),
+    ("block.deepslate.fall", 507),
+    ("block.deepslate.hit", 508),
+    ("block.deepslate.place", 509),
+    ("block.deepslate.step", 510),
+    ("block.deepslate_bricks.break", 501),
+    ("block.deepslate_bricks.fall", 502),
+    ("block.deepslate_bricks.hit", 503),
+    ("block.deepslate_bricks.place", 504),
+    ("block.deepslate_bricks.step", 505),
+    ("block.deepslate_tiles.break", 511),
+    ("block.deepslate_tiles.fall", 512),
+    ("block.deepslate_tiles.hit", 513),
+    ("block.deepslate_tiles.place", 514),
+    ("block.deepslate_tiles.step", 515),
+    ("block.dispenser.dispense", 516),
+    ("block.dispenser.fail", 517),
+    ("block.dispenser.launch", 518),
+    ("block.dried_ghast.ambient", 539),
+    ("block.dried_ghast.ambient_water", 540),
+    ("block.dried_ghast.break", 536),
+    ("block.dried_ghast.fall", 538),
+    ("block.dried_ghast.place", 541),
+    ("block.dried_ghast.place_in_water", 542),
+    ("block.dried_ghast.step", 537),
+    ("block.dried_ghast.transition", 543),
+    ("block.dripstone_block.break", 544),
+    ("block.dripstone_block.fall", 548),
+    ("block.dripstone_block.hit", 547),
+    ("block.dripstone_block.place", 546),
+    ("block.dripstone_block.step", 545),
+    ("block.dry_grass.ambient", 549),
+    ("block.enchantment_table.use", 582),
+    ("block.end_gateway.spawn", 605),
+    ("block.end_portal.spawn", 607),
+    ("block.end_portal_frame.fill", 606),
+    ("block.ender_chest.close", 583),
+    ("block.ender_chest.open", 584),
+    ("block.eyeblossom.close", 622),
+    ("block.eyeblossom.close_long", 621),
+    ("block.eyeblossom.idle", 623),
+    ("block.eyeblossom.open", 620),
+    ("block.eyeblossom.open_long", 619),
+    ("block.fence_gate.close", 624),
+    ("block.fence_gate.open", 625),
+    ("block.fire.ambient", 636),
+    ("block.fire.extinguish", 637),
+    ("block.firefly_bush.idle", 627),
+    ("block.flowering_azalea.break", 643),
+    ("block.flowering_azalea.fall", 644),
+    ("block.flowering_azalea.hit", 645),
+    ("block.flowering_azalea.place", 646),
+    ("block.flowering_azalea.step", 647),
+    ("block.froglight.break", 669),
+    ("block.froglight.fall", 670),
+    ("block.froglight.hit", 671),
+    ("block.froglight.place", 672),
+    ("block.froglight.step", 673),
+    ("block.frogspawn.break", 675),
+    ("block.frogspawn.fall", 676),
+    ("block.frogspawn.hatch", 677),
+    ("block.frogspawn.hit", 678),
+    ("block.frogspawn.place", 679),
+    ("block.frogspawn.step", 674),
+    ("block.fungus.break", 1136),
+    ("block.fungus.fall", 1140),
+    ("block.fungus.hit", 1139),
+    ("block.fungus.place", 1138),
+    ("block.fungus.step", 1137),
+    ("block.furnace.fire_crackle", 693),
+    ("block.gilded_blackstone.break", 715),
+    ("block.gilded_blackstone.fall", 716),
+    ("block.gilded_blackstone.hit", 717),
+    ("block.gilded_blackstone.place", 718),
+    ("block.gilded_blackstone.step", 719),
+    ("block.glass.break", 720),
+    ("block.glass.fall", 721),
+    ("block.glass.hit", 722),
+    ("block.glass.place", 723),
+    ("block.glass.step", 724),
+    ("block.grass.break", 755),
+    ("block.grass.fall", 756),
+    ("block.grass.hit", 757),
+    ("block.grass.place", 758),
+    ("block.grass.step", 759),
+    ("block.gravel.break", 760),
+    ("block.gravel.fall", 761),
+    ("block.gravel.hit", 762),
+    ("block.gravel.place", 763),
+    ("block.gravel.step", 764),
+    ("block.grindstone.use", 765),
+    ("block.growing_plant.crop", 766),
+    ("block.hanging_roots.break", 775),
+    ("block.hanging_roots.fall", 776),
+    ("block.hanging_roots.hit", 777),
+    ("block.hanging_roots.place", 778),
+    ("block.hanging_roots.step", 779),
+    ("block.hanging_sign.break", 781),
+    ("block.hanging_sign.fall", 782),
+    ("block.hanging_sign.hit", 783),
+    ("block.hanging_sign.place", 784),
+    ("block.hanging_sign.step", 780),
+    ("block.hanging_sign.waxed_interact_fail", 1755),
+    ("block.heavy_core.break", 789),
+    ("block.heavy_core.fall", 790),
+    ("block.heavy_core.hit", 791),
+    ("block.heavy_core.place", 792),
+    ("block.heavy_core.step", 793),
+    ("block.honey_block.break", 833),
+    ("block.honey_block.fall", 834),
+    ("block.honey_block.hit", 835),
+    ("block.honey_block.place", 836),
+    ("block.honey_block.slide", 837),
+    ("block.honey_block.step", 838),
+    ("block.iron.break", 890),
+    ("block.iron.fall", 894),
+    ("block.iron.hit", 893),
+    ("block.iron.place", 892),
+    ("block.iron.step", 891),
+    ("block.iron_door.close", 895),
+    ("block.iron_door.open", 896),
+    ("block.iron_trapdoor.close", 903),
+    ("block.iron_trapdoor.open", 904),
+    ("block.ladder.break", 912),
+    ("block.ladder.fall", 913),
+    ("block.ladder.hit", 914),
+    ("block.ladder.place", 915),
+    ("block.ladder.step", 916),
+    ("block.lantern.break", 917),
+    ("block.lantern.fall", 918),
+    ("block.lantern.hit", 919),
+    ("block.lantern.place", 920),
+    ("block.lantern.step", 921),
+    ("block.large_amethyst_bud.break", 922),
+    ("block.large_amethyst_bud.place", 923),
+    ("block.lava.ambient", 924),
+    ("block.lava.extinguish", 925),
+    ("block.lava.pop", 926),
+    ("block.leaf_litter.break", 927),
+    ("block.leaf_litter.fall", 931),
+    ("block.leaf_litter.hit", 930),
+    ("block.leaf_litter.place", 929),
+    ("block.leaf_litter.step", 928),
+    ("block.lever.click", 935),
+    ("block.lily_pad.place", 1724),
+    ("block.lodestone.break", 950),
+    ("block.lodestone.fall", 954),
+    ("block.lodestone.hit", 953),
+    ("block.lodestone.place", 952),
+    ("block.lodestone.step", 951),
+    ("block.mangrove_roots.break", 968),
+    ("block.mangrove_roots.fall", 969),
+    ("block.mangrove_roots.hit", 970),
+    ("block.mangrove_roots.place", 971),
+    ("block.mangrove_roots.step", 972),
+    ("block.medium_amethyst_bud.break", 973),
+    ("block.medium_amethyst_bud.place", 974),
+    ("block.metal.break", 975),
+    ("block.metal.fall", 976),
+    ("block.metal.hit", 977),
+    ("block.metal.place", 978),
+    ("block.metal.step", 981),
+    ("block.metal_pressure_plate.click_off", 979),
+    ("block.metal_pressure_plate.click_on", 980),
+    ("block.moss.break", 1000),
+    ("block.moss.fall", 1001),
+    ("block.moss.hit", 1002),
+    ("block.moss.place", 1003),
+    ("block.moss.step", 1004),
+    ("block.moss_carpet.break", 990),
+    ("block.moss_carpet.fall", 991),
+    ("block.moss_carpet.hit", 992),
+    ("block.moss_carpet.place", 993),
+    ("block.moss_carpet.step", 994),
+    ("block.mud.break", 1005),
+    ("block.mud.fall", 1006),
+    ("block.mud.hit", 1007),
+    ("block.mud.place", 1008),
+    ("block.mud.step", 1009),
+    ("block.mud_bricks.break", 1010),
+    ("block.mud_bricks.fall", 1011),
+    ("block.mud_bricks.hit", 1012),
+    ("block.mud_bricks.place", 1013),
+    ("block.mud_bricks.step", 1014),
+    ("block.muddy_mangrove_roots.break", 1015),
+    ("block.muddy_mangrove_roots.fall", 1016),
+    ("block.muddy_mangrove_roots.hit", 1017),
+    ("block.muddy_mangrove_roots.place", 1018),
+    ("block.muddy_mangrove_roots.step", 1019),
+    ("block.nether_bricks.break", 1093),
+    ("block.nether_bricks.fall", 1097),
+    ("block.nether_bricks.hit", 1096),
+    ("block.nether_bricks.place", 1095),
+    ("block.nether_bricks.step", 1094),
+    ("block.nether_gold_ore.break", 1363),
+    ("block.nether_gold_ore.fall", 1364),
+    ("block.nether_gold_ore.hit", 1365),
+    ("block.nether_gold_ore.place", 1366),
+    ("block.nether_gold_ore.step", 1367),
+    ("block.nether_ore.break", 1368),
+    ("block.nether_ore.fall", 1369),
+    ("block.nether_ore.hit", 1370),
+    ("block.nether_ore.place", 1371),
+    ("block.nether_ore.step", 1372),
+    ("block.nether_sprouts.break", 1131),
+    ("block.nether_sprouts.fall", 1135),
+    ("block.nether_sprouts.hit", 1134),
+    ("block.nether_sprouts.place", 1133),
+    ("block.nether_sprouts.step", 1132),
+    ("block.nether_wart.break", 1098),
+    ("block.nether_wood.break", 1100),
+    ("block.nether_wood.fall", 1101),
+    ("block.nether_wood.hit", 1102),
+    ("block.nether_wood.place", 1103),
+    ("block.nether_wood.step", 1104),
+    ("block.nether_wood_button.click_off", 1109),
+    ("block.nether_wood_button.click_on", 1110),
+    ("block.nether_wood_door.close", 1105),
+    ("block.nether_wood_door.open", 1106),
+    ("block.nether_wood_fence_gate.close", 1113),
+    ("block.nether_wood_fence_gate.open", 1114),
+    ("block.nether_wood_hanging_sign.break", 795),
+    ("block.nether_wood_hanging_sign.fall", 796),
+    ("block.nether_wood_hanging_sign.hit", 797),
+    ("block.nether_wood_hanging_sign.place", 798),
+    ("block.nether_wood_hanging_sign.step", 794),
+    ("block.nether_wood_pressure_plate.click_off", 1111),
+    ("block.nether_wood_pressure_plate.click_on", 1112),
+    ("block.nether_wood_trapdoor.close", 1107),
+    ("block.nether_wood_trapdoor.open", 1108),
+    ("block.netherite_block.break", 1151),
+    ("block.netherite_block.fall", 1155),
+    ("block.netherite_block.hit", 1154),
+    ("block.netherite_block.place", 1153),
+    ("block.netherite_block.step", 1152),
+    ("block.netherrack.break", 1156),
+    ("block.netherrack.fall", 1160),
+    ("block.netherrack.hit", 1159),
+    ("block.netherrack.place", 1158),
+    ("block.netherrack.step", 1157),
+    ("block.note_block.banjo", 1180),
+    ("block.note_block.basedrum", 1161),
+    ("block.note_block.bass", 1162),
+    ("block.note_block.bell", 1163),
+    ("block.note_block.bit", 1179),
+    ("block.note_block.chime", 1164),
+    ("block.note_block.cow_bell", 1177),
+    ("block.note_block.didgeridoo", 1178),
+    ("block.note_block.flute", 1165),
+    ("block.note_block.guitar", 1166),
+    ("block.note_block.harp", 1167),
+    ("block.note_block.hat", 1168),
+    ("block.note_block.imitate.creeper", 1183),
+    ("block.note_block.imitate.ender_dragon", 1184),
+    ("block.note_block.imitate.piglin", 1186),
+    ("block.note_block.imitate.skeleton", 1182),
+    ("block.note_block.imitate.wither_skeleton", 1185),
+    ("block.note_block.imitate.zombie", 1181),
+    ("block.note_block.iron_xylophone", 1176),
+    ("block.note_block.pling", 1169),
+    ("block.note_block.snare", 1170),
+    ("block.note_block.trumpet", 1171),
+    ("block.note_block.trumpet_exposed", 1172),
+    ("block.note_block.trumpet_oxidized", 1173),
+    ("block.note_block.trumpet_weathered", 1174),
+    ("block.note_block.xylophone", 1175),
+    ("block.nylium.break", 1126),
+    ("block.nylium.fall", 1130),
+    ("block.nylium.hit", 1129),
+    ("block.nylium.place", 1128),
+    ("block.nylium.step", 1127),
+    ("block.packed_mud.break", 1116),
+    ("block.packed_mud.fall", 1117),
+    ("block.packed_mud.hit", 1118),
+    ("block.packed_mud.place", 1119),
+    ("block.packed_mud.step", 1120),
+    ("block.pale_hanging_moss.idle", 1193),
+    ("block.pink_petals.break", 995),
+    ("block.pink_petals.fall", 996),
+    ("block.pink_petals.hit", 997),
+    ("block.pink_petals.place", 998),
+    ("block.pink_petals.step", 999),
+    ("block.piston.contract", 1300),
+    ("block.piston.extend", 1301),
+    ("block.pointed_dripstone.break", 550),
+    ("block.pointed_dripstone.drip_lava", 556),
+    ("block.pointed_dripstone.drip_lava_into_cauldron", 558),
+    ("block.pointed_dripstone.drip_water", 557),
+    ("block.pointed_dripstone.drip_water_into_cauldron", 559),
+    ("block.pointed_dripstone.fall", 554),
+    ("block.pointed_dripstone.hit", 553),
+    ("block.pointed_dripstone.land", 555),
+    ("block.pointed_dripstone.place", 552),
+    ("block.pointed_dripstone.step", 551),
+    ("block.polished_deepslate.break", 1329),
+    ("block.polished_deepslate.fall", 1330),
+    ("block.polished_deepslate.hit", 1331),
+    ("block.polished_deepslate.place", 1332),
+    ("block.polished_deepslate.step", 1333),
+    ("block.polished_tuff.break", 1651),
+    ("block.polished_tuff.fall", 1652),
+    ("block.polished_tuff.hit", 1653),
+    ("block.polished_tuff.place", 1654),
+    ("block.polished_tuff.step", 1655),
+    ("block.portal.ambient", 1334),
+    ("block.portal.travel", 1335),
+    ("block.portal.trigger", 1336),
+    ("block.potent_sulfur.break", 1917),
+    ("block.potent_sulfur.fall", 1921),
+    ("block.potent_sulfur.geyser_continuous_eruption", 1924),
+    ("block.potent_sulfur.geyser_continuous_eruption_active", 1925),
+    ("block.potent_sulfur.geyser_eruption", 1922),
+    ("block.potent_sulfur.geyser_eruption_active", 1923),
+    ("block.potent_sulfur.hit", 1920),
+    ("block.potent_sulfur.noxious_gas", 1962),
+    ("block.potent_sulfur.place", 1919),
+    ("block.potent_sulfur.step", 1918),
+    ("block.powder_snow.break", 1337),
+    ("block.powder_snow.fall", 1338),
+    ("block.powder_snow.hit", 1339),
+    ("block.powder_snow.place", 1340),
+    ("block.powder_snow.step", 1341),
+    ("block.pumpkin.carve", 1348),
+    ("block.redstone_torch.burnout", 1373),
+    ("block.resin.break", 1374),
+    ("block.resin.fall", 1375),
+    ("block.resin.place", 1376),
+    ("block.resin.step", 1377),
+    ("block.resin_bricks.break", 1378),
+    ("block.resin_bricks.fall", 1379),
+    ("block.resin_bricks.hit", 1380),
+    ("block.resin_bricks.place", 1381),
+    ("block.resin_bricks.step", 1382),
+    ("block.respawn_anchor.ambient", 1383),
+    ("block.respawn_anchor.charge", 1384),
+    ("block.respawn_anchor.deplete", 1385),
+    ("block.respawn_anchor.set_spawn", 1386),
+    ("block.rooted_dirt.break", 1387),
+    ("block.rooted_dirt.fall", 1388),
+    ("block.rooted_dirt.hit", 1389),
+    ("block.rooted_dirt.place", 1390),
+    ("block.rooted_dirt.step", 1391),
+    ("block.roots.break", 688),
+    ("block.roots.fall", 692),
+    ("block.roots.hit", 691),
+    ("block.roots.place", 690),
+    ("block.roots.step", 689),
+    ("block.sand.break", 1396),
+    ("block.sand.fall", 1397),
+    ("block.sand.hit", 1398),
+    ("block.sand.idle", 1401),
+    ("block.sand.place", 1399),
+    ("block.sand.step", 1400),
+    ("block.scaffolding.break", 1402),
+    ("block.scaffolding.fall", 1403),
+    ("block.scaffolding.hit", 1404),
+    ("block.scaffolding.place", 1405),
+    ("block.scaffolding.step", 1406),
+    ("block.sculk.break", 1409),
+    ("block.sculk.charge", 1408),
+    ("block.sculk.fall", 1410),
+    ("block.sculk.hit", 1411),
+    ("block.sculk.place", 1412),
+    ("block.sculk.spread", 1407),
+    ("block.sculk.step", 1413),
+    ("block.sculk_catalyst.bloom", 1414),
+    ("block.sculk_catalyst.break", 1415),
+    ("block.sculk_catalyst.fall", 1416),
+    ("block.sculk_catalyst.hit", 1417),
+    ("block.sculk_catalyst.place", 1418),
+    ("block.sculk_catalyst.step", 1419),
+    ("block.sculk_sensor.break", 1422),
+    ("block.sculk_sensor.clicking", 1420),
+    ("block.sculk_sensor.clicking_stop", 1421),
+    ("block.sculk_sensor.fall", 1423),
+    ("block.sculk_sensor.hit", 1424),
+    ("block.sculk_sensor.place", 1425),
+    ("block.sculk_sensor.step", 1426),
+    ("block.sculk_shrieker.break", 1427),
+    ("block.sculk_shrieker.fall", 1428),
+    ("block.sculk_shrieker.hit", 1429),
+    ("block.sculk_shrieker.place", 1430),
+    ("block.sculk_shrieker.shriek", 1431),
+    ("block.sculk_shrieker.step", 1432),
+    ("block.sculk_vein.break", 1433),
+    ("block.sculk_vein.fall", 1434),
+    ("block.sculk_vein.hit", 1435),
+    ("block.sculk_vein.place", 1436),
+    ("block.sculk_vein.step", 1437),
+    ("block.shelf.activate", 1444),
+    ("block.shelf.break", 1445),
+    ("block.shelf.deactivate", 1446),
+    ("block.shelf.fall", 1447),
+    ("block.shelf.hit", 1448),
+    ("block.shelf.multi_swap", 1449),
+    ("block.shelf.place", 1450),
+    ("block.shelf.place_item", 1451),
+    ("block.shelf.single_swap", 1452),
+    ("block.shelf.step", 1453),
+    ("block.shelf.take_item", 1454),
+    ("block.shroomlight.break", 1457),
+    ("block.shroomlight.fall", 1461),
+    ("block.shroomlight.hit", 1460),
+    ("block.shroomlight.place", 1459),
+    ("block.shroomlight.step", 1458),
+    ("block.shulker_box.close", 1464),
+    ("block.shulker_box.open", 1465),
+    ("block.sign.waxed_interact_fail", 1756),
+    ("block.slime_block.break", 1498),
+    ("block.slime_block.fall", 1499),
+    ("block.slime_block.hit", 1500),
+    ("block.slime_block.place", 1501),
+    ("block.slime_block.step", 1502),
+    ("block.small_amethyst_bud.break", 1503),
+    ("block.small_amethyst_bud.place", 1504),
+    ("block.small_dripleaf.break", 1505),
+    ("block.small_dripleaf.fall", 1506),
+    ("block.small_dripleaf.hit", 1507),
+    ("block.small_dripleaf.place", 1508),
+    ("block.small_dripleaf.step", 1509),
+    ("block.smithing_table.use", 1550),
+    ("block.smoker.smoke", 1551),
+    ("block.sniffer_egg.crack", 1565),
+    ("block.sniffer_egg.hatch", 1566),
+    ("block.sniffer_egg.plop", 1564),
+    ("block.snow.break", 1568),
+    ("block.snow.fall", 1569),
+    ("block.snow.hit", 1575),
+    ("block.snow.place", 1576),
+    ("block.snow.step", 1577),
+    ("block.soul_sand.break", 1510),
+    ("block.soul_sand.fall", 1514),
+    ("block.soul_sand.hit", 1513),
+    ("block.soul_sand.place", 1512),
+    ("block.soul_sand.step", 1511),
+    ("block.soul_soil.break", 1515),
+    ("block.soul_soil.fall", 1519),
+    ("block.soul_soil.hit", 1518),
+    ("block.soul_soil.place", 1517),
+    ("block.soul_soil.step", 1516),
+    ("block.spawner.break", 1521),
+    ("block.spawner.fall", 1522),
+    ("block.spawner.hit", 1523),
+    ("block.spawner.place", 1524),
+    ("block.spawner.step", 1525),
+    ("block.sponge.absorb", 1589),
+    ("block.sponge.break", 1584),
+    ("block.sponge.fall", 1585),
+    ("block.sponge.hit", 1586),
+    ("block.sponge.place", 1587),
+    ("block.sponge.step", 1588),
+    ("block.spore_blossom.break", 1532),
+    ("block.spore_blossom.fall", 1533),
+    ("block.spore_blossom.hit", 1534),
+    ("block.spore_blossom.place", 1535),
+    ("block.spore_blossom.step", 1536),
+    ("block.stem.break", 1121),
+    ("block.stem.fall", 1125),
+    ("block.stem.hit", 1124),
+    ("block.stem.place", 1123),
+    ("block.stem.step", 1122),
+    ("block.stone.break", 1596),
+    ("block.stone.fall", 1599),
+    ("block.stone.hit", 1600),
+    ("block.stone.place", 1601),
+    ("block.stone.step", 1604),
+    ("block.stone_button.click_off", 1597),
+    ("block.stone_button.click_on", 1598),
+    ("block.stone_pressure_plate.click_off", 1602),
+    ("block.stone_pressure_plate.click_on", 1603),
+    ("block.sulfur.break", 1912),
+    ("block.sulfur.fall", 1916),
+    ("block.sulfur.hit", 1915),
+    ("block.sulfur.place", 1914),
+    ("block.sulfur.step", 1913),
+    ("block.sulfur_spike.break", 1609),
+    ("block.sulfur_spike.fall", 1613),
+    ("block.sulfur_spike.hit", 1612),
+    ("block.sulfur_spike.land", 1614),
+    ("block.sulfur_spike.place", 1611),
+    ("block.sulfur_spike.step", 1610),
+    ("block.suspicious_gravel.break", 664),
+    ("block.suspicious_gravel.fall", 668),
+    ("block.suspicious_gravel.hit", 667),
+    ("block.suspicious_gravel.place", 666),
+    ("block.suspicious_gravel.step", 665),
+    ("block.suspicious_sand.break", 659),
+    ("block.suspicious_sand.fall", 663),
+    ("block.suspicious_sand.hit", 662),
+    ("block.suspicious_sand.place", 661),
+    ("block.suspicious_sand.step", 660),
+    ("block.sweet_berry_bush.break", 1615),
+    ("block.sweet_berry_bush.pick_berries", 1617),
+    ("block.sweet_berry_bush.place", 1616),
+    ("block.trial_spawner.about_to_spawn_item", 810),
+    ("block.trial_spawner.ambient", 815),
+    ("block.trial_spawner.ambient_ominous", 816),
+    ("block.trial_spawner.break", 804),
+    ("block.trial_spawner.close_shutter", 818),
+    ("block.trial_spawner.detect_player", 813),
+    ("block.trial_spawner.eject_item", 819),
+    ("block.trial_spawner.fall", 808),
+    ("block.trial_spawner.hit", 807),
+    ("block.trial_spawner.ominous_activate", 814),
+    ("block.trial_spawner.open_shutter", 817),
+    ("block.trial_spawner.place", 806),
+    ("block.trial_spawner.spawn_item", 811),
+    ("block.trial_spawner.spawn_item_begin", 812),
+    ("block.trial_spawner.spawn_mob", 809),
+    ("block.trial_spawner.step", 805),
+    ("block.tripwire.attach", 1633),
+    ("block.tripwire.click_off", 1634),
+    ("block.tripwire.click_on", 1635),
+    ("block.tripwire.detach", 1636),
+    ("block.tuff.break", 1641),
+    ("block.tuff.fall", 1645),
+    ("block.tuff.hit", 1644),
+    ("block.tuff.place", 1643),
+    ("block.tuff.step", 1642),
+    ("block.tuff_bricks.break", 1646),
+    ("block.tuff_bricks.fall", 1647),
+    ("block.tuff_bricks.hit", 1648),
+    ("block.tuff_bricks.place", 1649),
+    ("block.tuff_bricks.step", 1650),
+    ("block.vault.activate", 1677),
+    ("block.vault.ambient", 1678),
+    ("block.vault.break", 1679),
+    ("block.vault.close_shutter", 1680),
+    ("block.vault.deactivate", 1681),
+    ("block.vault.eject_item", 1682),
+    ("block.vault.fall", 1684),
+    ("block.vault.hit", 1685),
+    ("block.vault.insert_item", 1686),
+    ("block.vault.insert_item_fail", 1687),
+    ("block.vault.open_shutter", 1688),
+    ("block.vault.place", 1689),
+    ("block.vault.reject_rewarded_player", 1683),
+    ("block.vault.step", 1690),
+    ("block.vine.break", 1719),
+    ("block.vine.fall", 1720),
+    ("block.vine.hit", 1721),
+    ("block.vine.place", 1722),
+    ("block.vine.step", 1723),
+    ("block.wart_block.break", 1146),
+    ("block.wart_block.fall", 1150),
+    ("block.wart_block.hit", 1149),
+    ("block.wart_block.place", 1148),
+    ("block.wart_block.step", 1147),
+    ("block.water.ambient", 1757),
+    ("block.weeping_vines.break", 1141),
+    ("block.weeping_vines.fall", 1145),
+    ("block.weeping_vines.hit", 1144),
+    ("block.weeping_vines.place", 1143),
+    ("block.weeping_vines.step", 1142),
+    ("block.wet_grass.break", 1761),
+    ("block.wet_grass.fall", 1762),
+    ("block.wet_grass.hit", 1763),
+    ("block.wet_grass.place", 1764),
+    ("block.wet_grass.step", 1765),
+    ("block.wet_sponge.break", 1766),
+    ("block.wet_sponge.dries", 1767),
+    ("block.wet_sponge.fall", 1768),
+    ("block.wet_sponge.hit", 1769),
+    ("block.wet_sponge.place", 1770),
+    ("block.wet_sponge.step", 1771),
+    ("block.wood.break", 1853),
+    ("block.wood.fall", 1854),
+    ("block.wood.hit", 1855),
+    ("block.wood.place", 1856),
+    ("block.wood.step", 1857),
+    ("block.wooden_button.click_off", 1849),
+    ("block.wooden_button.click_on", 1850),
+    ("block.wooden_door.close", 1845),
+    ("block.wooden_door.open", 1846),
+    ("block.wooden_pressure_plate.click_off", 1851),
+    ("block.wooden_pressure_plate.click_on", 1852),
+    ("block.wooden_trapdoor.close", 1847),
+    ("block.wooden_trapdoor.open", 1848),
+    ("block.wool.break", 1858),
+    ("block.wool.fall", 1859),
+    ("block.wool.hit", 1860),
+    ("block.wool.place", 1861),
+    ("block.wool.step", 1862),
+    ("enchant.thorns.hit", 1622),
+    ("entity.allay.ambient_with_item", 0),
+    ("entity.allay.ambient_without_item", 1),
+    ("entity.allay.death", 2),
+    ("entity.allay.hurt", 3),
+    ("entity.allay.item_given", 4),
+    ("entity.allay.item_taken", 5),
+    ("entity.allay.item_thrown", 6),
+    ("entity.armadillo.ambient", 57),
+    ("entity.armadillo.brush", 66),
+    ("entity.armadillo.death", 59),
+    ("entity.armadillo.eat", 54),
+    ("entity.armadillo.hurt", 55),
+    ("entity.armadillo.hurt_reduced", 56),
+    ("entity.armadillo.land", 61),
+    ("entity.armadillo.peek", 64),
+    ("entity.armadillo.roll", 60),
+    ("entity.armadillo.scute_drop", 62),
+    ("entity.armadillo.step", 58),
+    ("entity.armadillo.unroll_finish", 63),
+    ("entity.armadillo.unroll_start", 65),
+    ("entity.armor_stand.break", 81),
+    ("entity.armor_stand.fall", 82),
+    ("entity.armor_stand.hit", 83),
+    ("entity.armor_stand.place", 84),
+    ("entity.arrow.hit", 85),
+    ("entity.arrow.hit_player", 86),
+    ("entity.arrow.shoot", 87),
+    ("entity.axolotl.attack", 91),
+    ("entity.axolotl.death", 92),
+    ("entity.axolotl.hurt", 93),
+    ("entity.axolotl.idle_air", 94),
+    ("entity.axolotl.idle_water", 95),
+    ("entity.axolotl.splash", 96),
+    ("entity.axolotl.swim", 97),
+    ("entity.baby_cat.ambient", 279),
+    ("entity.baby_cat.beg_for_food", 284),
+    ("entity.baby_cat.death", 281),
+    ("entity.baby_cat.eat", 282),
+    ("entity.baby_cat.hiss", 283),
+    ("entity.baby_cat.hurt", 285),
+    ("entity.baby_cat.purr", 286),
+    ("entity.baby_cat.purreow", 287),
+    ("entity.baby_cat.stray_ambient", 280),
+    ("entity.baby_chicken.ambient", 350),
+    ("entity.baby_chicken.death", 351),
+    ("entity.baby_chicken.hurt", 353),
+    ("entity.baby_chicken.step", 355),
+    ("entity.baby_horse.ambient", 850),
+    ("entity.baby_horse.angry", 852),
+    ("entity.baby_horse.breathe", 856),
+    ("entity.baby_horse.death", 858),
+    ("entity.baby_horse.eat", 860),
+    ("entity.baby_horse.hurt", 863),
+    ("entity.baby_horse.land", 866),
+    ("entity.baby_horse.step", 869),
+    ("entity.baby_nautilus.ambient", 108),
+    ("entity.baby_nautilus.ambient_land", 109),
+    ("entity.baby_nautilus.death", 110),
+    ("entity.baby_nautilus.death_land", 111),
+    ("entity.baby_nautilus.eat", 112),
+    ("entity.baby_nautilus.hurt", 113),
+    ("entity.baby_nautilus.hurt_land", 114),
+    ("entity.baby_nautilus.swim", 116),
+    ("entity.baby_pig.ambient", 1264),
+    ("entity.baby_pig.death", 1267),
+    ("entity.baby_pig.eat", 1265),
+    ("entity.baby_pig.hurt", 1266),
+    ("entity.baby_pig.step", 1263),
+    ("entity.baby_wolf.ambient", 1791),
+    ("entity.baby_wolf.death", 1795),
+    ("entity.baby_wolf.growl", 1796),
+    ("entity.baby_wolf.hurt", 1797),
+    ("entity.baby_wolf.pant", 1798),
+    ("entity.baby_wolf.step", 1801),
+    ("entity.baby_wolf.whine", 1802),
+    ("entity.bat.ambient", 147),
+    ("entity.bat.death", 148),
+    ("entity.bat.hurt", 149),
+    ("entity.bat.loop", 150),
+    ("entity.bat.takeoff", 151),
+    ("entity.bee.death", 156),
+    ("entity.bee.hurt", 157),
+    ("entity.bee.loop", 159),
+    ("entity.bee.loop_aggressive", 158),
+    ("entity.bee.pollinate", 161),
+    ("entity.bee.sting", 160),
+    ("entity.blaze.ambient", 174),
+    ("entity.blaze.burn", 175),
+    ("entity.blaze.death", 176),
+    ("entity.blaze.hurt", 177),
+    ("entity.blaze.shoot", 178),
+    ("entity.boat.paddle_land", 179),
+    ("entity.boat.paddle_water", 180),
+    ("entity.bogged.ambient", 181),
+    ("entity.bogged.death", 182),
+    ("entity.bogged.hurt", 183),
+    ("entity.bogged.shear", 184),
+    ("entity.bogged.step", 185),
+    ("entity.breeze.charge", 198),
+    ("entity.breeze.death", 207),
+    ("entity.breeze.deflect", 199),
+    ("entity.breeze.hurt", 208),
+    ("entity.breeze.idle_air", 202),
+    ("entity.breeze.idle_ground", 201),
+    ("entity.breeze.inhale", 200),
+    ("entity.breeze.jump", 204),
+    ("entity.breeze.land", 205),
+    ("entity.breeze.shoot", 203),
+    ("entity.breeze.slide", 206),
+    ("entity.breeze.whirl", 209),
+    ("entity.breeze.wind_burst", 210),
+    ("entity.camel.ambient", 260),
+    ("entity.camel.dash", 261),
+    ("entity.camel.dash_ready", 262),
+    ("entity.camel.death", 263),
+    ("entity.camel.eat", 264),
+    ("entity.camel.hurt", 265),
+    ("entity.camel.saddle", 266),
+    ("entity.camel.sit", 267),
+    ("entity.camel.stand", 268),
+    ("entity.camel.step", 269),
+    ("entity.camel.step_sand", 270),
+    ("entity.camel_husk.ambient", 249),
+    ("entity.camel_husk.dash", 250),
+    ("entity.camel_husk.dash_ready", 251),
+    ("entity.camel_husk.death", 252),
+    ("entity.camel_husk.eat", 253),
+    ("entity.camel_husk.hurt", 254),
+    ("entity.camel_husk.saddle", 255),
+    ("entity.camel_husk.sit", 256),
+    ("entity.camel_husk.stand", 257),
+    ("entity.camel_husk.step", 258),
+    ("entity.camel_husk.step_sand", 259),
+    ("entity.cat.ambient", 288),
+    ("entity.cat.beg_for_food", 294),
+    ("entity.cat.death", 292),
+    ("entity.cat.eat", 293),
+    ("entity.cat.hiss", 290),
+    ("entity.cat.hurt", 291),
+    ("entity.cat.purr", 295),
+    ("entity.cat.purreow", 296),
+    ("entity.cat.stray_ambient", 289),
+    ("entity.cat_royal.ambient", 297),
+    ("entity.cat_royal.beg_for_food", 303),
+    ("entity.cat_royal.death", 301),
+    ("entity.cat_royal.eat", 302),
+    ("entity.cat_royal.hiss", 299),
+    ("entity.cat_royal.hurt", 300),
+    ("entity.cat_royal.purr", 304),
+    ("entity.cat_royal.purreow", 305),
+    ("entity.cat_royal.stray_ambient", 298),
+    ("entity.chicken.ambient", 356),
+    ("entity.chicken.death", 358),
+    ("entity.chicken.egg", 352),
+    ("entity.chicken.hurt", 357),
+    ("entity.chicken.step", 354),
+    ("entity.chicken_picky.ambient", 359),
+    ("entity.chicken_picky.death", 361),
+    ("entity.chicken_picky.hurt", 360),
+    ("entity.cod.ambient", 379),
+    ("entity.cod.death", 380),
+    ("entity.cod.flop", 381),
+    ("entity.cod.hurt", 382),
+    ("entity.copper_golem.death", 415),
+    ("entity.copper_golem.hurt", 414),
+    ("entity.copper_golem.item_drop", 427),
+    ("entity.copper_golem.item_no_drop", 428),
+    ("entity.copper_golem.no_item_get", 425),
+    ("entity.copper_golem.no_item_no_get", 426),
+    ("entity.copper_golem.shear", 436),
+    ("entity.copper_golem.spawn", 435),
+    ("entity.copper_golem.spin", 422),
+    ("entity.copper_golem.step", 413),
+    ("entity.copper_golem_become_statue", 429),
+    ("entity.copper_golem_oxidized.death", 421),
+    ("entity.copper_golem_oxidized.hurt", 420),
+    ("entity.copper_golem_oxidized.spin", 424),
+    ("entity.copper_golem_oxidized.step", 419),
+    ("entity.copper_golem_weathered.death", 418),
+    ("entity.copper_golem_weathered.hurt", 417),
+    ("entity.copper_golem_weathered.spin", 423),
+    ("entity.copper_golem_weathered.step", 416),
+    ("entity.cow.ambient", 450),
+    ("entity.cow.death", 452),
+    ("entity.cow.hurt", 451),
+    ("entity.cow.milk", 449),
+    ("entity.cow.step", 453),
+    ("entity.cow_moody.ambient", 454),
+    ("entity.cow_moody.death", 456),
+    ("entity.cow_moody.hurt", 455),
+    ("entity.cow_moody.step", 457),
+    ("entity.creaking.activate", 461),
+    ("entity.creaking.ambient", 460),
+    ("entity.creaking.attack", 463),
+    ("entity.creaking.deactivate", 462),
+    ("entity.creaking.death", 464),
+    ("entity.creaking.freeze", 466),
+    ("entity.creaking.spawn", 468),
+    ("entity.creaking.step", 465),
+    ("entity.creaking.sway", 469),
+    ("entity.creaking.twitch", 470),
+    ("entity.creaking.unfreeze", 467),
+    ("entity.creeper.death", 479),
+    ("entity.creeper.hurt", 480),
+    ("entity.creeper.primed", 481),
+    ("entity.dolphin.ambient", 519),
+    ("entity.dolphin.ambient_water", 520),
+    ("entity.dolphin.attack", 521),
+    ("entity.dolphin.death", 522),
+    ("entity.dolphin.eat", 523),
+    ("entity.dolphin.hurt", 524),
+    ("entity.dolphin.jump", 525),
+    ("entity.dolphin.play", 526),
+    ("entity.dolphin.splash", 527),
+    ("entity.dolphin.swim", 528),
+    ("entity.donkey.ambient", 529),
+    ("entity.donkey.angry", 530),
+    ("entity.donkey.chest", 531),
+    ("entity.donkey.death", 532),
+    ("entity.donkey.eat", 533),
+    ("entity.donkey.hurt", 534),
+    ("entity.donkey.jump", 535),
+    ("entity.dragon_fireball.explode", 587),
+    ("entity.drowned.ambient", 562),
+    ("entity.drowned.ambient_water", 563),
+    ("entity.drowned.death", 564),
+    ("entity.drowned.death_water", 565),
+    ("entity.drowned.hurt", 566),
+    ("entity.drowned.hurt_water", 567),
+    ("entity.drowned.shoot", 568),
+    ("entity.drowned.step", 569),
+    ("entity.drowned.swim", 570),
+    ("entity.egg.throw", 572),
+    ("entity.elder_guardian.ambient", 573),
+    ("entity.elder_guardian.ambient_land", 574),
+    ("entity.elder_guardian.curse", 575),
+    ("entity.elder_guardian.death", 576),
+    ("entity.elder_guardian.death_land", 577),
+    ("entity.elder_guardian.flop", 578),
+    ("entity.elder_guardian.hurt", 579),
+    ("entity.elder_guardian.hurt_land", 580),
+    ("entity.ender_dragon.ambient", 585),
+    ("entity.ender_dragon.death", 586),
+    ("entity.ender_dragon.flap", 588),
+    ("entity.ender_dragon.growl", 589),
+    ("entity.ender_dragon.hurt", 590),
+    ("entity.ender_dragon.shoot", 591),
+    ("entity.ender_eye.death", 592),
+    ("entity.ender_eye.launch", 593),
+    ("entity.ender_pearl.throw", 604),
+    ("entity.enderman.ambient", 594),
+    ("entity.enderman.death", 595),
+    ("entity.enderman.hurt", 596),
+    ("entity.enderman.scream", 597),
+    ("entity.enderman.stare", 598),
+    ("entity.enderman.teleport", 599),
+    ("entity.endermite.ambient", 600),
+    ("entity.endermite.death", 601),
+    ("entity.endermite.hurt", 602),
+    ("entity.endermite.step", 603),
+    ("entity.evoker.ambient", 608),
+    ("entity.evoker.cast_spell", 609),
+    ("entity.evoker.celebrate", 610),
+    ("entity.evoker.death", 611),
+    ("entity.evoker.hurt", 613),
+    ("entity.evoker.prepare_attack", 614),
+    ("entity.evoker.prepare_summon", 615),
+    ("entity.evoker.prepare_wololo", 616),
+    ("entity.evoker_fangs.attack", 612),
+    ("entity.experience_bottle.throw", 617),
+    ("entity.experience_orb.pickup", 618),
+    ("entity.firework_rocket.blast", 628),
+    ("entity.firework_rocket.blast_far", 629),
+    ("entity.firework_rocket.large_blast", 630),
+    ("entity.firework_rocket.large_blast_far", 631),
+    ("entity.firework_rocket.launch", 632),
+    ("entity.firework_rocket.shoot", 633),
+    ("entity.firework_rocket.twinkle", 634),
+    ("entity.firework_rocket.twinkle_far", 635),
+    ("entity.fish.swim", 638),
+    ("entity.fishing_bobber.retrieve", 639),
+    ("entity.fishing_bobber.splash", 640),
+    ("entity.fishing_bobber.throw", 641),
+    ("entity.fox.aggro", 648),
+    ("entity.fox.ambient", 649),
+    ("entity.fox.bite", 650),
+    ("entity.fox.death", 651),
+    ("entity.fox.eat", 652),
+    ("entity.fox.hurt", 653),
+    ("entity.fox.screech", 654),
+    ("entity.fox.sleep", 655),
+    ("entity.fox.sniff", 656),
+    ("entity.fox.spit", 657),
+    ("entity.fox.teleport", 658),
+    ("entity.frog.ambient", 680),
+    ("entity.frog.death", 681),
+    ("entity.frog.eat", 682),
+    ("entity.frog.hurt", 683),
+    ("entity.frog.lay_spawn", 684),
+    ("entity.frog.long_jump", 685),
+    ("entity.frog.step", 686),
+    ("entity.frog.tongue", 687),
+    ("entity.generic.big_fall", 694),
+    ("entity.generic.burn", 695),
+    ("entity.generic.death", 696),
+    ("entity.generic.drink", 697),
+    ("entity.generic.eat", 698),
+    ("entity.generic.explode", 699),
+    ("entity.generic.extinguish_fire", 700),
+    ("entity.generic.hurt", 701),
+    ("entity.generic.small_fall", 702),
+    ("entity.generic.splash", 703),
+    ("entity.generic.swim", 704),
+    ("entity.ghast.ambient", 705),
+    ("entity.ghast.death", 706),
+    ("entity.ghast.hurt", 707),
+    ("entity.ghast.scream", 708),
+    ("entity.ghast.shoot", 709),
+    ("entity.ghast.warn", 710),
+    ("entity.ghastling.ambient", 711),
+    ("entity.ghastling.death", 712),
+    ("entity.ghastling.hurt", 713),
+    ("entity.ghastling.spawn", 714),
+    ("entity.glow_item_frame.add_item", 726),
+    ("entity.glow_item_frame.break", 727),
+    ("entity.glow_item_frame.place", 728),
+    ("entity.glow_item_frame.remove_item", 729),
+    ("entity.glow_item_frame.rotate_item", 730),
+    ("entity.glow_squid.ambient", 731),
+    ("entity.glow_squid.death", 732),
+    ("entity.glow_squid.hurt", 733),
+    ("entity.glow_squid.squirt", 734),
+    ("entity.goat.ambient", 735),
+    ("entity.goat.death", 736),
+    ("entity.goat.eat", 737),
+    ("entity.goat.horn_break", 743),
+    ("entity.goat.hurt", 738),
+    ("entity.goat.long_jump", 739),
+    ("entity.goat.milk", 740),
+    ("entity.goat.prepare_ram", 741),
+    ("entity.goat.ram_impact", 742),
+    ("entity.goat.screaming.ambient", 744),
+    ("entity.goat.screaming.death", 745),
+    ("entity.goat.screaming.eat", 746),
+    ("entity.goat.screaming.hurt", 747),
+    ("entity.goat.screaming.long_jump", 748),
+    ("entity.goat.screaming.milk", 749),
+    ("entity.goat.screaming.prepare_ram", 750),
+    ("entity.goat.screaming.ram_impact", 751),
+    ("entity.goat.step", 752),
+    ("entity.guardian.ambient", 767),
+    ("entity.guardian.ambient_land", 768),
+    ("entity.guardian.attack", 769),
+    ("entity.guardian.death", 770),
+    ("entity.guardian.death_land", 771),
+    ("entity.guardian.flop", 772),
+    ("entity.guardian.hurt", 773),
+    ("entity.guardian.hurt_land", 774),
+    ("entity.happy_ghast.ambient", 785),
+    ("entity.happy_ghast.death", 786),
+    ("entity.happy_ghast.equip", 820),
+    ("entity.happy_ghast.harness_goggles_down", 823),
+    ("entity.happy_ghast.harness_goggles_up", 822),
+    ("entity.happy_ghast.hurt", 787),
+    ("entity.happy_ghast.riding", 788),
+    ("entity.happy_ghast.unequip", 821),
+    ("entity.hoglin.ambient", 825),
+    ("entity.hoglin.angry", 826),
+    ("entity.hoglin.attack", 827),
+    ("entity.hoglin.converted_to_zombified", 828),
+    ("entity.hoglin.death", 829),
+    ("entity.hoglin.hurt", 830),
+    ("entity.hoglin.retreat", 831),
+    ("entity.hoglin.step", 832),
+    ("entity.horse.ambient", 849),
+    ("entity.horse.angry", 851),
+    ("entity.horse.armor", 853),
+    ("entity.horse.breathe", 855),
+    ("entity.horse.death", 857),
+    ("entity.horse.eat", 859),
+    ("entity.horse.gallop", 861),
+    ("entity.horse.hurt", 862),
+    ("entity.horse.jump", 864),
+    ("entity.horse.land", 865),
+    ("entity.horse.saddle", 867),
+    ("entity.horse.step", 868),
+    ("entity.horse.step_wood", 870),
+    ("entity.hostile.big_fall", 871),
+    ("entity.hostile.death", 872),
+    ("entity.hostile.hurt", 873),
+    ("entity.hostile.small_fall", 874),
+    ("entity.hostile.splash", 875),
+    ("entity.hostile.swim", 876),
+    ("entity.husk.ambient", 877),
+    ("entity.husk.converted_to_zombie", 878),
+    ("entity.husk.death", 879),
+    ("entity.husk.hurt", 880),
+    ("entity.husk.step", 881),
+    ("entity.illusioner.ambient", 882),
+    ("entity.illusioner.cast_spell", 883),
+    ("entity.illusioner.death", 884),
+    ("entity.illusioner.hurt", 885),
+    ("entity.illusioner.mirror_move", 886),
+    ("entity.illusioner.prepare_blindness", 887),
+    ("entity.illusioner.prepare_mirror", 888),
+    ("entity.iron_golem.attack", 897),
+    ("entity.iron_golem.damage", 898),
+    ("entity.iron_golem.death", 899),
+    ("entity.iron_golem.hurt", 900),
+    ("entity.iron_golem.repair", 901),
+    ("entity.iron_golem.step", 902),
+    ("entity.item.break", 910),
+    ("entity.item.pickup", 911),
+    ("entity.item_frame.add_item", 905),
+    ("entity.item_frame.break", 906),
+    ("entity.item_frame.place", 907),
+    ("entity.item_frame.remove_item", 908),
+    ("entity.item_frame.rotate_item", 909),
+    ("entity.lightning_bolt.impact", 936),
+    ("entity.lightning_bolt.thunder", 937),
+    ("entity.lingering_potion.throw", 938),
+    ("entity.llama.ambient", 939),
+    ("entity.llama.angry", 940),
+    ("entity.llama.chest", 941),
+    ("entity.llama.death", 942),
+    ("entity.llama.eat", 943),
+    ("entity.llama.hurt", 944),
+    ("entity.llama.spit", 945),
+    ("entity.llama.step", 946),
+    ("entity.llama.swag", 947),
+    ("entity.magma_cube.death", 962),
+    ("entity.magma_cube.death_small", 949),
+    ("entity.magma_cube.hurt", 963),
+    ("entity.magma_cube.hurt_small", 964),
+    ("entity.magma_cube.jump", 965),
+    ("entity.magma_cube.squish", 966),
+    ("entity.magma_cube.squish_small", 967),
+    ("entity.minecart.inside", 983),
+    ("entity.minecart.inside.underwater", 982),
+    ("entity.minecart.riding", 984),
+    ("entity.mooshroom.convert", 985),
+    ("entity.mooshroom.eat", 986),
+    ("entity.mooshroom.milk", 987),
+    ("entity.mooshroom.shear", 989),
+    ("entity.mooshroom.suspicious_milk", 988),
+    ("entity.mule.ambient", 1020),
+    ("entity.mule.angry", 1021),
+    ("entity.mule.chest", 1022),
+    ("entity.mule.death", 1023),
+    ("entity.mule.eat", 1024),
+    ("entity.mule.hurt", 1025),
+    ("entity.mule.jump", 1026),
+    ("entity.nautilus.ambient", 1081),
+    ("entity.nautilus.ambient_land", 1082),
+    ("entity.nautilus.dash", 1083),
+    ("entity.nautilus.dash_land", 1084),
+    ("entity.nautilus.dash_ready", 1085),
+    ("entity.nautilus.dash_ready_land", 1086),
+    ("entity.nautilus.death", 1087),
+    ("entity.nautilus.death_land", 1088),
+    ("entity.nautilus.eat", 1089),
+    ("entity.nautilus.hurt", 1090),
+    ("entity.nautilus.hurt_land", 1091),
+    ("entity.nautilus.riding", 115),
+    ("entity.nautilus.swim", 1092),
+    ("entity.ocelot.ambient", 1188),
+    ("entity.ocelot.death", 1189),
+    ("entity.ocelot.hurt", 1187),
+    ("entity.painting.break", 1191),
+    ("entity.painting.place", 1192),
+    ("entity.panda.aggressive_ambient", 1201),
+    ("entity.panda.ambient", 1196),
+    ("entity.panda.bite", 1204),
+    ("entity.panda.cant_breed", 1200),
+    ("entity.panda.death", 1197),
+    ("entity.panda.eat", 1198),
+    ("entity.panda.hurt", 1203),
+    ("entity.panda.pre_sneeze", 1194),
+    ("entity.panda.sneeze", 1195),
+    ("entity.panda.step", 1199),
+    ("entity.panda.worried_ambient", 1202),
+    ("entity.parched.ambient", 1205),
+    ("entity.parched.death", 1206),
+    ("entity.parched.hurt", 1207),
+    ("entity.parched.step", 1208),
+    ("entity.parrot.ambient", 1209),
+    ("entity.parrot.death", 1210),
+    ("entity.parrot.eat", 1211),
+    ("entity.parrot.fly", 1212),
+    ("entity.parrot.hurt", 1213),
+    ("entity.parrot.imitate.blaze", 1214),
+    ("entity.parrot.imitate.bogged", 1215),
+    ("entity.parrot.imitate.breeze", 1216),
+    ("entity.parrot.imitate.camel_husk", 1217),
+    ("entity.parrot.imitate.creaking", 1218),
+    ("entity.parrot.imitate.creeper", 1219),
+    ("entity.parrot.imitate.drowned", 1220),
+    ("entity.parrot.imitate.elder_guardian", 1221),
+    ("entity.parrot.imitate.ender_dragon", 1222),
+    ("entity.parrot.imitate.endermite", 1223),
+    ("entity.parrot.imitate.evoker", 1224),
+    ("entity.parrot.imitate.ghast", 1225),
+    ("entity.parrot.imitate.guardian", 1226),
+    ("entity.parrot.imitate.hoglin", 1227),
+    ("entity.parrot.imitate.husk", 1228),
+    ("entity.parrot.imitate.illusioner", 1229),
+    ("entity.parrot.imitate.magma_cube", 1230),
+    ("entity.parrot.imitate.parched", 1232),
+    ("entity.parrot.imitate.phantom", 1231),
+    ("entity.parrot.imitate.piglin", 1233),
+    ("entity.parrot.imitate.piglin_brute", 1234),
+    ("entity.parrot.imitate.pillager", 1235),
+    ("entity.parrot.imitate.ravager", 1236),
+    ("entity.parrot.imitate.shulker", 1237),
+    ("entity.parrot.imitate.silverfish", 1238),
+    ("entity.parrot.imitate.skeleton", 1239),
+    ("entity.parrot.imitate.slime", 1240),
+    ("entity.parrot.imitate.spider", 1241),
+    ("entity.parrot.imitate.stray", 1242),
+    ("entity.parrot.imitate.vex", 1243),
+    ("entity.parrot.imitate.vindicator", 1244),
+    ("entity.parrot.imitate.warden", 1245),
+    ("entity.parrot.imitate.witch", 1246),
+    ("entity.parrot.imitate.wither", 1247),
+    ("entity.parrot.imitate.wither_skeleton", 1248),
+    ("entity.parrot.imitate.zoglin", 1249),
+    ("entity.parrot.imitate.zombie", 1250),
+    ("entity.parrot.imitate.zombie_horse", 1251),
+    ("entity.parrot.imitate.zombie_nautilus", 1252),
+    ("entity.parrot.imitate.zombie_villager", 1253),
+    ("entity.parrot.step", 1254),
+    ("entity.phantom.ambient", 1255),
+    ("entity.phantom.bite", 1256),
+    ("entity.phantom.death", 1257),
+    ("entity.phantom.flap", 1258),
+    ("entity.phantom.hurt", 1259),
+    ("entity.phantom.swoop", 1260),
+    ("entity.pig.ambient", 1268),
+    ("entity.pig.death", 1270),
+    ("entity.pig.eat", 1271),
+    ("entity.pig.hurt", 1269),
+    ("entity.pig.saddle", 1261),
+    ("entity.pig.step", 1262),
+    ("entity.pig_big.ambient", 1276),
+    ("entity.pig_big.death", 1278),
+    ("entity.pig_big.eat", 1279),
+    ("entity.pig_big.hurt", 1277),
+    ("entity.pig_mini.ambient", 1272),
+    ("entity.pig_mini.death", 1274),
+    ("entity.pig_mini.eat", 1275),
+    ("entity.pig_mini.hurt", 1273),
+    ("entity.piglin.admiring_item", 1280),
+    ("entity.piglin.ambient", 1281),
+    ("entity.piglin.angry", 1282),
+    ("entity.piglin.celebrate", 1283),
+    ("entity.piglin.converted_to_zombified", 1289),
+    ("entity.piglin.death", 1284),
+    ("entity.piglin.hurt", 1286),
+    ("entity.piglin.jealous", 1285),
+    ("entity.piglin.retreat", 1287),
+    ("entity.piglin.step", 1288),
+    ("entity.piglin_brute.ambient", 1290),
+    ("entity.piglin_brute.angry", 1291),
+    ("entity.piglin_brute.converted_to_zombified", 1295),
+    ("entity.piglin_brute.death", 1292),
+    ("entity.piglin_brute.hurt", 1293),
+    ("entity.piglin_brute.step", 1294),
+    ("entity.pillager.ambient", 1296),
+    ("entity.pillager.celebrate", 1297),
+    ("entity.pillager.death", 1298),
+    ("entity.pillager.hurt", 1299),
+    ("entity.player.attack.crit", 1302),
+    ("entity.player.attack.knockback", 1303),
+    ("entity.player.attack.nodamage", 1304),
+    ("entity.player.attack.strong", 1305),
+    ("entity.player.attack.sweep", 1306),
+    ("entity.player.attack.weak", 1307),
+    ("entity.player.big_fall", 1308),
+    ("entity.player.breath", 1309),
+    ("entity.player.burp", 1310),
+    ("entity.player.death", 1311),
+    ("entity.player.hurt", 1312),
+    ("entity.player.hurt_drown", 1313),
+    ("entity.player.hurt_freeze", 1314),
+    ("entity.player.hurt_on_fire", 1315),
+    ("entity.player.hurt_sweet_berry_bush", 1316),
+    ("entity.player.levelup", 1317),
+    ("entity.player.small_fall", 1318),
+    ("entity.player.splash", 1319),
+    ("entity.player.splash.high_speed", 1320),
+    ("entity.player.swim", 1321),
+    ("entity.player.teleport", 1322),
+    ("entity.polar_bear.ambient", 1323),
+    ("entity.polar_bear.ambient_baby", 1324),
+    ("entity.polar_bear.death", 1325),
+    ("entity.polar_bear.hurt", 1326),
+    ("entity.polar_bear.step", 1327),
+    ("entity.polar_bear.warning", 1328),
+    ("entity.puffer_fish.blow_out", 1342),
+    ("entity.puffer_fish.blow_up", 1343),
+    ("entity.puffer_fish.death", 1344),
+    ("entity.puffer_fish.flop", 1345),
+    ("entity.puffer_fish.hurt", 1346),
+    ("entity.puffer_fish.sting", 1347),
+    ("entity.rabbit.ambient", 1349),
+    ("entity.rabbit.attack", 1350),
+    ("entity.rabbit.death", 1351),
+    ("entity.rabbit.hurt", 1352),
+    ("entity.rabbit.jump", 1353),
+    ("entity.ravager.ambient", 1355),
+    ("entity.ravager.attack", 1356),
+    ("entity.ravager.celebrate", 1357),
+    ("entity.ravager.death", 1358),
+    ("entity.ravager.hurt", 1359),
+    ("entity.ravager.roar", 1362),
+    ("entity.ravager.step", 1360),
+    ("entity.ravager.stunned", 1361),
+    ("entity.salmon.ambient", 1392),
+    ("entity.salmon.death", 1393),
+    ("entity.salmon.flop", 1394),
+    ("entity.salmon.hurt", 1395),
+    ("entity.sheep.ambient", 1438),
+    ("entity.sheep.death", 1439),
+    ("entity.sheep.hurt", 1440),
+    ("entity.sheep.shear", 1441),
+    ("entity.sheep.step", 1442),
+    ("entity.shulker.ambient", 1463),
+    ("entity.shulker.close", 1468),
+    ("entity.shulker.death", 1469),
+    ("entity.shulker.hurt", 1470),
+    ("entity.shulker.hurt_closed", 1471),
+    ("entity.shulker.open", 1472),
+    ("entity.shulker.shoot", 1473),
+    ("entity.shulker.teleport", 1474),
+    ("entity.shulker_bullet.hit", 1466),
+    ("entity.shulker_bullet.hurt", 1467),
+    ("entity.silverfish.ambient", 1475),
+    ("entity.silverfish.death", 1476),
+    ("entity.silverfish.hurt", 1477),
+    ("entity.silverfish.step", 1478),
+    ("entity.skeleton.ambient", 1479),
+    ("entity.skeleton.converted_to_stray", 1480),
+    ("entity.skeleton.death", 1481),
+    ("entity.skeleton.hurt", 1490),
+    ("entity.skeleton.shoot", 1491),
+    ("entity.skeleton.step", 1492),
+    ("entity.skeleton_horse.ambient", 1482),
+    ("entity.skeleton_horse.ambient_water", 1486),
+    ("entity.skeleton_horse.death", 1483),
+    ("entity.skeleton_horse.gallop_water", 1487),
+    ("entity.skeleton_horse.hurt", 1484),
+    ("entity.skeleton_horse.jump_water", 1488),
+    ("entity.skeleton_horse.step_water", 1489),
+    ("entity.skeleton_horse.swim", 1485),
+    ("entity.slime.attack", 1493),
+    ("entity.slime.death", 1494),
+    ("entity.slime.death_small", 1546),
+    ("entity.slime.hurt", 1495),
+    ("entity.slime.hurt_small", 1547),
+    ("entity.slime.jump", 1496),
+    ("entity.slime.jump_small", 1548),
+    ("entity.slime.squish", 1497),
+    ("entity.slime.squish_small", 1549),
+    ("entity.small_sulfur_cube.death", 1963),
+    ("entity.small_sulfur_cube.eat", 1967),
+    ("entity.small_sulfur_cube.hurt", 1964),
+    ("entity.small_sulfur_cube.jump", 1965),
+    ("entity.small_sulfur_cube.squish", 1966),
+    ("entity.sniffer.death", 1556),
+    ("entity.sniffer.digging", 1561),
+    ("entity.sniffer.digging_stop", 1562),
+    ("entity.sniffer.drop_seed", 1557),
+    ("entity.sniffer.eat", 1553),
+    ("entity.sniffer.happy", 1563),
+    ("entity.sniffer.hurt", 1555),
+    ("entity.sniffer.idle", 1554),
+    ("entity.sniffer.scenting", 1558),
+    ("entity.sniffer.searching", 1560),
+    ("entity.sniffer.sniffing", 1559),
+    ("entity.sniffer.step", 1552),
+    ("entity.snow_golem.ambient", 1570),
+    ("entity.snow_golem.death", 1571),
+    ("entity.snow_golem.hurt", 1572),
+    ("entity.snow_golem.shear", 1574),
+    ("entity.snow_golem.shoot", 1573),
+    ("entity.snowball.throw", 1567),
+    ("entity.spider.ambient", 1578),
+    ("entity.spider.death", 1579),
+    ("entity.spider.hurt", 1580),
+    ("entity.spider.step", 1581),
+    ("entity.splash_potion.break", 1582),
+    ("entity.splash_potion.throw", 1583),
+    ("entity.squid.ambient", 1592),
+    ("entity.squid.death", 1593),
+    ("entity.squid.hurt", 1594),
+    ("entity.squid.squirt", 1595),
+    ("entity.stray.ambient", 1605),
+    ("entity.stray.death", 1606),
+    ("entity.stray.hurt", 1607),
+    ("entity.stray.step", 1608),
+    ("entity.strider.ambient", 1537),
+    ("entity.strider.death", 1540),
+    ("entity.strider.eat", 1544),
+    ("entity.strider.happy", 1538),
+    ("entity.strider.hurt", 1541),
+    ("entity.strider.retreat", 1539),
+    ("entity.strider.saddle", 1545),
+    ("entity.strider.step", 1542),
+    ("entity.strider.step_lava", 1543),
+    ("entity.sulfur_cube.absorb", 1931),
+    ("entity.sulfur_cube.bounce", 1932),
+    ("entity.sulfur_cube.bouncy.hit", 1939),
+    ("entity.sulfur_cube.bouncy.push", 1940),
+    ("entity.sulfur_cube.death", 1933),
+    ("entity.sulfur_cube.eject", 1934),
+    ("entity.sulfur_cube.explosive.hit", 1957),
+    ("entity.sulfur_cube.explosive.push", 1958),
+    ("entity.sulfur_cube.fast_flat.hit", 1945),
+    ("entity.sulfur_cube.fast_flat.push", 1946),
+    ("entity.sulfur_cube.fast_sliding.hit", 1949),
+    ("entity.sulfur_cube.fast_sliding.push", 1950),
+    ("entity.sulfur_cube.high_resistance.hit", 1955),
+    ("entity.sulfur_cube.high_resistance.push", 1956),
+    ("entity.sulfur_cube.hot.hit", 1959),
+    ("entity.sulfur_cube.hot.push", 1960),
+    ("entity.sulfur_cube.hurt", 1935),
+    ("entity.sulfur_cube.jump", 1936),
+    ("entity.sulfur_cube.light.hit", 1947),
+    ("entity.sulfur_cube.light.push", 1948),
+    ("entity.sulfur_cube.regular.hit", 1937),
+    ("entity.sulfur_cube.regular.push", 1938),
+    ("entity.sulfur_cube.slow_bouncy.hit", 1941),
+    ("entity.sulfur_cube.slow_bouncy.push", 1942),
+    ("entity.sulfur_cube.slow_flat.hit", 1943),
+    ("entity.sulfur_cube.slow_flat.push", 1944),
+    ("entity.sulfur_cube.slow_sliding.hit", 1951),
+    ("entity.sulfur_cube.slow_sliding.push", 1952),
+    ("entity.sulfur_cube.squish", 1961),
+    ("entity.sulfur_cube.sticky.hit", 1953),
+    ("entity.sulfur_cube.sticky.push", 1954),
+    ("entity.tadpole.death", 1618),
+    ("entity.tadpole.flop", 1619),
+    ("entity.tadpole.grow_up", 1620),
+    ("entity.tadpole.hurt", 1621),
+    ("entity.tnt.primed", 1623),
+    ("entity.tropical_fish.ambient", 1637),
+    ("entity.tropical_fish.death", 1638),
+    ("entity.tropical_fish.flop", 1639),
+    ("entity.tropical_fish.hurt", 1640),
+    ("entity.turtle.ambient_land", 1656),
+    ("entity.turtle.death", 1657),
+    ("entity.turtle.death_baby", 1658),
+    ("entity.turtle.egg_break", 1659),
+    ("entity.turtle.egg_crack", 1660),
+    ("entity.turtle.egg_hatch", 1661),
+    ("entity.turtle.hurt", 1662),
+    ("entity.turtle.hurt_baby", 1663),
+    ("entity.turtle.lay_egg", 1664),
+    ("entity.turtle.shamble", 1665),
+    ("entity.turtle.shamble_baby", 1666),
+    ("entity.turtle.swim", 1667),
+    ("entity.vex.ambient", 1691),
+    ("entity.vex.charge", 1692),
+    ("entity.vex.death", 1693),
+    ("entity.vex.hurt", 1694),
+    ("entity.villager.ambient", 1695),
+    ("entity.villager.celebrate", 1696),
+    ("entity.villager.death", 1697),
+    ("entity.villager.hurt", 1698),
+    ("entity.villager.no", 1699),
+    ("entity.villager.trade", 1700),
+    ("entity.villager.work_armorer", 1702),
+    ("entity.villager.work_butcher", 1703),
+    ("entity.villager.work_cartographer", 1704),
+    ("entity.villager.work_cleric", 1705),
+    ("entity.villager.work_farmer", 1706),
+    ("entity.villager.work_fisherman", 1707),
+    ("entity.villager.work_fletcher", 1708),
+    ("entity.villager.work_leatherworker", 1709),
+    ("entity.villager.work_librarian", 1710),
+    ("entity.villager.work_mason", 1711),
+    ("entity.villager.work_shepherd", 1712),
+    ("entity.villager.work_toolsmith", 1713),
+    ("entity.villager.work_weaponsmith", 1714),
+    ("entity.villager.yes", 1701),
+    ("entity.vindicator.ambient", 1715),
+    ("entity.vindicator.celebrate", 1716),
+    ("entity.vindicator.death", 1717),
+    ("entity.vindicator.hurt", 1718),
+    ("entity.wandering_trader.ambient", 1725),
+    ("entity.wandering_trader.death", 1726),
+    ("entity.wandering_trader.disappeared", 1727),
+    ("entity.wandering_trader.drink_milk", 1728),
+    ("entity.wandering_trader.drink_potion", 1729),
+    ("entity.wandering_trader.hurt", 1730),
+    ("entity.wandering_trader.no", 1731),
+    ("entity.wandering_trader.reappeared", 1732),
+    ("entity.wandering_trader.trade", 1733),
+    ("entity.wandering_trader.yes", 1734),
+    ("entity.warden.agitated", 1735),
+    ("entity.warden.ambient", 1736),
+    ("entity.warden.angry", 1737),
+    ("entity.warden.attack_impact", 1738),
+    ("entity.warden.death", 1739),
+    ("entity.warden.dig", 1740),
+    ("entity.warden.emerge", 1741),
+    ("entity.warden.heartbeat", 1742),
+    ("entity.warden.hurt", 1743),
+    ("entity.warden.listening", 1744),
+    ("entity.warden.listening_angry", 1745),
+    ("entity.warden.nearby_close", 1746),
+    ("entity.warden.nearby_closer", 1747),
+    ("entity.warden.nearby_closest", 1748),
+    ("entity.warden.roar", 1749),
+    ("entity.warden.sniff", 1750),
+    ("entity.warden.sonic_boom", 1751),
+    ("entity.warden.sonic_charge", 1752),
+    ("entity.warden.step", 1753),
+    ("entity.warden.tendril_clicks", 1754),
+    ("entity.wind_charge.throw", 1773),
+    ("entity.wind_charge.wind_burst", 1772),
+    ("entity.witch.ambient", 1774),
+    ("entity.witch.celebrate", 1775),
+    ("entity.witch.death", 1776),
+    ("entity.witch.drink", 1777),
+    ("entity.witch.hurt", 1778),
+    ("entity.witch.throw", 1779),
+    ("entity.wither.ambient", 1780),
+    ("entity.wither.break_block", 1781),
+    ("entity.wither.death", 1782),
+    ("entity.wither.hurt", 1783),
+    ("entity.wither.shoot", 1784),
+    ("entity.wither.spawn", 1789),
+    ("entity.wither_skeleton.ambient", 1785),
+    ("entity.wither_skeleton.death", 1786),
+    ("entity.wither_skeleton.hurt", 1787),
+    ("entity.wither_skeleton.step", 1788),
+    ("entity.wolf.ambient", 1803),
+    ("entity.wolf.death", 1804),
+    ("entity.wolf.growl", 1805),
+    ("entity.wolf.hurt", 1806),
+    ("entity.wolf.pant", 1807),
+    ("entity.wolf.shake", 1799),
+    ("entity.wolf.step", 1800),
+    ("entity.wolf.whine", 1808),
+    ("entity.wolf_angry.ambient", 1821),
+    ("entity.wolf_angry.death", 1822),
+    ("entity.wolf_angry.growl", 1823),
+    ("entity.wolf_angry.hurt", 1824),
+    ("entity.wolf_angry.pant", 1825),
+    ("entity.wolf_angry.whine", 1826),
+    ("entity.wolf_big.ambient", 1833),
+    ("entity.wolf_big.death", 1834),
+    ("entity.wolf_big.growl", 1835),
+    ("entity.wolf_big.hurt", 1836),
+    ("entity.wolf_big.pant", 1837),
+    ("entity.wolf_big.whine", 1838),
+    ("entity.wolf_cute.ambient", 1839),
+    ("entity.wolf_cute.death", 1840),
+    ("entity.wolf_cute.growl", 1841),
+    ("entity.wolf_cute.hurt", 1842),
+    ("entity.wolf_cute.pant", 1843),
+    ("entity.wolf_cute.whine", 1844),
+    ("entity.wolf_grumpy.ambient", 1827),
+    ("entity.wolf_grumpy.death", 1828),
+    ("entity.wolf_grumpy.growl", 1829),
+    ("entity.wolf_grumpy.hurt", 1830),
+    ("entity.wolf_grumpy.pant", 1831),
+    ("entity.wolf_grumpy.whine", 1832),
+    ("entity.wolf_puglin.ambient", 1809),
+    ("entity.wolf_puglin.death", 1810),
+    ("entity.wolf_puglin.growl", 1811),
+    ("entity.wolf_puglin.hurt", 1812),
+    ("entity.wolf_puglin.pant", 1813),
+    ("entity.wolf_puglin.whine", 1814),
+    ("entity.wolf_sad.ambient", 1815),
+    ("entity.wolf_sad.death", 1816),
+    ("entity.wolf_sad.growl", 1817),
+    ("entity.wolf_sad.hurt", 1818),
+    ("entity.wolf_sad.pant", 1819),
+    ("entity.wolf_sad.whine", 1820),
+    ("entity.zoglin.ambient", 1863),
+    ("entity.zoglin.angry", 1864),
+    ("entity.zoglin.attack", 1865),
+    ("entity.zoglin.death", 1866),
+    ("entity.zoglin.hurt", 1867),
+    ("entity.zoglin.step", 1868),
+    ("entity.zombie.ambient", 1869),
+    ("entity.zombie.attack_iron_door", 1871),
+    ("entity.zombie.attack_wooden_door", 1870),
+    ("entity.zombie.break_wooden_door", 1872),
+    ("entity.zombie.converted_to_drowned", 1873),
+    ("entity.zombie.death", 1874),
+    ("entity.zombie.destroy_egg", 1875),
+    ("entity.zombie.hurt", 1881),
+    ("entity.zombie.infect", 1882),
+    ("entity.zombie.step", 1899),
+    ("entity.zombie_horse.ambient", 1876),
+    ("entity.zombie_horse.angry", 1877),
+    ("entity.zombie_horse.death", 1878),
+    ("entity.zombie_horse.eat", 1879),
+    ("entity.zombie_horse.hurt", 1880),
+    ("entity.zombie_nautilus.ambient", 1883),
+    ("entity.zombie_nautilus.ambient_land", 1884),
+    ("entity.zombie_nautilus.dash", 1885),
+    ("entity.zombie_nautilus.dash_land", 1886),
+    ("entity.zombie_nautilus.dash_ready", 1887),
+    ("entity.zombie_nautilus.dash_ready_land", 1888),
+    ("entity.zombie_nautilus.death", 1889),
+    ("entity.zombie_nautilus.death_land", 1890),
+    ("entity.zombie_nautilus.eat", 1891),
+    ("entity.zombie_nautilus.hurt", 1892),
+    ("entity.zombie_nautilus.hurt_land", 1893),
+    ("entity.zombie_nautilus.swim", 1894),
+    ("entity.zombie_villager.ambient", 1900),
+    ("entity.zombie_villager.converted", 1901),
+    ("entity.zombie_villager.cure", 1902),
+    ("entity.zombie_villager.death", 1903),
+    ("entity.zombie_villager.hurt", 1904),
+    ("entity.zombie_villager.step", 1905),
+    ("entity.zombified_piglin.ambient", 1895),
+    ("entity.zombified_piglin.angry", 1896),
+    ("entity.zombified_piglin.death", 1897),
+    ("entity.zombified_piglin.hurt", 1898),
+    ("event.mob_effect.bad_omen", 1906),
+    ("event.mob_effect.raid_omen", 1908),
+    ("event.mob_effect.trial_omen", 1907),
+    ("event.raid.horn", 1354),
+    ("intentionally_empty", 1115),
+    ("item.armor.equip_chain", 67),
+    ("item.armor.equip_copper", 74),
+    ("item.armor.equip_diamond", 68),
+    ("item.armor.equip_elytra", 69),
+    ("item.armor.equip_generic", 70),
+    ("item.armor.equip_gold", 71),
+    ("item.armor.equip_iron", 72),
+    ("item.armor.equip_leather", 73),
+    ("item.armor.equip_nautilus", 79),
+    ("item.armor.equip_netherite", 75),
+    ("item.armor.equip_turtle", 76),
+    ("item.armor.equip_wolf", 77),
+    ("item.armor.unequip_nautilus", 80),
+    ("item.armor.unequip_wolf", 78),
+    ("item.axe.scrape", 89),
+    ("item.axe.strip", 88),
+    ("item.axe.wax_off", 90),
+    ("item.bone_meal.use", 191),
+    ("item.book.page_turn", 192),
+    ("item.book.put", 193),
+    ("item.bottle.empty", 195),
+    ("item.bottle.fill", 196),
+    ("item.bottle.fill_dragonbreath", 197),
+    ("item.brush.brushing.generic", 212),
+    ("item.brush.brushing.gravel", 214),
+    ("item.brush.brushing.gravel.complete", 216),
+    ("item.brush.brushing.sand", 213),
+    ("item.brush.brushing.sand.complete", 215),
+    ("item.bucket.empty", 223),
+    ("item.bucket.empty_axolotl", 224),
+    ("item.bucket.empty_fish", 225),
+    ("item.bucket.empty_lava", 226),
+    ("item.bucket.empty_powder_snow", 227),
+    ("item.bucket.empty_sulfur_cube", 228),
+    ("item.bucket.empty_tadpole", 229),
+    ("item.bucket.fill", 230),
+    ("item.bucket.fill_axolotl", 231),
+    ("item.bucket.fill_fish", 232),
+    ("item.bucket.fill_lava", 233),
+    ("item.bucket.fill_powder_snow", 234),
+    ("item.bucket.fill_sulfur_cube", 235),
+    ("item.bucket.fill_tadpole", 236),
+    ("item.bundle.drop_contents", 237),
+    ("item.bundle.insert", 238),
+    ("item.bundle.insert_fail", 239),
+    ("item.bundle.remove_one", 240),
+    ("item.chorus_fruit.teleport", 373),
+    ("item.crop.plant", 483),
+    ("item.crossbow.hit", 484),
+    ("item.crossbow.loading_end", 485),
+    ("item.crossbow.loading_middle", 486),
+    ("item.crossbow.loading_start", 487),
+    ("item.crossbow.quick_charge_1", 488),
+    ("item.crossbow.quick_charge_2", 489),
+    ("item.crossbow.quick_charge_3", 490),
+    ("item.crossbow.shoot", 491),
+    ("item.dye.use", 571),
+    ("item.elytra.flying", 581),
+    ("item.firecharge.use", 626),
+    ("item.flintandsteel.use", 642),
+    ("item.glow_ink_sac.use", 725),
+    ("item.goat_horn.sound.0", 841),
+    ("item.goat_horn.sound.1", 842),
+    ("item.goat_horn.sound.2", 843),
+    ("item.goat_horn.sound.3", 844),
+    ("item.goat_horn.sound.4", 845),
+    ("item.goat_horn.sound.5", 846),
+    ("item.goat_horn.sound.6", 847),
+    ("item.goat_horn.sound.7", 848),
+    ("item.golden_dandelion.unuse", 754),
+    ("item.golden_dandelion.use", 753),
+    ("item.hoe.till", 824),
+    ("item.honey_bottle.drink", 840),
+    ("item.honeycomb.wax_on", 839),
+    ("item.horse_armor.unequip", 854),
+    ("item.ink_sac.use", 889),
+    ("item.lead.break", 934),
+    ("item.lead.tied", 933),
+    ("item.lead.untied", 932),
+    ("item.llama_carpet.unequip", 948),
+    ("item.lodestone_compass.lock", 955),
+    ("item.mace.smash_air", 959),
+    ("item.mace.smash_ground", 960),
+    ("item.mace.smash_ground_heavy", 961),
+    ("item.nautilus_saddle_equip", 1911),
+    ("item.nautilus_saddle_underwater_equip", 1910),
+    ("item.nether_wart.plant", 1099),
+    ("item.ominous_bottle.dispose", 1190),
+    ("item.saddle.unequip", 1909),
+    ("item.shears.snip", 1443),
+    ("item.shield.block", 1455),
+    ("item.shield.break", 1456),
+    ("item.shovel.flatten", 1462),
+    ("item.spear.attack", 1528),
+    ("item.spear.hit", 1527),
+    ("item.spear.lunge_1", 956),
+    ("item.spear.lunge_2", 957),
+    ("item.spear.lunge_3", 958),
+    ("item.spear.use", 1526),
+    ("item.spear_wood.attack", 1531),
+    ("item.spear_wood.hit", 1530),
+    ("item.spear_wood.use", 1529),
+    ("item.spyglass.stop_using", 1591),
+    ("item.spyglass.use", 1590),
+    ("item.totem.use", 1624),
+    ("item.trident.hit", 1625),
+    ("item.trident.hit_ground", 1626),
+    ("item.trident.return", 1627),
+    ("item.trident.riptide_1", 1628),
+    ("item.trident.riptide_2", 1629),
+    ("item.trident.riptide_3", 1630),
+    ("item.trident.throw", 1631),
+    ("item.trident.thunder", 1632),
+    ("item.wolf_armor.break", 1790),
+    ("item.wolf_armor.crack", 1792),
+    ("item.wolf_armor.damage", 1793),
+    ("item.wolf_armor.repair", 1794),
+    ("music.creative", 1027),
+    ("music.credits", 1028),
+    ("music.dragon", 1051),
+    ("music.end", 1052),
+    ("music.game", 1053),
+    ("music.menu", 1054),
+    ("music.nether.basalt_deltas", 1055),
+    ("music.nether.crimson_forest", 1056),
+    ("music.nether.nether_wastes", 1067),
+    ("music.nether.soul_sand_valley", 1070),
+    ("music.nether.warped_forest", 1072),
+    ("music.overworld.badlands", 1075),
+    ("music.overworld.bamboo_jungle", 1078),
+    ("music.overworld.cherry_grove", 1066),
+    ("music.overworld.deep_dark", 1057),
+    ("music.overworld.desert", 1074),
+    ("music.overworld.dripstone_caves", 1058),
+    ("music.overworld.flower_forest", 1073),
+    ("music.overworld.forest", 1063),
+    ("music.overworld.frozen_peaks", 1068),
+    ("music.overworld.grove", 1059),
+    ("music.overworld.jagged_peaks", 1060),
+    ("music.overworld.jungle", 1076),
+    ("music.overworld.lush_caves", 1061),
+    ("music.overworld.meadow", 1065),
+    ("music.overworld.old_growth_taiga", 1064),
+    ("music.overworld.snowy_slopes", 1069),
+    ("music.overworld.sparse_jungle", 1077),
+    ("music.overworld.stony_peaks", 1071),
+    ("music.overworld.sulfur_caves", 1079),
+    ("music.overworld.swamp", 1062),
+    ("music.under_water", 1080),
+    ("music_disc.11", 1030),
+    ("music_disc.13", 1031),
+    ("music_disc.5", 1029),
+    ("music_disc.blocks", 1032),
+    ("music_disc.bounce", 1033),
+    ("music_disc.cat", 1034),
+    ("music_disc.chirp", 1035),
+    ("music_disc.creator", 1047),
+    ("music_disc.creator_music_box", 1048),
+    ("music_disc.far", 1036),
+    ("music_disc.lava_chicken", 1037),
+    ("music_disc.mall", 1038),
+    ("music_disc.mellohi", 1039),
+    ("music_disc.otherside", 1045),
+    ("music_disc.pigstep", 1040),
+    ("music_disc.precipice", 1049),
+    ("music_disc.relic", 1046),
+    ("music_disc.stal", 1041),
+    ("music_disc.strad", 1042),
+    ("music_disc.tears", 1050),
+    ("music_disc.wait", 1043),
+    ("music_disc.ward", 1044),
+    ("particle.soul_escape", 1520),
+    ("ui.button.click", 1668),
+    ("ui.cartography_table.take_result", 1671),
+    ("ui.hud.bubble_pop", 222),
+    ("ui.loom.select_pattern", 1669),
+    ("ui.loom.take_result", 1670),
+    ("ui.stonecutter.select_recipe", 1673),
+    ("ui.stonecutter.take_result", 1672),
+    ("ui.toast.challenge_complete", 1674),
+    ("ui.toast.in", 1675),
+    ("ui.toast.out", 1676),
+    ("weather.end_flash", 1758),
+    ("weather.rain", 1759),
+    ("weather.rain.above", 1760),
+];
+
+/// Zero-allocation O(log N) key lookup accepting `"minecraft:foo"` or `"foo"`.
+#[must_use]
+pub fn lookup_key(key: &str) -> Option<u32> {
+    let bare = key.strip_prefix("minecraft:").or_else(|| (!key.contains(':')).then_some(key))?;
+    SORTED_KEYS.binary_search_by_key(&bare, |&(k, _)| k).ok().map(|idx| SORTED_KEYS[idx].1)
+}
+
 /// Protocol ID for `minecraft:entity.allay.ambient_with_item` (`0`).
 pub const ENTITY_ALLAY_AMBIENT_WITH_ITEM: u32 = 0;
 /// Protocol ID for `minecraft:entity.allay.ambient_without_item` (`1`).
@@ -5911,3 +7890,3948 @@ pub const ENTITY_SMALL_SULFUR_CUBE_JUMP: u32 = 1965;
 pub const ENTITY_SMALL_SULFUR_CUBE_SQUISH: u32 = 1966;
 /// Protocol ID for `minecraft:entity.small_sulfur_cube.eat` (`1967`).
 pub const ENTITY_SMALL_SULFUR_CUBE_EAT: u32 = 1967;
+
+/// Generates `pub const <IDENT>: Self = Self(<id>);` for all `1968` entries.
+#[macro_export]
+macro_rules! impl_sound_event_constants {
+    ($ty:ident) => {
+        impl $ty {
+            /// `minecraft:entity.allay.ambient_with_item` (`0`).
+            pub const ENTITY_ALLAY_AMBIENT_WITH_ITEM: Self = Self(0);
+            /// `minecraft:entity.allay.ambient_without_item` (`1`).
+            pub const ENTITY_ALLAY_AMBIENT_WITHOUT_ITEM: Self = Self(1);
+            /// `minecraft:entity.allay.death` (`2`).
+            pub const ENTITY_ALLAY_DEATH: Self = Self(2);
+            /// `minecraft:entity.allay.hurt` (`3`).
+            pub const ENTITY_ALLAY_HURT: Self = Self(3);
+            /// `minecraft:entity.allay.item_given` (`4`).
+            pub const ENTITY_ALLAY_ITEM_GIVEN: Self = Self(4);
+            /// `minecraft:entity.allay.item_taken` (`5`).
+            pub const ENTITY_ALLAY_ITEM_TAKEN: Self = Self(5);
+            /// `minecraft:entity.allay.item_thrown` (`6`).
+            pub const ENTITY_ALLAY_ITEM_THROWN: Self = Self(6);
+            /// `minecraft:ambient.cave` (`7`).
+            pub const AMBIENT_CAVE: Self = Self(7);
+            /// `minecraft:ambient.basalt_deltas.additions` (`8`).
+            pub const AMBIENT_BASALT_DELTAS_ADDITIONS: Self = Self(8);
+            /// `minecraft:ambient.basalt_deltas.loop` (`9`).
+            pub const AMBIENT_BASALT_DELTAS_LOOP: Self = Self(9);
+            /// `minecraft:ambient.basalt_deltas.mood` (`10`).
+            pub const AMBIENT_BASALT_DELTAS_MOOD: Self = Self(10);
+            /// `minecraft:ambient.crimson_forest.additions` (`11`).
+            pub const AMBIENT_CRIMSON_FOREST_ADDITIONS: Self = Self(11);
+            /// `minecraft:ambient.crimson_forest.loop` (`12`).
+            pub const AMBIENT_CRIMSON_FOREST_LOOP: Self = Self(12);
+            /// `minecraft:ambient.crimson_forest.mood` (`13`).
+            pub const AMBIENT_CRIMSON_FOREST_MOOD: Self = Self(13);
+            /// `minecraft:ambient.nether_wastes.additions` (`14`).
+            pub const AMBIENT_NETHER_WASTES_ADDITIONS: Self = Self(14);
+            /// `minecraft:ambient.nether_wastes.loop` (`15`).
+            pub const AMBIENT_NETHER_WASTES_LOOP: Self = Self(15);
+            /// `minecraft:ambient.nether_wastes.mood` (`16`).
+            pub const AMBIENT_NETHER_WASTES_MOOD: Self = Self(16);
+            /// `minecraft:ambient.soul_sand_valley.additions` (`17`).
+            pub const AMBIENT_SOUL_SAND_VALLEY_ADDITIONS: Self = Self(17);
+            /// `minecraft:ambient.soul_sand_valley.loop` (`18`).
+            pub const AMBIENT_SOUL_SAND_VALLEY_LOOP: Self = Self(18);
+            /// `minecraft:ambient.soul_sand_valley.mood` (`19`).
+            pub const AMBIENT_SOUL_SAND_VALLEY_MOOD: Self = Self(19);
+            /// `minecraft:ambient.warped_forest.additions` (`20`).
+            pub const AMBIENT_WARPED_FOREST_ADDITIONS: Self = Self(20);
+            /// `minecraft:ambient.warped_forest.loop` (`21`).
+            pub const AMBIENT_WARPED_FOREST_LOOP: Self = Self(21);
+            /// `minecraft:ambient.warped_forest.mood` (`22`).
+            pub const AMBIENT_WARPED_FOREST_MOOD: Self = Self(22);
+            /// `minecraft:ambient.underwater.enter` (`23`).
+            pub const AMBIENT_UNDERWATER_ENTER: Self = Self(23);
+            /// `minecraft:ambient.underwater.exit` (`24`).
+            pub const AMBIENT_UNDERWATER_EXIT: Self = Self(24);
+            /// `minecraft:ambient.underwater.loop` (`25`).
+            pub const AMBIENT_UNDERWATER_LOOP: Self = Self(25);
+            /// `minecraft:ambient.underwater.loop.additions` (`26`).
+            pub const AMBIENT_UNDERWATER_LOOP_ADDITIONS: Self = Self(26);
+            /// `minecraft:ambient.underwater.loop.additions.rare` (`27`).
+            pub const AMBIENT_UNDERWATER_LOOP_ADDITIONS_RARE: Self = Self(27);
+            /// `minecraft:ambient.underwater.loop.additions.ultra_rare` (`28`).
+            pub const AMBIENT_UNDERWATER_LOOP_ADDITIONS_ULTRA_RARE: Self = Self(28);
+            /// `minecraft:block.amethyst_block.break` (`29`).
+            pub const BLOCK_AMETHYST_BLOCK_BREAK: Self = Self(29);
+            /// `minecraft:block.amethyst_block.chime` (`30`).
+            pub const BLOCK_AMETHYST_BLOCK_CHIME: Self = Self(30);
+            /// `minecraft:block.amethyst_block.fall` (`31`).
+            pub const BLOCK_AMETHYST_BLOCK_FALL: Self = Self(31);
+            /// `minecraft:block.amethyst_block.hit` (`32`).
+            pub const BLOCK_AMETHYST_BLOCK_HIT: Self = Self(32);
+            /// `minecraft:block.amethyst_block.place` (`33`).
+            pub const BLOCK_AMETHYST_BLOCK_PLACE: Self = Self(33);
+            /// `minecraft:block.amethyst_block.resonate` (`34`).
+            pub const BLOCK_AMETHYST_BLOCK_RESONATE: Self = Self(34);
+            /// `minecraft:block.amethyst_block.step` (`35`).
+            pub const BLOCK_AMETHYST_BLOCK_STEP: Self = Self(35);
+            /// `minecraft:block.amethyst_cluster.break` (`36`).
+            pub const BLOCK_AMETHYST_CLUSTER_BREAK: Self = Self(36);
+            /// `minecraft:block.amethyst_cluster.fall` (`37`).
+            pub const BLOCK_AMETHYST_CLUSTER_FALL: Self = Self(37);
+            /// `minecraft:block.amethyst_cluster.hit` (`38`).
+            pub const BLOCK_AMETHYST_CLUSTER_HIT: Self = Self(38);
+            /// `minecraft:block.amethyst_cluster.place` (`39`).
+            pub const BLOCK_AMETHYST_CLUSTER_PLACE: Self = Self(39);
+            /// `minecraft:block.amethyst_cluster.step` (`40`).
+            pub const BLOCK_AMETHYST_CLUSTER_STEP: Self = Self(40);
+            /// `minecraft:block.ancient_debris.break` (`41`).
+            pub const BLOCK_ANCIENT_DEBRIS_BREAK: Self = Self(41);
+            /// `minecraft:block.ancient_debris.step` (`42`).
+            pub const BLOCK_ANCIENT_DEBRIS_STEP: Self = Self(42);
+            /// `minecraft:block.ancient_debris.place` (`43`).
+            pub const BLOCK_ANCIENT_DEBRIS_PLACE: Self = Self(43);
+            /// `minecraft:block.ancient_debris.hit` (`44`).
+            pub const BLOCK_ANCIENT_DEBRIS_HIT: Self = Self(44);
+            /// `minecraft:block.ancient_debris.fall` (`45`).
+            pub const BLOCK_ANCIENT_DEBRIS_FALL: Self = Self(45);
+            /// `minecraft:block.anvil.break` (`46`).
+            pub const BLOCK_ANVIL_BREAK: Self = Self(46);
+            /// `minecraft:block.anvil.destroy` (`47`).
+            pub const BLOCK_ANVIL_DESTROY: Self = Self(47);
+            /// `minecraft:block.anvil.fall` (`48`).
+            pub const BLOCK_ANVIL_FALL: Self = Self(48);
+            /// `minecraft:block.anvil.hit` (`49`).
+            pub const BLOCK_ANVIL_HIT: Self = Self(49);
+            /// `minecraft:block.anvil.land` (`50`).
+            pub const BLOCK_ANVIL_LAND: Self = Self(50);
+            /// `minecraft:block.anvil.place` (`51`).
+            pub const BLOCK_ANVIL_PLACE: Self = Self(51);
+            /// `minecraft:block.anvil.step` (`52`).
+            pub const BLOCK_ANVIL_STEP: Self = Self(52);
+            /// `minecraft:block.anvil.use` (`53`).
+            pub const BLOCK_ANVIL_USE: Self = Self(53);
+            /// `minecraft:entity.armadillo.eat` (`54`).
+            pub const ENTITY_ARMADILLO_EAT: Self = Self(54);
+            /// `minecraft:entity.armadillo.hurt` (`55`).
+            pub const ENTITY_ARMADILLO_HURT: Self = Self(55);
+            /// `minecraft:entity.armadillo.hurt_reduced` (`56`).
+            pub const ENTITY_ARMADILLO_HURT_REDUCED: Self = Self(56);
+            /// `minecraft:entity.armadillo.ambient` (`57`).
+            pub const ENTITY_ARMADILLO_AMBIENT: Self = Self(57);
+            /// `minecraft:entity.armadillo.step` (`58`).
+            pub const ENTITY_ARMADILLO_STEP: Self = Self(58);
+            /// `minecraft:entity.armadillo.death` (`59`).
+            pub const ENTITY_ARMADILLO_DEATH: Self = Self(59);
+            /// `minecraft:entity.armadillo.roll` (`60`).
+            pub const ENTITY_ARMADILLO_ROLL: Self = Self(60);
+            /// `minecraft:entity.armadillo.land` (`61`).
+            pub const ENTITY_ARMADILLO_LAND: Self = Self(61);
+            /// `minecraft:entity.armadillo.scute_drop` (`62`).
+            pub const ENTITY_ARMADILLO_SCUTE_DROP: Self = Self(62);
+            /// `minecraft:entity.armadillo.unroll_finish` (`63`).
+            pub const ENTITY_ARMADILLO_UNROLL_FINISH: Self = Self(63);
+            /// `minecraft:entity.armadillo.peek` (`64`).
+            pub const ENTITY_ARMADILLO_PEEK: Self = Self(64);
+            /// `minecraft:entity.armadillo.unroll_start` (`65`).
+            pub const ENTITY_ARMADILLO_UNROLL_START: Self = Self(65);
+            /// `minecraft:entity.armadillo.brush` (`66`).
+            pub const ENTITY_ARMADILLO_BRUSH: Self = Self(66);
+            /// `minecraft:item.armor.equip_chain` (`67`).
+            pub const ITEM_ARMOR_EQUIP_CHAIN: Self = Self(67);
+            /// `minecraft:item.armor.equip_diamond` (`68`).
+            pub const ITEM_ARMOR_EQUIP_DIAMOND: Self = Self(68);
+            /// `minecraft:item.armor.equip_elytra` (`69`).
+            pub const ITEM_ARMOR_EQUIP_ELYTRA: Self = Self(69);
+            /// `minecraft:item.armor.equip_generic` (`70`).
+            pub const ITEM_ARMOR_EQUIP_GENERIC: Self = Self(70);
+            /// `minecraft:item.armor.equip_gold` (`71`).
+            pub const ITEM_ARMOR_EQUIP_GOLD: Self = Self(71);
+            /// `minecraft:item.armor.equip_iron` (`72`).
+            pub const ITEM_ARMOR_EQUIP_IRON: Self = Self(72);
+            /// `minecraft:item.armor.equip_leather` (`73`).
+            pub const ITEM_ARMOR_EQUIP_LEATHER: Self = Self(73);
+            /// `minecraft:item.armor.equip_copper` (`74`).
+            pub const ITEM_ARMOR_EQUIP_COPPER: Self = Self(74);
+            /// `minecraft:item.armor.equip_netherite` (`75`).
+            pub const ITEM_ARMOR_EQUIP_NETHERITE: Self = Self(75);
+            /// `minecraft:item.armor.equip_turtle` (`76`).
+            pub const ITEM_ARMOR_EQUIP_TURTLE: Self = Self(76);
+            /// `minecraft:item.armor.equip_wolf` (`77`).
+            pub const ITEM_ARMOR_EQUIP_WOLF: Self = Self(77);
+            /// `minecraft:item.armor.unequip_wolf` (`78`).
+            pub const ITEM_ARMOR_UNEQUIP_WOLF: Self = Self(78);
+            /// `minecraft:item.armor.equip_nautilus` (`79`).
+            pub const ITEM_ARMOR_EQUIP_NAUTILUS: Self = Self(79);
+            /// `minecraft:item.armor.unequip_nautilus` (`80`).
+            pub const ITEM_ARMOR_UNEQUIP_NAUTILUS: Self = Self(80);
+            /// `minecraft:entity.armor_stand.break` (`81`).
+            pub const ENTITY_ARMOR_STAND_BREAK: Self = Self(81);
+            /// `minecraft:entity.armor_stand.fall` (`82`).
+            pub const ENTITY_ARMOR_STAND_FALL: Self = Self(82);
+            /// `minecraft:entity.armor_stand.hit` (`83`).
+            pub const ENTITY_ARMOR_STAND_HIT: Self = Self(83);
+            /// `minecraft:entity.armor_stand.place` (`84`).
+            pub const ENTITY_ARMOR_STAND_PLACE: Self = Self(84);
+            /// `minecraft:entity.arrow.hit` (`85`).
+            pub const ENTITY_ARROW_HIT: Self = Self(85);
+            /// `minecraft:entity.arrow.hit_player` (`86`).
+            pub const ENTITY_ARROW_HIT_PLAYER: Self = Self(86);
+            /// `minecraft:entity.arrow.shoot` (`87`).
+            pub const ENTITY_ARROW_SHOOT: Self = Self(87);
+            /// `minecraft:item.axe.strip` (`88`).
+            pub const ITEM_AXE_STRIP: Self = Self(88);
+            /// `minecraft:item.axe.scrape` (`89`).
+            pub const ITEM_AXE_SCRAPE: Self = Self(89);
+            /// `minecraft:item.axe.wax_off` (`90`).
+            pub const ITEM_AXE_WAX_OFF: Self = Self(90);
+            /// `minecraft:entity.axolotl.attack` (`91`).
+            pub const ENTITY_AXOLOTL_ATTACK: Self = Self(91);
+            /// `minecraft:entity.axolotl.death` (`92`).
+            pub const ENTITY_AXOLOTL_DEATH: Self = Self(92);
+            /// `minecraft:entity.axolotl.hurt` (`93`).
+            pub const ENTITY_AXOLOTL_HURT: Self = Self(93);
+            /// `minecraft:entity.axolotl.idle_air` (`94`).
+            pub const ENTITY_AXOLOTL_IDLE_AIR: Self = Self(94);
+            /// `minecraft:entity.axolotl.idle_water` (`95`).
+            pub const ENTITY_AXOLOTL_IDLE_WATER: Self = Self(95);
+            /// `minecraft:entity.axolotl.splash` (`96`).
+            pub const ENTITY_AXOLOTL_SPLASH: Self = Self(96);
+            /// `minecraft:entity.axolotl.swim` (`97`).
+            pub const ENTITY_AXOLOTL_SWIM: Self = Self(97);
+            /// `minecraft:block.azalea.break` (`98`).
+            pub const BLOCK_AZALEA_BREAK: Self = Self(98);
+            /// `minecraft:block.azalea.fall` (`99`).
+            pub const BLOCK_AZALEA_FALL: Self = Self(99);
+            /// `minecraft:block.azalea.hit` (`100`).
+            pub const BLOCK_AZALEA_HIT: Self = Self(100);
+            /// `minecraft:block.azalea.place` (`101`).
+            pub const BLOCK_AZALEA_PLACE: Self = Self(101);
+            /// `minecraft:block.azalea.step` (`102`).
+            pub const BLOCK_AZALEA_STEP: Self = Self(102);
+            /// `minecraft:block.azalea_leaves.break` (`103`).
+            pub const BLOCK_AZALEA_LEAVES_BREAK: Self = Self(103);
+            /// `minecraft:block.azalea_leaves.fall` (`104`).
+            pub const BLOCK_AZALEA_LEAVES_FALL: Self = Self(104);
+            /// `minecraft:block.azalea_leaves.hit` (`105`).
+            pub const BLOCK_AZALEA_LEAVES_HIT: Self = Self(105);
+            /// `minecraft:block.azalea_leaves.place` (`106`).
+            pub const BLOCK_AZALEA_LEAVES_PLACE: Self = Self(106);
+            /// `minecraft:block.azalea_leaves.step` (`107`).
+            pub const BLOCK_AZALEA_LEAVES_STEP: Self = Self(107);
+            /// `minecraft:entity.baby_nautilus.ambient` (`108`).
+            pub const ENTITY_BABY_NAUTILUS_AMBIENT: Self = Self(108);
+            /// `minecraft:entity.baby_nautilus.ambient_land` (`109`).
+            pub const ENTITY_BABY_NAUTILUS_AMBIENT_LAND: Self = Self(109);
+            /// `minecraft:entity.baby_nautilus.death` (`110`).
+            pub const ENTITY_BABY_NAUTILUS_DEATH: Self = Self(110);
+            /// `minecraft:entity.baby_nautilus.death_land` (`111`).
+            pub const ENTITY_BABY_NAUTILUS_DEATH_LAND: Self = Self(111);
+            /// `minecraft:entity.baby_nautilus.eat` (`112`).
+            pub const ENTITY_BABY_NAUTILUS_EAT: Self = Self(112);
+            /// `minecraft:entity.baby_nautilus.hurt` (`113`).
+            pub const ENTITY_BABY_NAUTILUS_HURT: Self = Self(113);
+            /// `minecraft:entity.baby_nautilus.hurt_land` (`114`).
+            pub const ENTITY_BABY_NAUTILUS_HURT_LAND: Self = Self(114);
+            /// `minecraft:entity.nautilus.riding` (`115`).
+            pub const ENTITY_NAUTILUS_RIDING: Self = Self(115);
+            /// `minecraft:entity.baby_nautilus.swim` (`116`).
+            pub const ENTITY_BABY_NAUTILUS_SWIM: Self = Self(116);
+            /// `minecraft:block.bamboo.break` (`117`).
+            pub const BLOCK_BAMBOO_BREAK: Self = Self(117);
+            /// `minecraft:block.bamboo.fall` (`118`).
+            pub const BLOCK_BAMBOO_FALL: Self = Self(118);
+            /// `minecraft:block.bamboo.hit` (`119`).
+            pub const BLOCK_BAMBOO_HIT: Self = Self(119);
+            /// `minecraft:block.bamboo.place` (`120`).
+            pub const BLOCK_BAMBOO_PLACE: Self = Self(120);
+            /// `minecraft:block.bamboo.step` (`121`).
+            pub const BLOCK_BAMBOO_STEP: Self = Self(121);
+            /// `minecraft:block.bamboo_sapling.break` (`122`).
+            pub const BLOCK_BAMBOO_SAPLING_BREAK: Self = Self(122);
+            /// `minecraft:block.bamboo_sapling.hit` (`123`).
+            pub const BLOCK_BAMBOO_SAPLING_HIT: Self = Self(123);
+            /// `minecraft:block.bamboo_sapling.place` (`124`).
+            pub const BLOCK_BAMBOO_SAPLING_PLACE: Self = Self(124);
+            /// `minecraft:block.bamboo_wood.break` (`125`).
+            pub const BLOCK_BAMBOO_WOOD_BREAK: Self = Self(125);
+            /// `minecraft:block.bamboo_wood.fall` (`126`).
+            pub const BLOCK_BAMBOO_WOOD_FALL: Self = Self(126);
+            /// `minecraft:block.bamboo_wood.hit` (`127`).
+            pub const BLOCK_BAMBOO_WOOD_HIT: Self = Self(127);
+            /// `minecraft:block.bamboo_wood.place` (`128`).
+            pub const BLOCK_BAMBOO_WOOD_PLACE: Self = Self(128);
+            /// `minecraft:block.bamboo_wood.step` (`129`).
+            pub const BLOCK_BAMBOO_WOOD_STEP: Self = Self(129);
+            /// `minecraft:block.bamboo_wood_door.close` (`130`).
+            pub const BLOCK_BAMBOO_WOOD_DOOR_CLOSE: Self = Self(130);
+            /// `minecraft:block.bamboo_wood_door.open` (`131`).
+            pub const BLOCK_BAMBOO_WOOD_DOOR_OPEN: Self = Self(131);
+            /// `minecraft:block.bamboo_wood_trapdoor.close` (`132`).
+            pub const BLOCK_BAMBOO_WOOD_TRAPDOOR_CLOSE: Self = Self(132);
+            /// `minecraft:block.bamboo_wood_trapdoor.open` (`133`).
+            pub const BLOCK_BAMBOO_WOOD_TRAPDOOR_OPEN: Self = Self(133);
+            /// `minecraft:block.bamboo_wood_button.click_off` (`134`).
+            pub const BLOCK_BAMBOO_WOOD_BUTTON_CLICK_OFF: Self = Self(134);
+            /// `minecraft:block.bamboo_wood_button.click_on` (`135`).
+            pub const BLOCK_BAMBOO_WOOD_BUTTON_CLICK_ON: Self = Self(135);
+            /// `minecraft:block.bamboo_wood_pressure_plate.click_off` (`136`).
+            pub const BLOCK_BAMBOO_WOOD_PRESSURE_PLATE_CLICK_OFF: Self = Self(136);
+            /// `minecraft:block.bamboo_wood_pressure_plate.click_on` (`137`).
+            pub const BLOCK_BAMBOO_WOOD_PRESSURE_PLATE_CLICK_ON: Self = Self(137);
+            /// `minecraft:block.bamboo_wood_fence_gate.close` (`138`).
+            pub const BLOCK_BAMBOO_WOOD_FENCE_GATE_CLOSE: Self = Self(138);
+            /// `minecraft:block.bamboo_wood_fence_gate.open` (`139`).
+            pub const BLOCK_BAMBOO_WOOD_FENCE_GATE_OPEN: Self = Self(139);
+            /// `minecraft:block.barrel.close` (`140`).
+            pub const BLOCK_BARREL_CLOSE: Self = Self(140);
+            /// `minecraft:block.barrel.open` (`141`).
+            pub const BLOCK_BARREL_OPEN: Self = Self(141);
+            /// `minecraft:block.basalt.break` (`142`).
+            pub const BLOCK_BASALT_BREAK: Self = Self(142);
+            /// `minecraft:block.basalt.step` (`143`).
+            pub const BLOCK_BASALT_STEP: Self = Self(143);
+            /// `minecraft:block.basalt.place` (`144`).
+            pub const BLOCK_BASALT_PLACE: Self = Self(144);
+            /// `minecraft:block.basalt.hit` (`145`).
+            pub const BLOCK_BASALT_HIT: Self = Self(145);
+            /// `minecraft:block.basalt.fall` (`146`).
+            pub const BLOCK_BASALT_FALL: Self = Self(146);
+            /// `minecraft:entity.bat.ambient` (`147`).
+            pub const ENTITY_BAT_AMBIENT: Self = Self(147);
+            /// `minecraft:entity.bat.death` (`148`).
+            pub const ENTITY_BAT_DEATH: Self = Self(148);
+            /// `minecraft:entity.bat.hurt` (`149`).
+            pub const ENTITY_BAT_HURT: Self = Self(149);
+            /// `minecraft:entity.bat.loop` (`150`).
+            pub const ENTITY_BAT_LOOP: Self = Self(150);
+            /// `minecraft:entity.bat.takeoff` (`151`).
+            pub const ENTITY_BAT_TAKEOFF: Self = Self(151);
+            /// `minecraft:block.beacon.activate` (`152`).
+            pub const BLOCK_BEACON_ACTIVATE: Self = Self(152);
+            /// `minecraft:block.beacon.ambient` (`153`).
+            pub const BLOCK_BEACON_AMBIENT: Self = Self(153);
+            /// `minecraft:block.beacon.deactivate` (`154`).
+            pub const BLOCK_BEACON_DEACTIVATE: Self = Self(154);
+            /// `minecraft:block.beacon.power_select` (`155`).
+            pub const BLOCK_BEACON_POWER_SELECT: Self = Self(155);
+            /// `minecraft:entity.bee.death` (`156`).
+            pub const ENTITY_BEE_DEATH: Self = Self(156);
+            /// `minecraft:entity.bee.hurt` (`157`).
+            pub const ENTITY_BEE_HURT: Self = Self(157);
+            /// `minecraft:entity.bee.loop_aggressive` (`158`).
+            pub const ENTITY_BEE_LOOP_AGGRESSIVE: Self = Self(158);
+            /// `minecraft:entity.bee.loop` (`159`).
+            pub const ENTITY_BEE_LOOP: Self = Self(159);
+            /// `minecraft:entity.bee.sting` (`160`).
+            pub const ENTITY_BEE_STING: Self = Self(160);
+            /// `minecraft:entity.bee.pollinate` (`161`).
+            pub const ENTITY_BEE_POLLINATE: Self = Self(161);
+            /// `minecraft:block.beehive.drip` (`162`).
+            pub const BLOCK_BEEHIVE_DRIP: Self = Self(162);
+            /// `minecraft:block.beehive.enter` (`163`).
+            pub const BLOCK_BEEHIVE_ENTER: Self = Self(163);
+            /// `minecraft:block.beehive.exit` (`164`).
+            pub const BLOCK_BEEHIVE_EXIT: Self = Self(164);
+            /// `minecraft:block.beehive.shear` (`165`).
+            pub const BLOCK_BEEHIVE_SHEAR: Self = Self(165);
+            /// `minecraft:block.beehive.work` (`166`).
+            pub const BLOCK_BEEHIVE_WORK: Self = Self(166);
+            /// `minecraft:block.bell.use` (`167`).
+            pub const BLOCK_BELL_USE: Self = Self(167);
+            /// `minecraft:block.bell.resonate` (`168`).
+            pub const BLOCK_BELL_RESONATE: Self = Self(168);
+            /// `minecraft:block.big_dripleaf.break` (`169`).
+            pub const BLOCK_BIG_DRIPLEAF_BREAK: Self = Self(169);
+            /// `minecraft:block.big_dripleaf.fall` (`170`).
+            pub const BLOCK_BIG_DRIPLEAF_FALL: Self = Self(170);
+            /// `minecraft:block.big_dripleaf.hit` (`171`).
+            pub const BLOCK_BIG_DRIPLEAF_HIT: Self = Self(171);
+            /// `minecraft:block.big_dripleaf.place` (`172`).
+            pub const BLOCK_BIG_DRIPLEAF_PLACE: Self = Self(172);
+            /// `minecraft:block.big_dripleaf.step` (`173`).
+            pub const BLOCK_BIG_DRIPLEAF_STEP: Self = Self(173);
+            /// `minecraft:entity.blaze.ambient` (`174`).
+            pub const ENTITY_BLAZE_AMBIENT: Self = Self(174);
+            /// `minecraft:entity.blaze.burn` (`175`).
+            pub const ENTITY_BLAZE_BURN: Self = Self(175);
+            /// `minecraft:entity.blaze.death` (`176`).
+            pub const ENTITY_BLAZE_DEATH: Self = Self(176);
+            /// `minecraft:entity.blaze.hurt` (`177`).
+            pub const ENTITY_BLAZE_HURT: Self = Self(177);
+            /// `minecraft:entity.blaze.shoot` (`178`).
+            pub const ENTITY_BLAZE_SHOOT: Self = Self(178);
+            /// `minecraft:entity.boat.paddle_land` (`179`).
+            pub const ENTITY_BOAT_PADDLE_LAND: Self = Self(179);
+            /// `minecraft:entity.boat.paddle_water` (`180`).
+            pub const ENTITY_BOAT_PADDLE_WATER: Self = Self(180);
+            /// `minecraft:entity.bogged.ambient` (`181`).
+            pub const ENTITY_BOGGED_AMBIENT: Self = Self(181);
+            /// `minecraft:entity.bogged.death` (`182`).
+            pub const ENTITY_BOGGED_DEATH: Self = Self(182);
+            /// `minecraft:entity.bogged.hurt` (`183`).
+            pub const ENTITY_BOGGED_HURT: Self = Self(183);
+            /// `minecraft:entity.bogged.shear` (`184`).
+            pub const ENTITY_BOGGED_SHEAR: Self = Self(184);
+            /// `minecraft:entity.bogged.step` (`185`).
+            pub const ENTITY_BOGGED_STEP: Self = Self(185);
+            /// `minecraft:block.bone_block.break` (`186`).
+            pub const BLOCK_BONE_BLOCK_BREAK: Self = Self(186);
+            /// `minecraft:block.bone_block.fall` (`187`).
+            pub const BLOCK_BONE_BLOCK_FALL: Self = Self(187);
+            /// `minecraft:block.bone_block.hit` (`188`).
+            pub const BLOCK_BONE_BLOCK_HIT: Self = Self(188);
+            /// `minecraft:block.bone_block.place` (`189`).
+            pub const BLOCK_BONE_BLOCK_PLACE: Self = Self(189);
+            /// `minecraft:block.bone_block.step` (`190`).
+            pub const BLOCK_BONE_BLOCK_STEP: Self = Self(190);
+            /// `minecraft:item.bone_meal.use` (`191`).
+            pub const ITEM_BONE_MEAL_USE: Self = Self(191);
+            /// `minecraft:item.book.page_turn` (`192`).
+            pub const ITEM_BOOK_PAGE_TURN: Self = Self(192);
+            /// `minecraft:item.book.put` (`193`).
+            pub const ITEM_BOOK_PUT: Self = Self(193);
+            /// `minecraft:block.blastfurnace.fire_crackle` (`194`).
+            pub const BLOCK_BLASTFURNACE_FIRE_CRACKLE: Self = Self(194);
+            /// `minecraft:item.bottle.empty` (`195`).
+            pub const ITEM_BOTTLE_EMPTY: Self = Self(195);
+            /// `minecraft:item.bottle.fill` (`196`).
+            pub const ITEM_BOTTLE_FILL: Self = Self(196);
+            /// `minecraft:item.bottle.fill_dragonbreath` (`197`).
+            pub const ITEM_BOTTLE_FILL_DRAGONBREATH: Self = Self(197);
+            /// `minecraft:entity.breeze.charge` (`198`).
+            pub const ENTITY_BREEZE_CHARGE: Self = Self(198);
+            /// `minecraft:entity.breeze.deflect` (`199`).
+            pub const ENTITY_BREEZE_DEFLECT: Self = Self(199);
+            /// `minecraft:entity.breeze.inhale` (`200`).
+            pub const ENTITY_BREEZE_INHALE: Self = Self(200);
+            /// `minecraft:entity.breeze.idle_ground` (`201`).
+            pub const ENTITY_BREEZE_IDLE_GROUND: Self = Self(201);
+            /// `minecraft:entity.breeze.idle_air` (`202`).
+            pub const ENTITY_BREEZE_IDLE_AIR: Self = Self(202);
+            /// `minecraft:entity.breeze.shoot` (`203`).
+            pub const ENTITY_BREEZE_SHOOT: Self = Self(203);
+            /// `minecraft:entity.breeze.jump` (`204`).
+            pub const ENTITY_BREEZE_JUMP: Self = Self(204);
+            /// `minecraft:entity.breeze.land` (`205`).
+            pub const ENTITY_BREEZE_LAND: Self = Self(205);
+            /// `minecraft:entity.breeze.slide` (`206`).
+            pub const ENTITY_BREEZE_SLIDE: Self = Self(206);
+            /// `minecraft:entity.breeze.death` (`207`).
+            pub const ENTITY_BREEZE_DEATH: Self = Self(207);
+            /// `minecraft:entity.breeze.hurt` (`208`).
+            pub const ENTITY_BREEZE_HURT: Self = Self(208);
+            /// `minecraft:entity.breeze.whirl` (`209`).
+            pub const ENTITY_BREEZE_WHIRL: Self = Self(209);
+            /// `minecraft:entity.breeze.wind_burst` (`210`).
+            pub const ENTITY_BREEZE_WIND_BURST: Self = Self(210);
+            /// `minecraft:block.brewing_stand.brew` (`211`).
+            pub const BLOCK_BREWING_STAND_BREW: Self = Self(211);
+            /// `minecraft:item.brush.brushing.generic` (`212`).
+            pub const ITEM_BRUSH_BRUSHING_GENERIC: Self = Self(212);
+            /// `minecraft:item.brush.brushing.sand` (`213`).
+            pub const ITEM_BRUSH_BRUSHING_SAND: Self = Self(213);
+            /// `minecraft:item.brush.brushing.gravel` (`214`).
+            pub const ITEM_BRUSH_BRUSHING_GRAVEL: Self = Self(214);
+            /// `minecraft:item.brush.brushing.sand.complete` (`215`).
+            pub const ITEM_BRUSH_BRUSHING_SAND_COMPLETE: Self = Self(215);
+            /// `minecraft:item.brush.brushing.gravel.complete` (`216`).
+            pub const ITEM_BRUSH_BRUSHING_GRAVEL_COMPLETE: Self = Self(216);
+            /// `minecraft:block.bubble_column.bubble_pop` (`217`).
+            pub const BLOCK_BUBBLE_COLUMN_BUBBLE_POP: Self = Self(217);
+            /// `minecraft:block.bubble_column.upwards_ambient` (`218`).
+            pub const BLOCK_BUBBLE_COLUMN_UPWARDS_AMBIENT: Self = Self(218);
+            /// `minecraft:block.bubble_column.upwards_inside` (`219`).
+            pub const BLOCK_BUBBLE_COLUMN_UPWARDS_INSIDE: Self = Self(219);
+            /// `minecraft:block.bubble_column.whirlpool_ambient` (`220`).
+            pub const BLOCK_BUBBLE_COLUMN_WHIRLPOOL_AMBIENT: Self = Self(220);
+            /// `minecraft:block.bubble_column.whirlpool_inside` (`221`).
+            pub const BLOCK_BUBBLE_COLUMN_WHIRLPOOL_INSIDE: Self = Self(221);
+            /// `minecraft:ui.hud.bubble_pop` (`222`).
+            pub const UI_HUD_BUBBLE_POP: Self = Self(222);
+            /// `minecraft:item.bucket.empty` (`223`).
+            pub const ITEM_BUCKET_EMPTY: Self = Self(223);
+            /// `minecraft:item.bucket.empty_axolotl` (`224`).
+            pub const ITEM_BUCKET_EMPTY_AXOLOTL: Self = Self(224);
+            /// `minecraft:item.bucket.empty_fish` (`225`).
+            pub const ITEM_BUCKET_EMPTY_FISH: Self = Self(225);
+            /// `minecraft:item.bucket.empty_lava` (`226`).
+            pub const ITEM_BUCKET_EMPTY_LAVA: Self = Self(226);
+            /// `minecraft:item.bucket.empty_powder_snow` (`227`).
+            pub const ITEM_BUCKET_EMPTY_POWDER_SNOW: Self = Self(227);
+            /// `minecraft:item.bucket.empty_sulfur_cube` (`228`).
+            pub const ITEM_BUCKET_EMPTY_SULFUR_CUBE: Self = Self(228);
+            /// `minecraft:item.bucket.empty_tadpole` (`229`).
+            pub const ITEM_BUCKET_EMPTY_TADPOLE: Self = Self(229);
+            /// `minecraft:item.bucket.fill` (`230`).
+            pub const ITEM_BUCKET_FILL: Self = Self(230);
+            /// `minecraft:item.bucket.fill_axolotl` (`231`).
+            pub const ITEM_BUCKET_FILL_AXOLOTL: Self = Self(231);
+            /// `minecraft:item.bucket.fill_fish` (`232`).
+            pub const ITEM_BUCKET_FILL_FISH: Self = Self(232);
+            /// `minecraft:item.bucket.fill_lava` (`233`).
+            pub const ITEM_BUCKET_FILL_LAVA: Self = Self(233);
+            /// `minecraft:item.bucket.fill_powder_snow` (`234`).
+            pub const ITEM_BUCKET_FILL_POWDER_SNOW: Self = Self(234);
+            /// `minecraft:item.bucket.fill_sulfur_cube` (`235`).
+            pub const ITEM_BUCKET_FILL_SULFUR_CUBE: Self = Self(235);
+            /// `minecraft:item.bucket.fill_tadpole` (`236`).
+            pub const ITEM_BUCKET_FILL_TADPOLE: Self = Self(236);
+            /// `minecraft:item.bundle.drop_contents` (`237`).
+            pub const ITEM_BUNDLE_DROP_CONTENTS: Self = Self(237);
+            /// `minecraft:item.bundle.insert` (`238`).
+            pub const ITEM_BUNDLE_INSERT: Self = Self(238);
+            /// `minecraft:item.bundle.insert_fail` (`239`).
+            pub const ITEM_BUNDLE_INSERT_FAIL: Self = Self(239);
+            /// `minecraft:item.bundle.remove_one` (`240`).
+            pub const ITEM_BUNDLE_REMOVE_ONE: Self = Self(240);
+            /// `minecraft:block.cactus_flower.break` (`241`).
+            pub const BLOCK_CACTUS_FLOWER_BREAK: Self = Self(241);
+            /// `minecraft:block.cactus_flower.place` (`242`).
+            pub const BLOCK_CACTUS_FLOWER_PLACE: Self = Self(242);
+            /// `minecraft:block.cake.add_candle` (`243`).
+            pub const BLOCK_CAKE_ADD_CANDLE: Self = Self(243);
+            /// `minecraft:block.calcite.break` (`244`).
+            pub const BLOCK_CALCITE_BREAK: Self = Self(244);
+            /// `minecraft:block.calcite.step` (`245`).
+            pub const BLOCK_CALCITE_STEP: Self = Self(245);
+            /// `minecraft:block.calcite.place` (`246`).
+            pub const BLOCK_CALCITE_PLACE: Self = Self(246);
+            /// `minecraft:block.calcite.hit` (`247`).
+            pub const BLOCK_CALCITE_HIT: Self = Self(247);
+            /// `minecraft:block.calcite.fall` (`248`).
+            pub const BLOCK_CALCITE_FALL: Self = Self(248);
+            /// `minecraft:entity.camel_husk.ambient` (`249`).
+            pub const ENTITY_CAMEL_HUSK_AMBIENT: Self = Self(249);
+            /// `minecraft:entity.camel_husk.dash` (`250`).
+            pub const ENTITY_CAMEL_HUSK_DASH: Self = Self(250);
+            /// `minecraft:entity.camel_husk.dash_ready` (`251`).
+            pub const ENTITY_CAMEL_HUSK_DASH_READY: Self = Self(251);
+            /// `minecraft:entity.camel_husk.death` (`252`).
+            pub const ENTITY_CAMEL_HUSK_DEATH: Self = Self(252);
+            /// `minecraft:entity.camel_husk.eat` (`253`).
+            pub const ENTITY_CAMEL_HUSK_EAT: Self = Self(253);
+            /// `minecraft:entity.camel_husk.hurt` (`254`).
+            pub const ENTITY_CAMEL_HUSK_HURT: Self = Self(254);
+            /// `minecraft:entity.camel_husk.saddle` (`255`).
+            pub const ENTITY_CAMEL_HUSK_SADDLE: Self = Self(255);
+            /// `minecraft:entity.camel_husk.sit` (`256`).
+            pub const ENTITY_CAMEL_HUSK_SIT: Self = Self(256);
+            /// `minecraft:entity.camel_husk.stand` (`257`).
+            pub const ENTITY_CAMEL_HUSK_STAND: Self = Self(257);
+            /// `minecraft:entity.camel_husk.step` (`258`).
+            pub const ENTITY_CAMEL_HUSK_STEP: Self = Self(258);
+            /// `minecraft:entity.camel_husk.step_sand` (`259`).
+            pub const ENTITY_CAMEL_HUSK_STEP_SAND: Self = Self(259);
+            /// `minecraft:entity.camel.ambient` (`260`).
+            pub const ENTITY_CAMEL_AMBIENT: Self = Self(260);
+            /// `minecraft:entity.camel.dash` (`261`).
+            pub const ENTITY_CAMEL_DASH: Self = Self(261);
+            /// `minecraft:entity.camel.dash_ready` (`262`).
+            pub const ENTITY_CAMEL_DASH_READY: Self = Self(262);
+            /// `minecraft:entity.camel.death` (`263`).
+            pub const ENTITY_CAMEL_DEATH: Self = Self(263);
+            /// `minecraft:entity.camel.eat` (`264`).
+            pub const ENTITY_CAMEL_EAT: Self = Self(264);
+            /// `minecraft:entity.camel.hurt` (`265`).
+            pub const ENTITY_CAMEL_HURT: Self = Self(265);
+            /// `minecraft:entity.camel.saddle` (`266`).
+            pub const ENTITY_CAMEL_SADDLE: Self = Self(266);
+            /// `minecraft:entity.camel.sit` (`267`).
+            pub const ENTITY_CAMEL_SIT: Self = Self(267);
+            /// `minecraft:entity.camel.stand` (`268`).
+            pub const ENTITY_CAMEL_STAND: Self = Self(268);
+            /// `minecraft:entity.camel.step` (`269`).
+            pub const ENTITY_CAMEL_STEP: Self = Self(269);
+            /// `minecraft:entity.camel.step_sand` (`270`).
+            pub const ENTITY_CAMEL_STEP_SAND: Self = Self(270);
+            /// `minecraft:block.campfire.crackle` (`271`).
+            pub const BLOCK_CAMPFIRE_CRACKLE: Self = Self(271);
+            /// `minecraft:block.candle.ambient` (`272`).
+            pub const BLOCK_CANDLE_AMBIENT: Self = Self(272);
+            /// `minecraft:block.candle.break` (`273`).
+            pub const BLOCK_CANDLE_BREAK: Self = Self(273);
+            /// `minecraft:block.candle.extinguish` (`274`).
+            pub const BLOCK_CANDLE_EXTINGUISH: Self = Self(274);
+            /// `minecraft:block.candle.fall` (`275`).
+            pub const BLOCK_CANDLE_FALL: Self = Self(275);
+            /// `minecraft:block.candle.hit` (`276`).
+            pub const BLOCK_CANDLE_HIT: Self = Self(276);
+            /// `minecraft:block.candle.place` (`277`).
+            pub const BLOCK_CANDLE_PLACE: Self = Self(277);
+            /// `minecraft:block.candle.step` (`278`).
+            pub const BLOCK_CANDLE_STEP: Self = Self(278);
+            /// `minecraft:entity.baby_cat.ambient` (`279`).
+            pub const ENTITY_BABY_CAT_AMBIENT: Self = Self(279);
+            /// `minecraft:entity.baby_cat.stray_ambient` (`280`).
+            pub const ENTITY_BABY_CAT_STRAY_AMBIENT: Self = Self(280);
+            /// `minecraft:entity.baby_cat.death` (`281`).
+            pub const ENTITY_BABY_CAT_DEATH: Self = Self(281);
+            /// `minecraft:entity.baby_cat.eat` (`282`).
+            pub const ENTITY_BABY_CAT_EAT: Self = Self(282);
+            /// `minecraft:entity.baby_cat.hiss` (`283`).
+            pub const ENTITY_BABY_CAT_HISS: Self = Self(283);
+            /// `minecraft:entity.baby_cat.beg_for_food` (`284`).
+            pub const ENTITY_BABY_CAT_BEG_FOR_FOOD: Self = Self(284);
+            /// `minecraft:entity.baby_cat.hurt` (`285`).
+            pub const ENTITY_BABY_CAT_HURT: Self = Self(285);
+            /// `minecraft:entity.baby_cat.purr` (`286`).
+            pub const ENTITY_BABY_CAT_PURR: Self = Self(286);
+            /// `minecraft:entity.baby_cat.purreow` (`287`).
+            pub const ENTITY_BABY_CAT_PURREOW: Self = Self(287);
+            /// `minecraft:entity.cat.ambient` (`288`).
+            pub const ENTITY_CAT_AMBIENT: Self = Self(288);
+            /// `minecraft:entity.cat.stray_ambient` (`289`).
+            pub const ENTITY_CAT_STRAY_AMBIENT: Self = Self(289);
+            /// `minecraft:entity.cat.hiss` (`290`).
+            pub const ENTITY_CAT_HISS: Self = Self(290);
+            /// `minecraft:entity.cat.hurt` (`291`).
+            pub const ENTITY_CAT_HURT: Self = Self(291);
+            /// `minecraft:entity.cat.death` (`292`).
+            pub const ENTITY_CAT_DEATH: Self = Self(292);
+            /// `minecraft:entity.cat.eat` (`293`).
+            pub const ENTITY_CAT_EAT: Self = Self(293);
+            /// `minecraft:entity.cat.beg_for_food` (`294`).
+            pub const ENTITY_CAT_BEG_FOR_FOOD: Self = Self(294);
+            /// `minecraft:entity.cat.purr` (`295`).
+            pub const ENTITY_CAT_PURR: Self = Self(295);
+            /// `minecraft:entity.cat.purreow` (`296`).
+            pub const ENTITY_CAT_PURREOW: Self = Self(296);
+            /// `minecraft:entity.cat_royal.ambient` (`297`).
+            pub const ENTITY_CAT_ROYAL_AMBIENT: Self = Self(297);
+            /// `minecraft:entity.cat_royal.stray_ambient` (`298`).
+            pub const ENTITY_CAT_ROYAL_STRAY_AMBIENT: Self = Self(298);
+            /// `minecraft:entity.cat_royal.hiss` (`299`).
+            pub const ENTITY_CAT_ROYAL_HISS: Self = Self(299);
+            /// `minecraft:entity.cat_royal.hurt` (`300`).
+            pub const ENTITY_CAT_ROYAL_HURT: Self = Self(300);
+            /// `minecraft:entity.cat_royal.death` (`301`).
+            pub const ENTITY_CAT_ROYAL_DEATH: Self = Self(301);
+            /// `minecraft:entity.cat_royal.eat` (`302`).
+            pub const ENTITY_CAT_ROYAL_EAT: Self = Self(302);
+            /// `minecraft:entity.cat_royal.beg_for_food` (`303`).
+            pub const ENTITY_CAT_ROYAL_BEG_FOR_FOOD: Self = Self(303);
+            /// `minecraft:entity.cat_royal.purr` (`304`).
+            pub const ENTITY_CAT_ROYAL_PURR: Self = Self(304);
+            /// `minecraft:entity.cat_royal.purreow` (`305`).
+            pub const ENTITY_CAT_ROYAL_PURREOW: Self = Self(305);
+            /// `minecraft:block.cave_vines.break` (`306`).
+            pub const BLOCK_CAVE_VINES_BREAK: Self = Self(306);
+            /// `minecraft:block.cave_vines.fall` (`307`).
+            pub const BLOCK_CAVE_VINES_FALL: Self = Self(307);
+            /// `minecraft:block.cave_vines.hit` (`308`).
+            pub const BLOCK_CAVE_VINES_HIT: Self = Self(308);
+            /// `minecraft:block.cave_vines.place` (`309`).
+            pub const BLOCK_CAVE_VINES_PLACE: Self = Self(309);
+            /// `minecraft:block.cave_vines.step` (`310`).
+            pub const BLOCK_CAVE_VINES_STEP: Self = Self(310);
+            /// `minecraft:block.cave_vines.pick_berries` (`311`).
+            pub const BLOCK_CAVE_VINES_PICK_BERRIES: Self = Self(311);
+            /// `minecraft:block.chain.break` (`312`).
+            pub const BLOCK_CHAIN_BREAK: Self = Self(312);
+            /// `minecraft:block.chain.fall` (`313`).
+            pub const BLOCK_CHAIN_FALL: Self = Self(313);
+            /// `minecraft:block.chain.hit` (`314`).
+            pub const BLOCK_CHAIN_HIT: Self = Self(314);
+            /// `minecraft:block.chain.place` (`315`).
+            pub const BLOCK_CHAIN_PLACE: Self = Self(315);
+            /// `minecraft:block.chain.step` (`316`).
+            pub const BLOCK_CHAIN_STEP: Self = Self(316);
+            /// `minecraft:block.cherry_wood.break` (`317`).
+            pub const BLOCK_CHERRY_WOOD_BREAK: Self = Self(317);
+            /// `minecraft:block.cherry_wood.fall` (`318`).
+            pub const BLOCK_CHERRY_WOOD_FALL: Self = Self(318);
+            /// `minecraft:block.cherry_wood.hit` (`319`).
+            pub const BLOCK_CHERRY_WOOD_HIT: Self = Self(319);
+            /// `minecraft:block.cherry_wood.place` (`320`).
+            pub const BLOCK_CHERRY_WOOD_PLACE: Self = Self(320);
+            /// `minecraft:block.cherry_wood.step` (`321`).
+            pub const BLOCK_CHERRY_WOOD_STEP: Self = Self(321);
+            /// `minecraft:block.cherry_sapling.break` (`322`).
+            pub const BLOCK_CHERRY_SAPLING_BREAK: Self = Self(322);
+            /// `minecraft:block.cherry_sapling.fall` (`323`).
+            pub const BLOCK_CHERRY_SAPLING_FALL: Self = Self(323);
+            /// `minecraft:block.cherry_sapling.hit` (`324`).
+            pub const BLOCK_CHERRY_SAPLING_HIT: Self = Self(324);
+            /// `minecraft:block.cherry_sapling.place` (`325`).
+            pub const BLOCK_CHERRY_SAPLING_PLACE: Self = Self(325);
+            /// `minecraft:block.cherry_sapling.step` (`326`).
+            pub const BLOCK_CHERRY_SAPLING_STEP: Self = Self(326);
+            /// `minecraft:block.cherry_leaves.break` (`327`).
+            pub const BLOCK_CHERRY_LEAVES_BREAK: Self = Self(327);
+            /// `minecraft:block.cherry_leaves.fall` (`328`).
+            pub const BLOCK_CHERRY_LEAVES_FALL: Self = Self(328);
+            /// `minecraft:block.cherry_leaves.hit` (`329`).
+            pub const BLOCK_CHERRY_LEAVES_HIT: Self = Self(329);
+            /// `minecraft:block.cherry_leaves.place` (`330`).
+            pub const BLOCK_CHERRY_LEAVES_PLACE: Self = Self(330);
+            /// `minecraft:block.cherry_leaves.step` (`331`).
+            pub const BLOCK_CHERRY_LEAVES_STEP: Self = Self(331);
+            /// `minecraft:block.cherry_wood_hanging_sign.step` (`332`).
+            pub const BLOCK_CHERRY_WOOD_HANGING_SIGN_STEP: Self = Self(332);
+            /// `minecraft:block.cherry_wood_hanging_sign.break` (`333`).
+            pub const BLOCK_CHERRY_WOOD_HANGING_SIGN_BREAK: Self = Self(333);
+            /// `minecraft:block.cherry_wood_hanging_sign.fall` (`334`).
+            pub const BLOCK_CHERRY_WOOD_HANGING_SIGN_FALL: Self = Self(334);
+            /// `minecraft:block.cherry_wood_hanging_sign.hit` (`335`).
+            pub const BLOCK_CHERRY_WOOD_HANGING_SIGN_HIT: Self = Self(335);
+            /// `minecraft:block.cherry_wood_hanging_sign.place` (`336`).
+            pub const BLOCK_CHERRY_WOOD_HANGING_SIGN_PLACE: Self = Self(336);
+            /// `minecraft:block.cherry_wood_door.close` (`337`).
+            pub const BLOCK_CHERRY_WOOD_DOOR_CLOSE: Self = Self(337);
+            /// `minecraft:block.cherry_wood_door.open` (`338`).
+            pub const BLOCK_CHERRY_WOOD_DOOR_OPEN: Self = Self(338);
+            /// `minecraft:block.cherry_wood_trapdoor.close` (`339`).
+            pub const BLOCK_CHERRY_WOOD_TRAPDOOR_CLOSE: Self = Self(339);
+            /// `minecraft:block.cherry_wood_trapdoor.open` (`340`).
+            pub const BLOCK_CHERRY_WOOD_TRAPDOOR_OPEN: Self = Self(340);
+            /// `minecraft:block.cherry_wood_button.click_off` (`341`).
+            pub const BLOCK_CHERRY_WOOD_BUTTON_CLICK_OFF: Self = Self(341);
+            /// `minecraft:block.cherry_wood_button.click_on` (`342`).
+            pub const BLOCK_CHERRY_WOOD_BUTTON_CLICK_ON: Self = Self(342);
+            /// `minecraft:block.cherry_wood_pressure_plate.click_off` (`343`).
+            pub const BLOCK_CHERRY_WOOD_PRESSURE_PLATE_CLICK_OFF: Self = Self(343);
+            /// `minecraft:block.cherry_wood_pressure_plate.click_on` (`344`).
+            pub const BLOCK_CHERRY_WOOD_PRESSURE_PLATE_CLICK_ON: Self = Self(344);
+            /// `minecraft:block.cherry_wood_fence_gate.close` (`345`).
+            pub const BLOCK_CHERRY_WOOD_FENCE_GATE_CLOSE: Self = Self(345);
+            /// `minecraft:block.cherry_wood_fence_gate.open` (`346`).
+            pub const BLOCK_CHERRY_WOOD_FENCE_GATE_OPEN: Self = Self(346);
+            /// `minecraft:block.chest.close` (`347`).
+            pub const BLOCK_CHEST_CLOSE: Self = Self(347);
+            /// `minecraft:block.chest.locked` (`348`).
+            pub const BLOCK_CHEST_LOCKED: Self = Self(348);
+            /// `minecraft:block.chest.open` (`349`).
+            pub const BLOCK_CHEST_OPEN: Self = Self(349);
+            /// `minecraft:entity.baby_chicken.ambient` (`350`).
+            pub const ENTITY_BABY_CHICKEN_AMBIENT: Self = Self(350);
+            /// `minecraft:entity.baby_chicken.death` (`351`).
+            pub const ENTITY_BABY_CHICKEN_DEATH: Self = Self(351);
+            /// `minecraft:entity.chicken.egg` (`352`).
+            pub const ENTITY_CHICKEN_EGG: Self = Self(352);
+            /// `minecraft:entity.baby_chicken.hurt` (`353`).
+            pub const ENTITY_BABY_CHICKEN_HURT: Self = Self(353);
+            /// `minecraft:entity.chicken.step` (`354`).
+            pub const ENTITY_CHICKEN_STEP: Self = Self(354);
+            /// `minecraft:entity.baby_chicken.step` (`355`).
+            pub const ENTITY_BABY_CHICKEN_STEP: Self = Self(355);
+            /// `minecraft:entity.chicken.ambient` (`356`).
+            pub const ENTITY_CHICKEN_AMBIENT: Self = Self(356);
+            /// `minecraft:entity.chicken.hurt` (`357`).
+            pub const ENTITY_CHICKEN_HURT: Self = Self(357);
+            /// `minecraft:entity.chicken.death` (`358`).
+            pub const ENTITY_CHICKEN_DEATH: Self = Self(358);
+            /// `minecraft:entity.chicken_picky.ambient` (`359`).
+            pub const ENTITY_CHICKEN_PICKY_AMBIENT: Self = Self(359);
+            /// `minecraft:entity.chicken_picky.hurt` (`360`).
+            pub const ENTITY_CHICKEN_PICKY_HURT: Self = Self(360);
+            /// `minecraft:entity.chicken_picky.death` (`361`).
+            pub const ENTITY_CHICKEN_PICKY_DEATH: Self = Self(361);
+            /// `minecraft:block.chiseled_bookshelf.break` (`362`).
+            pub const BLOCK_CHISELED_BOOKSHELF_BREAK: Self = Self(362);
+            /// `minecraft:block.chiseled_bookshelf.fall` (`363`).
+            pub const BLOCK_CHISELED_BOOKSHELF_FALL: Self = Self(363);
+            /// `minecraft:block.chiseled_bookshelf.hit` (`364`).
+            pub const BLOCK_CHISELED_BOOKSHELF_HIT: Self = Self(364);
+            /// `minecraft:block.chiseled_bookshelf.insert` (`365`).
+            pub const BLOCK_CHISELED_BOOKSHELF_INSERT: Self = Self(365);
+            /// `minecraft:block.chiseled_bookshelf.insert.enchanted` (`366`).
+            pub const BLOCK_CHISELED_BOOKSHELF_INSERT_ENCHANTED: Self = Self(366);
+            /// `minecraft:block.chiseled_bookshelf.step` (`367`).
+            pub const BLOCK_CHISELED_BOOKSHELF_STEP: Self = Self(367);
+            /// `minecraft:block.chiseled_bookshelf.pickup` (`368`).
+            pub const BLOCK_CHISELED_BOOKSHELF_PICKUP: Self = Self(368);
+            /// `minecraft:block.chiseled_bookshelf.pickup.enchanted` (`369`).
+            pub const BLOCK_CHISELED_BOOKSHELF_PICKUP_ENCHANTED: Self = Self(369);
+            /// `minecraft:block.chiseled_bookshelf.place` (`370`).
+            pub const BLOCK_CHISELED_BOOKSHELF_PLACE: Self = Self(370);
+            /// `minecraft:block.chorus_flower.death` (`371`).
+            pub const BLOCK_CHORUS_FLOWER_DEATH: Self = Self(371);
+            /// `minecraft:block.chorus_flower.grow` (`372`).
+            pub const BLOCK_CHORUS_FLOWER_GROW: Self = Self(372);
+            /// `minecraft:item.chorus_fruit.teleport` (`373`).
+            pub const ITEM_CHORUS_FRUIT_TELEPORT: Self = Self(373);
+            /// `minecraft:block.cobweb.break` (`374`).
+            pub const BLOCK_COBWEB_BREAK: Self = Self(374);
+            /// `minecraft:block.cobweb.step` (`375`).
+            pub const BLOCK_COBWEB_STEP: Self = Self(375);
+            /// `minecraft:block.cobweb.place` (`376`).
+            pub const BLOCK_COBWEB_PLACE: Self = Self(376);
+            /// `minecraft:block.cobweb.hit` (`377`).
+            pub const BLOCK_COBWEB_HIT: Self = Self(377);
+            /// `minecraft:block.cobweb.fall` (`378`).
+            pub const BLOCK_COBWEB_FALL: Self = Self(378);
+            /// `minecraft:entity.cod.ambient` (`379`).
+            pub const ENTITY_COD_AMBIENT: Self = Self(379);
+            /// `minecraft:entity.cod.death` (`380`).
+            pub const ENTITY_COD_DEATH: Self = Self(380);
+            /// `minecraft:entity.cod.flop` (`381`).
+            pub const ENTITY_COD_FLOP: Self = Self(381);
+            /// `minecraft:entity.cod.hurt` (`382`).
+            pub const ENTITY_COD_HURT: Self = Self(382);
+            /// `minecraft:block.comparator.click` (`383`).
+            pub const BLOCK_COMPARATOR_CLICK: Self = Self(383);
+            /// `minecraft:block.composter.empty` (`384`).
+            pub const BLOCK_COMPOSTER_EMPTY: Self = Self(384);
+            /// `minecraft:block.composter.fill` (`385`).
+            pub const BLOCK_COMPOSTER_FILL: Self = Self(385);
+            /// `minecraft:block.composter.fill_success` (`386`).
+            pub const BLOCK_COMPOSTER_FILL_SUCCESS: Self = Self(386);
+            /// `minecraft:block.composter.ready` (`387`).
+            pub const BLOCK_COMPOSTER_READY: Self = Self(387);
+            /// `minecraft:block.conduit.activate` (`388`).
+            pub const BLOCK_CONDUIT_ACTIVATE: Self = Self(388);
+            /// `minecraft:block.conduit.ambient` (`389`).
+            pub const BLOCK_CONDUIT_AMBIENT: Self = Self(389);
+            /// `minecraft:block.conduit.ambient.short` (`390`).
+            pub const BLOCK_CONDUIT_AMBIENT_SHORT: Self = Self(390);
+            /// `minecraft:block.conduit.attack.target` (`391`).
+            pub const BLOCK_CONDUIT_ATTACK_TARGET: Self = Self(391);
+            /// `minecraft:block.conduit.deactivate` (`392`).
+            pub const BLOCK_CONDUIT_DEACTIVATE: Self = Self(392);
+            /// `minecraft:block.copper_bulb.break` (`393`).
+            pub const BLOCK_COPPER_BULB_BREAK: Self = Self(393);
+            /// `minecraft:block.copper_bulb.step` (`394`).
+            pub const BLOCK_COPPER_BULB_STEP: Self = Self(394);
+            /// `minecraft:block.copper_bulb.place` (`395`).
+            pub const BLOCK_COPPER_BULB_PLACE: Self = Self(395);
+            /// `minecraft:block.copper_bulb.hit` (`396`).
+            pub const BLOCK_COPPER_BULB_HIT: Self = Self(396);
+            /// `minecraft:block.copper_bulb.fall` (`397`).
+            pub const BLOCK_COPPER_BULB_FALL: Self = Self(397);
+            /// `minecraft:block.copper_bulb.turn_on` (`398`).
+            pub const BLOCK_COPPER_BULB_TURN_ON: Self = Self(398);
+            /// `minecraft:block.copper_bulb.turn_off` (`399`).
+            pub const BLOCK_COPPER_BULB_TURN_OFF: Self = Self(399);
+            /// `minecraft:block.copper.break` (`400`).
+            pub const BLOCK_COPPER_BREAK: Self = Self(400);
+            /// `minecraft:block.copper.step` (`401`).
+            pub const BLOCK_COPPER_STEP: Self = Self(401);
+            /// `minecraft:block.copper.place` (`402`).
+            pub const BLOCK_COPPER_PLACE: Self = Self(402);
+            /// `minecraft:block.copper.hit` (`403`).
+            pub const BLOCK_COPPER_HIT: Self = Self(403);
+            /// `minecraft:block.copper.fall` (`404`).
+            pub const BLOCK_COPPER_FALL: Self = Self(404);
+            /// `minecraft:block.copper_chest.close` (`405`).
+            pub const BLOCK_COPPER_CHEST_CLOSE: Self = Self(405);
+            /// `minecraft:block.copper_chest.open` (`406`).
+            pub const BLOCK_COPPER_CHEST_OPEN: Self = Self(406);
+            /// `minecraft:block.copper_chest_weathered.close` (`407`).
+            pub const BLOCK_COPPER_CHEST_WEATHERED_CLOSE: Self = Self(407);
+            /// `minecraft:block.copper_chest_weathered.open` (`408`).
+            pub const BLOCK_COPPER_CHEST_WEATHERED_OPEN: Self = Self(408);
+            /// `minecraft:block.copper_chest_oxidized.close` (`409`).
+            pub const BLOCK_COPPER_CHEST_OXIDIZED_CLOSE: Self = Self(409);
+            /// `minecraft:block.copper_chest_oxidized.open` (`410`).
+            pub const BLOCK_COPPER_CHEST_OXIDIZED_OPEN: Self = Self(410);
+            /// `minecraft:block.copper_door.close` (`411`).
+            pub const BLOCK_COPPER_DOOR_CLOSE: Self = Self(411);
+            /// `minecraft:block.copper_door.open` (`412`).
+            pub const BLOCK_COPPER_DOOR_OPEN: Self = Self(412);
+            /// `minecraft:entity.copper_golem.step` (`413`).
+            pub const ENTITY_COPPER_GOLEM_STEP: Self = Self(413);
+            /// `minecraft:entity.copper_golem.hurt` (`414`).
+            pub const ENTITY_COPPER_GOLEM_HURT: Self = Self(414);
+            /// `minecraft:entity.copper_golem.death` (`415`).
+            pub const ENTITY_COPPER_GOLEM_DEATH: Self = Self(415);
+            /// `minecraft:entity.copper_golem_weathered.step` (`416`).
+            pub const ENTITY_COPPER_GOLEM_WEATHERED_STEP: Self = Self(416);
+            /// `minecraft:entity.copper_golem_weathered.hurt` (`417`).
+            pub const ENTITY_COPPER_GOLEM_WEATHERED_HURT: Self = Self(417);
+            /// `minecraft:entity.copper_golem_weathered.death` (`418`).
+            pub const ENTITY_COPPER_GOLEM_WEATHERED_DEATH: Self = Self(418);
+            /// `minecraft:entity.copper_golem_oxidized.step` (`419`).
+            pub const ENTITY_COPPER_GOLEM_OXIDIZED_STEP: Self = Self(419);
+            /// `minecraft:entity.copper_golem_oxidized.hurt` (`420`).
+            pub const ENTITY_COPPER_GOLEM_OXIDIZED_HURT: Self = Self(420);
+            /// `minecraft:entity.copper_golem_oxidized.death` (`421`).
+            pub const ENTITY_COPPER_GOLEM_OXIDIZED_DEATH: Self = Self(421);
+            /// `minecraft:entity.copper_golem.spin` (`422`).
+            pub const ENTITY_COPPER_GOLEM_SPIN: Self = Self(422);
+            /// `minecraft:entity.copper_golem_weathered.spin` (`423`).
+            pub const ENTITY_COPPER_GOLEM_WEATHERED_SPIN: Self = Self(423);
+            /// `minecraft:entity.copper_golem_oxidized.spin` (`424`).
+            pub const ENTITY_COPPER_GOLEM_OXIDIZED_SPIN: Self = Self(424);
+            /// `minecraft:entity.copper_golem.no_item_get` (`425`).
+            pub const ENTITY_COPPER_GOLEM_NO_ITEM_GET: Self = Self(425);
+            /// `minecraft:entity.copper_golem.no_item_no_get` (`426`).
+            pub const ENTITY_COPPER_GOLEM_NO_ITEM_NO_GET: Self = Self(426);
+            /// `minecraft:entity.copper_golem.item_drop` (`427`).
+            pub const ENTITY_COPPER_GOLEM_ITEM_DROP: Self = Self(427);
+            /// `minecraft:entity.copper_golem.item_no_drop` (`428`).
+            pub const ENTITY_COPPER_GOLEM_ITEM_NO_DROP: Self = Self(428);
+            /// `minecraft:entity.copper_golem_become_statue` (`429`).
+            pub const ENTITY_COPPER_GOLEM_BECOME_STATUE: Self = Self(429);
+            /// `minecraft:block.copper_golem_statue.break` (`430`).
+            pub const BLOCK_COPPER_GOLEM_STATUE_BREAK: Self = Self(430);
+            /// `minecraft:block.copper_golem_statue.place` (`431`).
+            pub const BLOCK_COPPER_GOLEM_STATUE_PLACE: Self = Self(431);
+            /// `minecraft:block.copper_golem_statue.hit` (`432`).
+            pub const BLOCK_COPPER_GOLEM_STATUE_HIT: Self = Self(432);
+            /// `minecraft:block.copper_golem_statue.step` (`433`).
+            pub const BLOCK_COPPER_GOLEM_STATUE_STEP: Self = Self(433);
+            /// `minecraft:block.copper_golem_statue.fall` (`434`).
+            pub const BLOCK_COPPER_GOLEM_STATUE_FALL: Self = Self(434);
+            /// `minecraft:entity.copper_golem.spawn` (`435`).
+            pub const ENTITY_COPPER_GOLEM_SPAWN: Self = Self(435);
+            /// `minecraft:entity.copper_golem.shear` (`436`).
+            pub const ENTITY_COPPER_GOLEM_SHEAR: Self = Self(436);
+            /// `minecraft:block.copper_grate.break` (`437`).
+            pub const BLOCK_COPPER_GRATE_BREAK: Self = Self(437);
+            /// `minecraft:block.copper_grate.step` (`438`).
+            pub const BLOCK_COPPER_GRATE_STEP: Self = Self(438);
+            /// `minecraft:block.copper_grate.place` (`439`).
+            pub const BLOCK_COPPER_GRATE_PLACE: Self = Self(439);
+            /// `minecraft:block.copper_grate.hit` (`440`).
+            pub const BLOCK_COPPER_GRATE_HIT: Self = Self(440);
+            /// `minecraft:block.copper_grate.fall` (`441`).
+            pub const BLOCK_COPPER_GRATE_FALL: Self = Self(441);
+            /// `minecraft:block.copper_trapdoor.close` (`442`).
+            pub const BLOCK_COPPER_TRAPDOOR_CLOSE: Self = Self(442);
+            /// `minecraft:block.copper_trapdoor.open` (`443`).
+            pub const BLOCK_COPPER_TRAPDOOR_OPEN: Self = Self(443);
+            /// `minecraft:block.coral_block.break` (`444`).
+            pub const BLOCK_CORAL_BLOCK_BREAK: Self = Self(444);
+            /// `minecraft:block.coral_block.fall` (`445`).
+            pub const BLOCK_CORAL_BLOCK_FALL: Self = Self(445);
+            /// `minecraft:block.coral_block.hit` (`446`).
+            pub const BLOCK_CORAL_BLOCK_HIT: Self = Self(446);
+            /// `minecraft:block.coral_block.place` (`447`).
+            pub const BLOCK_CORAL_BLOCK_PLACE: Self = Self(447);
+            /// `minecraft:block.coral_block.step` (`448`).
+            pub const BLOCK_CORAL_BLOCK_STEP: Self = Self(448);
+            /// `minecraft:entity.cow.milk` (`449`).
+            pub const ENTITY_COW_MILK: Self = Self(449);
+            /// `minecraft:entity.cow.ambient` (`450`).
+            pub const ENTITY_COW_AMBIENT: Self = Self(450);
+            /// `minecraft:entity.cow.hurt` (`451`).
+            pub const ENTITY_COW_HURT: Self = Self(451);
+            /// `minecraft:entity.cow.death` (`452`).
+            pub const ENTITY_COW_DEATH: Self = Self(452);
+            /// `minecraft:entity.cow.step` (`453`).
+            pub const ENTITY_COW_STEP: Self = Self(453);
+            /// `minecraft:entity.cow_moody.ambient` (`454`).
+            pub const ENTITY_COW_MOODY_AMBIENT: Self = Self(454);
+            /// `minecraft:entity.cow_moody.hurt` (`455`).
+            pub const ENTITY_COW_MOODY_HURT: Self = Self(455);
+            /// `minecraft:entity.cow_moody.death` (`456`).
+            pub const ENTITY_COW_MOODY_DEATH: Self = Self(456);
+            /// `minecraft:entity.cow_moody.step` (`457`).
+            pub const ENTITY_COW_MOODY_STEP: Self = Self(457);
+            /// `minecraft:block.crafter.craft` (`458`).
+            pub const BLOCK_CRAFTER_CRAFT: Self = Self(458);
+            /// `minecraft:block.crafter.fail` (`459`).
+            pub const BLOCK_CRAFTER_FAIL: Self = Self(459);
+            /// `minecraft:entity.creaking.ambient` (`460`).
+            pub const ENTITY_CREAKING_AMBIENT: Self = Self(460);
+            /// `minecraft:entity.creaking.activate` (`461`).
+            pub const ENTITY_CREAKING_ACTIVATE: Self = Self(461);
+            /// `minecraft:entity.creaking.deactivate` (`462`).
+            pub const ENTITY_CREAKING_DEACTIVATE: Self = Self(462);
+            /// `minecraft:entity.creaking.attack` (`463`).
+            pub const ENTITY_CREAKING_ATTACK: Self = Self(463);
+            /// `minecraft:entity.creaking.death` (`464`).
+            pub const ENTITY_CREAKING_DEATH: Self = Self(464);
+            /// `minecraft:entity.creaking.step` (`465`).
+            pub const ENTITY_CREAKING_STEP: Self = Self(465);
+            /// `minecraft:entity.creaking.freeze` (`466`).
+            pub const ENTITY_CREAKING_FREEZE: Self = Self(466);
+            /// `minecraft:entity.creaking.unfreeze` (`467`).
+            pub const ENTITY_CREAKING_UNFREEZE: Self = Self(467);
+            /// `minecraft:entity.creaking.spawn` (`468`).
+            pub const ENTITY_CREAKING_SPAWN: Self = Self(468);
+            /// `minecraft:entity.creaking.sway` (`469`).
+            pub const ENTITY_CREAKING_SWAY: Self = Self(469);
+            /// `minecraft:entity.creaking.twitch` (`470`).
+            pub const ENTITY_CREAKING_TWITCH: Self = Self(470);
+            /// `minecraft:block.creaking_heart.break` (`471`).
+            pub const BLOCK_CREAKING_HEART_BREAK: Self = Self(471);
+            /// `minecraft:block.creaking_heart.fall` (`472`).
+            pub const BLOCK_CREAKING_HEART_FALL: Self = Self(472);
+            /// `minecraft:block.creaking_heart.hit` (`473`).
+            pub const BLOCK_CREAKING_HEART_HIT: Self = Self(473);
+            /// `minecraft:block.creaking_heart.hurt` (`474`).
+            pub const BLOCK_CREAKING_HEART_HURT: Self = Self(474);
+            /// `minecraft:block.creaking_heart.place` (`475`).
+            pub const BLOCK_CREAKING_HEART_PLACE: Self = Self(475);
+            /// `minecraft:block.creaking_heart.step` (`476`).
+            pub const BLOCK_CREAKING_HEART_STEP: Self = Self(476);
+            /// `minecraft:block.creaking_heart.idle` (`477`).
+            pub const BLOCK_CREAKING_HEART_IDLE: Self = Self(477);
+            /// `minecraft:block.creaking_heart.spawn` (`478`).
+            pub const BLOCK_CREAKING_HEART_SPAWN: Self = Self(478);
+            /// `minecraft:entity.creeper.death` (`479`).
+            pub const ENTITY_CREEPER_DEATH: Self = Self(479);
+            /// `minecraft:entity.creeper.hurt` (`480`).
+            pub const ENTITY_CREEPER_HURT: Self = Self(480);
+            /// `minecraft:entity.creeper.primed` (`481`).
+            pub const ENTITY_CREEPER_PRIMED: Self = Self(481);
+            /// `minecraft:block.crop.break` (`482`).
+            pub const BLOCK_CROP_BREAK: Self = Self(482);
+            /// `minecraft:item.crop.plant` (`483`).
+            pub const ITEM_CROP_PLANT: Self = Self(483);
+            /// `minecraft:item.crossbow.hit` (`484`).
+            pub const ITEM_CROSSBOW_HIT: Self = Self(484);
+            /// `minecraft:item.crossbow.loading_end` (`485`).
+            pub const ITEM_CROSSBOW_LOADING_END: Self = Self(485);
+            /// `minecraft:item.crossbow.loading_middle` (`486`).
+            pub const ITEM_CROSSBOW_LOADING_MIDDLE: Self = Self(486);
+            /// `minecraft:item.crossbow.loading_start` (`487`).
+            pub const ITEM_CROSSBOW_LOADING_START: Self = Self(487);
+            /// `minecraft:item.crossbow.quick_charge_1` (`488`).
+            pub const ITEM_CROSSBOW_QUICK_CHARGE_1: Self = Self(488);
+            /// `minecraft:item.crossbow.quick_charge_2` (`489`).
+            pub const ITEM_CROSSBOW_QUICK_CHARGE_2: Self = Self(489);
+            /// `minecraft:item.crossbow.quick_charge_3` (`490`).
+            pub const ITEM_CROSSBOW_QUICK_CHARGE_3: Self = Self(490);
+            /// `minecraft:item.crossbow.shoot` (`491`).
+            pub const ITEM_CROSSBOW_SHOOT: Self = Self(491);
+            /// `minecraft:block.deadbush.idle` (`492`).
+            pub const BLOCK_DEADBUSH_IDLE: Self = Self(492);
+            /// `minecraft:block.decorated_pot.break` (`493`).
+            pub const BLOCK_DECORATED_POT_BREAK: Self = Self(493);
+            /// `minecraft:block.decorated_pot.fall` (`494`).
+            pub const BLOCK_DECORATED_POT_FALL: Self = Self(494);
+            /// `minecraft:block.decorated_pot.hit` (`495`).
+            pub const BLOCK_DECORATED_POT_HIT: Self = Self(495);
+            /// `minecraft:block.decorated_pot.insert` (`496`).
+            pub const BLOCK_DECORATED_POT_INSERT: Self = Self(496);
+            /// `minecraft:block.decorated_pot.insert_fail` (`497`).
+            pub const BLOCK_DECORATED_POT_INSERT_FAIL: Self = Self(497);
+            /// `minecraft:block.decorated_pot.step` (`498`).
+            pub const BLOCK_DECORATED_POT_STEP: Self = Self(498);
+            /// `minecraft:block.decorated_pot.place` (`499`).
+            pub const BLOCK_DECORATED_POT_PLACE: Self = Self(499);
+            /// `minecraft:block.decorated_pot.shatter` (`500`).
+            pub const BLOCK_DECORATED_POT_SHATTER: Self = Self(500);
+            /// `minecraft:block.deepslate_bricks.break` (`501`).
+            pub const BLOCK_DEEPSLATE_BRICKS_BREAK: Self = Self(501);
+            /// `minecraft:block.deepslate_bricks.fall` (`502`).
+            pub const BLOCK_DEEPSLATE_BRICKS_FALL: Self = Self(502);
+            /// `minecraft:block.deepslate_bricks.hit` (`503`).
+            pub const BLOCK_DEEPSLATE_BRICKS_HIT: Self = Self(503);
+            /// `minecraft:block.deepslate_bricks.place` (`504`).
+            pub const BLOCK_DEEPSLATE_BRICKS_PLACE: Self = Self(504);
+            /// `minecraft:block.deepslate_bricks.step` (`505`).
+            pub const BLOCK_DEEPSLATE_BRICKS_STEP: Self = Self(505);
+            /// `minecraft:block.deepslate.break` (`506`).
+            pub const BLOCK_DEEPSLATE_BREAK: Self = Self(506);
+            /// `minecraft:block.deepslate.fall` (`507`).
+            pub const BLOCK_DEEPSLATE_FALL: Self = Self(507);
+            /// `minecraft:block.deepslate.hit` (`508`).
+            pub const BLOCK_DEEPSLATE_HIT: Self = Self(508);
+            /// `minecraft:block.deepslate.place` (`509`).
+            pub const BLOCK_DEEPSLATE_PLACE: Self = Self(509);
+            /// `minecraft:block.deepslate.step` (`510`).
+            pub const BLOCK_DEEPSLATE_STEP: Self = Self(510);
+            /// `minecraft:block.deepslate_tiles.break` (`511`).
+            pub const BLOCK_DEEPSLATE_TILES_BREAK: Self = Self(511);
+            /// `minecraft:block.deepslate_tiles.fall` (`512`).
+            pub const BLOCK_DEEPSLATE_TILES_FALL: Self = Self(512);
+            /// `minecraft:block.deepslate_tiles.hit` (`513`).
+            pub const BLOCK_DEEPSLATE_TILES_HIT: Self = Self(513);
+            /// `minecraft:block.deepslate_tiles.place` (`514`).
+            pub const BLOCK_DEEPSLATE_TILES_PLACE: Self = Self(514);
+            /// `minecraft:block.deepslate_tiles.step` (`515`).
+            pub const BLOCK_DEEPSLATE_TILES_STEP: Self = Self(515);
+            /// `minecraft:block.dispenser.dispense` (`516`).
+            pub const BLOCK_DISPENSER_DISPENSE: Self = Self(516);
+            /// `minecraft:block.dispenser.fail` (`517`).
+            pub const BLOCK_DISPENSER_FAIL: Self = Self(517);
+            /// `minecraft:block.dispenser.launch` (`518`).
+            pub const BLOCK_DISPENSER_LAUNCH: Self = Self(518);
+            /// `minecraft:entity.dolphin.ambient` (`519`).
+            pub const ENTITY_DOLPHIN_AMBIENT: Self = Self(519);
+            /// `minecraft:entity.dolphin.ambient_water` (`520`).
+            pub const ENTITY_DOLPHIN_AMBIENT_WATER: Self = Self(520);
+            /// `minecraft:entity.dolphin.attack` (`521`).
+            pub const ENTITY_DOLPHIN_ATTACK: Self = Self(521);
+            /// `minecraft:entity.dolphin.death` (`522`).
+            pub const ENTITY_DOLPHIN_DEATH: Self = Self(522);
+            /// `minecraft:entity.dolphin.eat` (`523`).
+            pub const ENTITY_DOLPHIN_EAT: Self = Self(523);
+            /// `minecraft:entity.dolphin.hurt` (`524`).
+            pub const ENTITY_DOLPHIN_HURT: Self = Self(524);
+            /// `minecraft:entity.dolphin.jump` (`525`).
+            pub const ENTITY_DOLPHIN_JUMP: Self = Self(525);
+            /// `minecraft:entity.dolphin.play` (`526`).
+            pub const ENTITY_DOLPHIN_PLAY: Self = Self(526);
+            /// `minecraft:entity.dolphin.splash` (`527`).
+            pub const ENTITY_DOLPHIN_SPLASH: Self = Self(527);
+            /// `minecraft:entity.dolphin.swim` (`528`).
+            pub const ENTITY_DOLPHIN_SWIM: Self = Self(528);
+            /// `minecraft:entity.donkey.ambient` (`529`).
+            pub const ENTITY_DONKEY_AMBIENT: Self = Self(529);
+            /// `minecraft:entity.donkey.angry` (`530`).
+            pub const ENTITY_DONKEY_ANGRY: Self = Self(530);
+            /// `minecraft:entity.donkey.chest` (`531`).
+            pub const ENTITY_DONKEY_CHEST: Self = Self(531);
+            /// `minecraft:entity.donkey.death` (`532`).
+            pub const ENTITY_DONKEY_DEATH: Self = Self(532);
+            /// `minecraft:entity.donkey.eat` (`533`).
+            pub const ENTITY_DONKEY_EAT: Self = Self(533);
+            /// `minecraft:entity.donkey.hurt` (`534`).
+            pub const ENTITY_DONKEY_HURT: Self = Self(534);
+            /// `minecraft:entity.donkey.jump` (`535`).
+            pub const ENTITY_DONKEY_JUMP: Self = Self(535);
+            /// `minecraft:block.dried_ghast.break` (`536`).
+            pub const BLOCK_DRIED_GHAST_BREAK: Self = Self(536);
+            /// `minecraft:block.dried_ghast.step` (`537`).
+            pub const BLOCK_DRIED_GHAST_STEP: Self = Self(537);
+            /// `minecraft:block.dried_ghast.fall` (`538`).
+            pub const BLOCK_DRIED_GHAST_FALL: Self = Self(538);
+            /// `minecraft:block.dried_ghast.ambient` (`539`).
+            pub const BLOCK_DRIED_GHAST_AMBIENT: Self = Self(539);
+            /// `minecraft:block.dried_ghast.ambient_water` (`540`).
+            pub const BLOCK_DRIED_GHAST_AMBIENT_WATER: Self = Self(540);
+            /// `minecraft:block.dried_ghast.place` (`541`).
+            pub const BLOCK_DRIED_GHAST_PLACE: Self = Self(541);
+            /// `minecraft:block.dried_ghast.place_in_water` (`542`).
+            pub const BLOCK_DRIED_GHAST_PLACE_IN_WATER: Self = Self(542);
+            /// `minecraft:block.dried_ghast.transition` (`543`).
+            pub const BLOCK_DRIED_GHAST_TRANSITION: Self = Self(543);
+            /// `minecraft:block.dripstone_block.break` (`544`).
+            pub const BLOCK_DRIPSTONE_BLOCK_BREAK: Self = Self(544);
+            /// `minecraft:block.dripstone_block.step` (`545`).
+            pub const BLOCK_DRIPSTONE_BLOCK_STEP: Self = Self(545);
+            /// `minecraft:block.dripstone_block.place` (`546`).
+            pub const BLOCK_DRIPSTONE_BLOCK_PLACE: Self = Self(546);
+            /// `minecraft:block.dripstone_block.hit` (`547`).
+            pub const BLOCK_DRIPSTONE_BLOCK_HIT: Self = Self(547);
+            /// `minecraft:block.dripstone_block.fall` (`548`).
+            pub const BLOCK_DRIPSTONE_BLOCK_FALL: Self = Self(548);
+            /// `minecraft:block.dry_grass.ambient` (`549`).
+            pub const BLOCK_DRY_GRASS_AMBIENT: Self = Self(549);
+            /// `minecraft:block.pointed_dripstone.break` (`550`).
+            pub const BLOCK_POINTED_DRIPSTONE_BREAK: Self = Self(550);
+            /// `minecraft:block.pointed_dripstone.step` (`551`).
+            pub const BLOCK_POINTED_DRIPSTONE_STEP: Self = Self(551);
+            /// `minecraft:block.pointed_dripstone.place` (`552`).
+            pub const BLOCK_POINTED_DRIPSTONE_PLACE: Self = Self(552);
+            /// `minecraft:block.pointed_dripstone.hit` (`553`).
+            pub const BLOCK_POINTED_DRIPSTONE_HIT: Self = Self(553);
+            /// `minecraft:block.pointed_dripstone.fall` (`554`).
+            pub const BLOCK_POINTED_DRIPSTONE_FALL: Self = Self(554);
+            /// `minecraft:block.pointed_dripstone.land` (`555`).
+            pub const BLOCK_POINTED_DRIPSTONE_LAND: Self = Self(555);
+            /// `minecraft:block.pointed_dripstone.drip_lava` (`556`).
+            pub const BLOCK_POINTED_DRIPSTONE_DRIP_LAVA: Self = Self(556);
+            /// `minecraft:block.pointed_dripstone.drip_water` (`557`).
+            pub const BLOCK_POINTED_DRIPSTONE_DRIP_WATER: Self = Self(557);
+            /// `minecraft:block.pointed_dripstone.drip_lava_into_cauldron` (`558`).
+            pub const BLOCK_POINTED_DRIPSTONE_DRIP_LAVA_INTO_CAULDRON: Self = Self(558);
+            /// `minecraft:block.pointed_dripstone.drip_water_into_cauldron` (`559`).
+            pub const BLOCK_POINTED_DRIPSTONE_DRIP_WATER_INTO_CAULDRON: Self = Self(559);
+            /// `minecraft:block.big_dripleaf.tilt_down` (`560`).
+            pub const BLOCK_BIG_DRIPLEAF_TILT_DOWN: Self = Self(560);
+            /// `minecraft:block.big_dripleaf.tilt_up` (`561`).
+            pub const BLOCK_BIG_DRIPLEAF_TILT_UP: Self = Self(561);
+            /// `minecraft:entity.drowned.ambient` (`562`).
+            pub const ENTITY_DROWNED_AMBIENT: Self = Self(562);
+            /// `minecraft:entity.drowned.ambient_water` (`563`).
+            pub const ENTITY_DROWNED_AMBIENT_WATER: Self = Self(563);
+            /// `minecraft:entity.drowned.death` (`564`).
+            pub const ENTITY_DROWNED_DEATH: Self = Self(564);
+            /// `minecraft:entity.drowned.death_water` (`565`).
+            pub const ENTITY_DROWNED_DEATH_WATER: Self = Self(565);
+            /// `minecraft:entity.drowned.hurt` (`566`).
+            pub const ENTITY_DROWNED_HURT: Self = Self(566);
+            /// `minecraft:entity.drowned.hurt_water` (`567`).
+            pub const ENTITY_DROWNED_HURT_WATER: Self = Self(567);
+            /// `minecraft:entity.drowned.shoot` (`568`).
+            pub const ENTITY_DROWNED_SHOOT: Self = Self(568);
+            /// `minecraft:entity.drowned.step` (`569`).
+            pub const ENTITY_DROWNED_STEP: Self = Self(569);
+            /// `minecraft:entity.drowned.swim` (`570`).
+            pub const ENTITY_DROWNED_SWIM: Self = Self(570);
+            /// `minecraft:item.dye.use` (`571`).
+            pub const ITEM_DYE_USE: Self = Self(571);
+            /// `minecraft:entity.egg.throw` (`572`).
+            pub const ENTITY_EGG_THROW: Self = Self(572);
+            /// `minecraft:entity.elder_guardian.ambient` (`573`).
+            pub const ENTITY_ELDER_GUARDIAN_AMBIENT: Self = Self(573);
+            /// `minecraft:entity.elder_guardian.ambient_land` (`574`).
+            pub const ENTITY_ELDER_GUARDIAN_AMBIENT_LAND: Self = Self(574);
+            /// `minecraft:entity.elder_guardian.curse` (`575`).
+            pub const ENTITY_ELDER_GUARDIAN_CURSE: Self = Self(575);
+            /// `minecraft:entity.elder_guardian.death` (`576`).
+            pub const ENTITY_ELDER_GUARDIAN_DEATH: Self = Self(576);
+            /// `minecraft:entity.elder_guardian.death_land` (`577`).
+            pub const ENTITY_ELDER_GUARDIAN_DEATH_LAND: Self = Self(577);
+            /// `minecraft:entity.elder_guardian.flop` (`578`).
+            pub const ENTITY_ELDER_GUARDIAN_FLOP: Self = Self(578);
+            /// `minecraft:entity.elder_guardian.hurt` (`579`).
+            pub const ENTITY_ELDER_GUARDIAN_HURT: Self = Self(579);
+            /// `minecraft:entity.elder_guardian.hurt_land` (`580`).
+            pub const ENTITY_ELDER_GUARDIAN_HURT_LAND: Self = Self(580);
+            /// `minecraft:item.elytra.flying` (`581`).
+            pub const ITEM_ELYTRA_FLYING: Self = Self(581);
+            /// `minecraft:block.enchantment_table.use` (`582`).
+            pub const BLOCK_ENCHANTMENT_TABLE_USE: Self = Self(582);
+            /// `minecraft:block.ender_chest.close` (`583`).
+            pub const BLOCK_ENDER_CHEST_CLOSE: Self = Self(583);
+            /// `minecraft:block.ender_chest.open` (`584`).
+            pub const BLOCK_ENDER_CHEST_OPEN: Self = Self(584);
+            /// `minecraft:entity.ender_dragon.ambient` (`585`).
+            pub const ENTITY_ENDER_DRAGON_AMBIENT: Self = Self(585);
+            /// `minecraft:entity.ender_dragon.death` (`586`).
+            pub const ENTITY_ENDER_DRAGON_DEATH: Self = Self(586);
+            /// `minecraft:entity.dragon_fireball.explode` (`587`).
+            pub const ENTITY_DRAGON_FIREBALL_EXPLODE: Self = Self(587);
+            /// `minecraft:entity.ender_dragon.flap` (`588`).
+            pub const ENTITY_ENDER_DRAGON_FLAP: Self = Self(588);
+            /// `minecraft:entity.ender_dragon.growl` (`589`).
+            pub const ENTITY_ENDER_DRAGON_GROWL: Self = Self(589);
+            /// `minecraft:entity.ender_dragon.hurt` (`590`).
+            pub const ENTITY_ENDER_DRAGON_HURT: Self = Self(590);
+            /// `minecraft:entity.ender_dragon.shoot` (`591`).
+            pub const ENTITY_ENDER_DRAGON_SHOOT: Self = Self(591);
+            /// `minecraft:entity.ender_eye.death` (`592`).
+            pub const ENTITY_ENDER_EYE_DEATH: Self = Self(592);
+            /// `minecraft:entity.ender_eye.launch` (`593`).
+            pub const ENTITY_ENDER_EYE_LAUNCH: Self = Self(593);
+            /// `minecraft:entity.enderman.ambient` (`594`).
+            pub const ENTITY_ENDERMAN_AMBIENT: Self = Self(594);
+            /// `minecraft:entity.enderman.death` (`595`).
+            pub const ENTITY_ENDERMAN_DEATH: Self = Self(595);
+            /// `minecraft:entity.enderman.hurt` (`596`).
+            pub const ENTITY_ENDERMAN_HURT: Self = Self(596);
+            /// `minecraft:entity.enderman.scream` (`597`).
+            pub const ENTITY_ENDERMAN_SCREAM: Self = Self(597);
+            /// `minecraft:entity.enderman.stare` (`598`).
+            pub const ENTITY_ENDERMAN_STARE: Self = Self(598);
+            /// `minecraft:entity.enderman.teleport` (`599`).
+            pub const ENTITY_ENDERMAN_TELEPORT: Self = Self(599);
+            /// `minecraft:entity.endermite.ambient` (`600`).
+            pub const ENTITY_ENDERMITE_AMBIENT: Self = Self(600);
+            /// `minecraft:entity.endermite.death` (`601`).
+            pub const ENTITY_ENDERMITE_DEATH: Self = Self(601);
+            /// `minecraft:entity.endermite.hurt` (`602`).
+            pub const ENTITY_ENDERMITE_HURT: Self = Self(602);
+            /// `minecraft:entity.endermite.step` (`603`).
+            pub const ENTITY_ENDERMITE_STEP: Self = Self(603);
+            /// `minecraft:entity.ender_pearl.throw` (`604`).
+            pub const ENTITY_ENDER_PEARL_THROW: Self = Self(604);
+            /// `minecraft:block.end_gateway.spawn` (`605`).
+            pub const BLOCK_END_GATEWAY_SPAWN: Self = Self(605);
+            /// `minecraft:block.end_portal_frame.fill` (`606`).
+            pub const BLOCK_END_PORTAL_FRAME_FILL: Self = Self(606);
+            /// `minecraft:block.end_portal.spawn` (`607`).
+            pub const BLOCK_END_PORTAL_SPAWN: Self = Self(607);
+            /// `minecraft:entity.evoker.ambient` (`608`).
+            pub const ENTITY_EVOKER_AMBIENT: Self = Self(608);
+            /// `minecraft:entity.evoker.cast_spell` (`609`).
+            pub const ENTITY_EVOKER_CAST_SPELL: Self = Self(609);
+            /// `minecraft:entity.evoker.celebrate` (`610`).
+            pub const ENTITY_EVOKER_CELEBRATE: Self = Self(610);
+            /// `minecraft:entity.evoker.death` (`611`).
+            pub const ENTITY_EVOKER_DEATH: Self = Self(611);
+            /// `minecraft:entity.evoker_fangs.attack` (`612`).
+            pub const ENTITY_EVOKER_FANGS_ATTACK: Self = Self(612);
+            /// `minecraft:entity.evoker.hurt` (`613`).
+            pub const ENTITY_EVOKER_HURT: Self = Self(613);
+            /// `minecraft:entity.evoker.prepare_attack` (`614`).
+            pub const ENTITY_EVOKER_PREPARE_ATTACK: Self = Self(614);
+            /// `minecraft:entity.evoker.prepare_summon` (`615`).
+            pub const ENTITY_EVOKER_PREPARE_SUMMON: Self = Self(615);
+            /// `minecraft:entity.evoker.prepare_wololo` (`616`).
+            pub const ENTITY_EVOKER_PREPARE_WOLOLO: Self = Self(616);
+            /// `minecraft:entity.experience_bottle.throw` (`617`).
+            pub const ENTITY_EXPERIENCE_BOTTLE_THROW: Self = Self(617);
+            /// `minecraft:entity.experience_orb.pickup` (`618`).
+            pub const ENTITY_EXPERIENCE_ORB_PICKUP: Self = Self(618);
+            /// `minecraft:block.eyeblossom.open_long` (`619`).
+            pub const BLOCK_EYEBLOSSOM_OPEN_LONG: Self = Self(619);
+            /// `minecraft:block.eyeblossom.open` (`620`).
+            pub const BLOCK_EYEBLOSSOM_OPEN: Self = Self(620);
+            /// `minecraft:block.eyeblossom.close_long` (`621`).
+            pub const BLOCK_EYEBLOSSOM_CLOSE_LONG: Self = Self(621);
+            /// `minecraft:block.eyeblossom.close` (`622`).
+            pub const BLOCK_EYEBLOSSOM_CLOSE: Self = Self(622);
+            /// `minecraft:block.eyeblossom.idle` (`623`).
+            pub const BLOCK_EYEBLOSSOM_IDLE: Self = Self(623);
+            /// `minecraft:block.fence_gate.close` (`624`).
+            pub const BLOCK_FENCE_GATE_CLOSE: Self = Self(624);
+            /// `minecraft:block.fence_gate.open` (`625`).
+            pub const BLOCK_FENCE_GATE_OPEN: Self = Self(625);
+            /// `minecraft:item.firecharge.use` (`626`).
+            pub const ITEM_FIRECHARGE_USE: Self = Self(626);
+            /// `minecraft:block.firefly_bush.idle` (`627`).
+            pub const BLOCK_FIREFLY_BUSH_IDLE: Self = Self(627);
+            /// `minecraft:entity.firework_rocket.blast` (`628`).
+            pub const ENTITY_FIREWORK_ROCKET_BLAST: Self = Self(628);
+            /// `minecraft:entity.firework_rocket.blast_far` (`629`).
+            pub const ENTITY_FIREWORK_ROCKET_BLAST_FAR: Self = Self(629);
+            /// `minecraft:entity.firework_rocket.large_blast` (`630`).
+            pub const ENTITY_FIREWORK_ROCKET_LARGE_BLAST: Self = Self(630);
+            /// `minecraft:entity.firework_rocket.large_blast_far` (`631`).
+            pub const ENTITY_FIREWORK_ROCKET_LARGE_BLAST_FAR: Self = Self(631);
+            /// `minecraft:entity.firework_rocket.launch` (`632`).
+            pub const ENTITY_FIREWORK_ROCKET_LAUNCH: Self = Self(632);
+            /// `minecraft:entity.firework_rocket.shoot` (`633`).
+            pub const ENTITY_FIREWORK_ROCKET_SHOOT: Self = Self(633);
+            /// `minecraft:entity.firework_rocket.twinkle` (`634`).
+            pub const ENTITY_FIREWORK_ROCKET_TWINKLE: Self = Self(634);
+            /// `minecraft:entity.firework_rocket.twinkle_far` (`635`).
+            pub const ENTITY_FIREWORK_ROCKET_TWINKLE_FAR: Self = Self(635);
+            /// `minecraft:block.fire.ambient` (`636`).
+            pub const BLOCK_FIRE_AMBIENT: Self = Self(636);
+            /// `minecraft:block.fire.extinguish` (`637`).
+            pub const BLOCK_FIRE_EXTINGUISH: Self = Self(637);
+            /// `minecraft:entity.fish.swim` (`638`).
+            pub const ENTITY_FISH_SWIM: Self = Self(638);
+            /// `minecraft:entity.fishing_bobber.retrieve` (`639`).
+            pub const ENTITY_FISHING_BOBBER_RETRIEVE: Self = Self(639);
+            /// `minecraft:entity.fishing_bobber.splash` (`640`).
+            pub const ENTITY_FISHING_BOBBER_SPLASH: Self = Self(640);
+            /// `minecraft:entity.fishing_bobber.throw` (`641`).
+            pub const ENTITY_FISHING_BOBBER_THROW: Self = Self(641);
+            /// `minecraft:item.flintandsteel.use` (`642`).
+            pub const ITEM_FLINTANDSTEEL_USE: Self = Self(642);
+            /// `minecraft:block.flowering_azalea.break` (`643`).
+            pub const BLOCK_FLOWERING_AZALEA_BREAK: Self = Self(643);
+            /// `minecraft:block.flowering_azalea.fall` (`644`).
+            pub const BLOCK_FLOWERING_AZALEA_FALL: Self = Self(644);
+            /// `minecraft:block.flowering_azalea.hit` (`645`).
+            pub const BLOCK_FLOWERING_AZALEA_HIT: Self = Self(645);
+            /// `minecraft:block.flowering_azalea.place` (`646`).
+            pub const BLOCK_FLOWERING_AZALEA_PLACE: Self = Self(646);
+            /// `minecraft:block.flowering_azalea.step` (`647`).
+            pub const BLOCK_FLOWERING_AZALEA_STEP: Self = Self(647);
+            /// `minecraft:entity.fox.aggro` (`648`).
+            pub const ENTITY_FOX_AGGRO: Self = Self(648);
+            /// `minecraft:entity.fox.ambient` (`649`).
+            pub const ENTITY_FOX_AMBIENT: Self = Self(649);
+            /// `minecraft:entity.fox.bite` (`650`).
+            pub const ENTITY_FOX_BITE: Self = Self(650);
+            /// `minecraft:entity.fox.death` (`651`).
+            pub const ENTITY_FOX_DEATH: Self = Self(651);
+            /// `minecraft:entity.fox.eat` (`652`).
+            pub const ENTITY_FOX_EAT: Self = Self(652);
+            /// `minecraft:entity.fox.hurt` (`653`).
+            pub const ENTITY_FOX_HURT: Self = Self(653);
+            /// `minecraft:entity.fox.screech` (`654`).
+            pub const ENTITY_FOX_SCREECH: Self = Self(654);
+            /// `minecraft:entity.fox.sleep` (`655`).
+            pub const ENTITY_FOX_SLEEP: Self = Self(655);
+            /// `minecraft:entity.fox.sniff` (`656`).
+            pub const ENTITY_FOX_SNIFF: Self = Self(656);
+            /// `minecraft:entity.fox.spit` (`657`).
+            pub const ENTITY_FOX_SPIT: Self = Self(657);
+            /// `minecraft:entity.fox.teleport` (`658`).
+            pub const ENTITY_FOX_TELEPORT: Self = Self(658);
+            /// `minecraft:block.suspicious_sand.break` (`659`).
+            pub const BLOCK_SUSPICIOUS_SAND_BREAK: Self = Self(659);
+            /// `minecraft:block.suspicious_sand.step` (`660`).
+            pub const BLOCK_SUSPICIOUS_SAND_STEP: Self = Self(660);
+            /// `minecraft:block.suspicious_sand.place` (`661`).
+            pub const BLOCK_SUSPICIOUS_SAND_PLACE: Self = Self(661);
+            /// `minecraft:block.suspicious_sand.hit` (`662`).
+            pub const BLOCK_SUSPICIOUS_SAND_HIT: Self = Self(662);
+            /// `minecraft:block.suspicious_sand.fall` (`663`).
+            pub const BLOCK_SUSPICIOUS_SAND_FALL: Self = Self(663);
+            /// `minecraft:block.suspicious_gravel.break` (`664`).
+            pub const BLOCK_SUSPICIOUS_GRAVEL_BREAK: Self = Self(664);
+            /// `minecraft:block.suspicious_gravel.step` (`665`).
+            pub const BLOCK_SUSPICIOUS_GRAVEL_STEP: Self = Self(665);
+            /// `minecraft:block.suspicious_gravel.place` (`666`).
+            pub const BLOCK_SUSPICIOUS_GRAVEL_PLACE: Self = Self(666);
+            /// `minecraft:block.suspicious_gravel.hit` (`667`).
+            pub const BLOCK_SUSPICIOUS_GRAVEL_HIT: Self = Self(667);
+            /// `minecraft:block.suspicious_gravel.fall` (`668`).
+            pub const BLOCK_SUSPICIOUS_GRAVEL_FALL: Self = Self(668);
+            /// `minecraft:block.froglight.break` (`669`).
+            pub const BLOCK_FROGLIGHT_BREAK: Self = Self(669);
+            /// `minecraft:block.froglight.fall` (`670`).
+            pub const BLOCK_FROGLIGHT_FALL: Self = Self(670);
+            /// `minecraft:block.froglight.hit` (`671`).
+            pub const BLOCK_FROGLIGHT_HIT: Self = Self(671);
+            /// `minecraft:block.froglight.place` (`672`).
+            pub const BLOCK_FROGLIGHT_PLACE: Self = Self(672);
+            /// `minecraft:block.froglight.step` (`673`).
+            pub const BLOCK_FROGLIGHT_STEP: Self = Self(673);
+            /// `minecraft:block.frogspawn.step` (`674`).
+            pub const BLOCK_FROGSPAWN_STEP: Self = Self(674);
+            /// `minecraft:block.frogspawn.break` (`675`).
+            pub const BLOCK_FROGSPAWN_BREAK: Self = Self(675);
+            /// `minecraft:block.frogspawn.fall` (`676`).
+            pub const BLOCK_FROGSPAWN_FALL: Self = Self(676);
+            /// `minecraft:block.frogspawn.hatch` (`677`).
+            pub const BLOCK_FROGSPAWN_HATCH: Self = Self(677);
+            /// `minecraft:block.frogspawn.hit` (`678`).
+            pub const BLOCK_FROGSPAWN_HIT: Self = Self(678);
+            /// `minecraft:block.frogspawn.place` (`679`).
+            pub const BLOCK_FROGSPAWN_PLACE: Self = Self(679);
+            /// `minecraft:entity.frog.ambient` (`680`).
+            pub const ENTITY_FROG_AMBIENT: Self = Self(680);
+            /// `minecraft:entity.frog.death` (`681`).
+            pub const ENTITY_FROG_DEATH: Self = Self(681);
+            /// `minecraft:entity.frog.eat` (`682`).
+            pub const ENTITY_FROG_EAT: Self = Self(682);
+            /// `minecraft:entity.frog.hurt` (`683`).
+            pub const ENTITY_FROG_HURT: Self = Self(683);
+            /// `minecraft:entity.frog.lay_spawn` (`684`).
+            pub const ENTITY_FROG_LAY_SPAWN: Self = Self(684);
+            /// `minecraft:entity.frog.long_jump` (`685`).
+            pub const ENTITY_FROG_LONG_JUMP: Self = Self(685);
+            /// `minecraft:entity.frog.step` (`686`).
+            pub const ENTITY_FROG_STEP: Self = Self(686);
+            /// `minecraft:entity.frog.tongue` (`687`).
+            pub const ENTITY_FROG_TONGUE: Self = Self(687);
+            /// `minecraft:block.roots.break` (`688`).
+            pub const BLOCK_ROOTS_BREAK: Self = Self(688);
+            /// `minecraft:block.roots.step` (`689`).
+            pub const BLOCK_ROOTS_STEP: Self = Self(689);
+            /// `minecraft:block.roots.place` (`690`).
+            pub const BLOCK_ROOTS_PLACE: Self = Self(690);
+            /// `minecraft:block.roots.hit` (`691`).
+            pub const BLOCK_ROOTS_HIT: Self = Self(691);
+            /// `minecraft:block.roots.fall` (`692`).
+            pub const BLOCK_ROOTS_FALL: Self = Self(692);
+            /// `minecraft:block.furnace.fire_crackle` (`693`).
+            pub const BLOCK_FURNACE_FIRE_CRACKLE: Self = Self(693);
+            /// `minecraft:entity.generic.big_fall` (`694`).
+            pub const ENTITY_GENERIC_BIG_FALL: Self = Self(694);
+            /// `minecraft:entity.generic.burn` (`695`).
+            pub const ENTITY_GENERIC_BURN: Self = Self(695);
+            /// `minecraft:entity.generic.death` (`696`).
+            pub const ENTITY_GENERIC_DEATH: Self = Self(696);
+            /// `minecraft:entity.generic.drink` (`697`).
+            pub const ENTITY_GENERIC_DRINK: Self = Self(697);
+            /// `minecraft:entity.generic.eat` (`698`).
+            pub const ENTITY_GENERIC_EAT: Self = Self(698);
+            /// `minecraft:entity.generic.explode` (`699`).
+            pub const ENTITY_GENERIC_EXPLODE: Self = Self(699);
+            /// `minecraft:entity.generic.extinguish_fire` (`700`).
+            pub const ENTITY_GENERIC_EXTINGUISH_FIRE: Self = Self(700);
+            /// `minecraft:entity.generic.hurt` (`701`).
+            pub const ENTITY_GENERIC_HURT: Self = Self(701);
+            /// `minecraft:entity.generic.small_fall` (`702`).
+            pub const ENTITY_GENERIC_SMALL_FALL: Self = Self(702);
+            /// `minecraft:entity.generic.splash` (`703`).
+            pub const ENTITY_GENERIC_SPLASH: Self = Self(703);
+            /// `minecraft:entity.generic.swim` (`704`).
+            pub const ENTITY_GENERIC_SWIM: Self = Self(704);
+            /// `minecraft:entity.ghast.ambient` (`705`).
+            pub const ENTITY_GHAST_AMBIENT: Self = Self(705);
+            /// `minecraft:entity.ghast.death` (`706`).
+            pub const ENTITY_GHAST_DEATH: Self = Self(706);
+            /// `minecraft:entity.ghast.hurt` (`707`).
+            pub const ENTITY_GHAST_HURT: Self = Self(707);
+            /// `minecraft:entity.ghast.scream` (`708`).
+            pub const ENTITY_GHAST_SCREAM: Self = Self(708);
+            /// `minecraft:entity.ghast.shoot` (`709`).
+            pub const ENTITY_GHAST_SHOOT: Self = Self(709);
+            /// `minecraft:entity.ghast.warn` (`710`).
+            pub const ENTITY_GHAST_WARN: Self = Self(710);
+            /// `minecraft:entity.ghastling.ambient` (`711`).
+            pub const ENTITY_GHASTLING_AMBIENT: Self = Self(711);
+            /// `minecraft:entity.ghastling.death` (`712`).
+            pub const ENTITY_GHASTLING_DEATH: Self = Self(712);
+            /// `minecraft:entity.ghastling.hurt` (`713`).
+            pub const ENTITY_GHASTLING_HURT: Self = Self(713);
+            /// `minecraft:entity.ghastling.spawn` (`714`).
+            pub const ENTITY_GHASTLING_SPAWN: Self = Self(714);
+            /// `minecraft:block.gilded_blackstone.break` (`715`).
+            pub const BLOCK_GILDED_BLACKSTONE_BREAK: Self = Self(715);
+            /// `minecraft:block.gilded_blackstone.fall` (`716`).
+            pub const BLOCK_GILDED_BLACKSTONE_FALL: Self = Self(716);
+            /// `minecraft:block.gilded_blackstone.hit` (`717`).
+            pub const BLOCK_GILDED_BLACKSTONE_HIT: Self = Self(717);
+            /// `minecraft:block.gilded_blackstone.place` (`718`).
+            pub const BLOCK_GILDED_BLACKSTONE_PLACE: Self = Self(718);
+            /// `minecraft:block.gilded_blackstone.step` (`719`).
+            pub const BLOCK_GILDED_BLACKSTONE_STEP: Self = Self(719);
+            /// `minecraft:block.glass.break` (`720`).
+            pub const BLOCK_GLASS_BREAK: Self = Self(720);
+            /// `minecraft:block.glass.fall` (`721`).
+            pub const BLOCK_GLASS_FALL: Self = Self(721);
+            /// `minecraft:block.glass.hit` (`722`).
+            pub const BLOCK_GLASS_HIT: Self = Self(722);
+            /// `minecraft:block.glass.place` (`723`).
+            pub const BLOCK_GLASS_PLACE: Self = Self(723);
+            /// `minecraft:block.glass.step` (`724`).
+            pub const BLOCK_GLASS_STEP: Self = Self(724);
+            /// `minecraft:item.glow_ink_sac.use` (`725`).
+            pub const ITEM_GLOW_INK_SAC_USE: Self = Self(725);
+            /// `minecraft:entity.glow_item_frame.add_item` (`726`).
+            pub const ENTITY_GLOW_ITEM_FRAME_ADD_ITEM: Self = Self(726);
+            /// `minecraft:entity.glow_item_frame.break` (`727`).
+            pub const ENTITY_GLOW_ITEM_FRAME_BREAK: Self = Self(727);
+            /// `minecraft:entity.glow_item_frame.place` (`728`).
+            pub const ENTITY_GLOW_ITEM_FRAME_PLACE: Self = Self(728);
+            /// `minecraft:entity.glow_item_frame.remove_item` (`729`).
+            pub const ENTITY_GLOW_ITEM_FRAME_REMOVE_ITEM: Self = Self(729);
+            /// `minecraft:entity.glow_item_frame.rotate_item` (`730`).
+            pub const ENTITY_GLOW_ITEM_FRAME_ROTATE_ITEM: Self = Self(730);
+            /// `minecraft:entity.glow_squid.ambient` (`731`).
+            pub const ENTITY_GLOW_SQUID_AMBIENT: Self = Self(731);
+            /// `minecraft:entity.glow_squid.death` (`732`).
+            pub const ENTITY_GLOW_SQUID_DEATH: Self = Self(732);
+            /// `minecraft:entity.glow_squid.hurt` (`733`).
+            pub const ENTITY_GLOW_SQUID_HURT: Self = Self(733);
+            /// `minecraft:entity.glow_squid.squirt` (`734`).
+            pub const ENTITY_GLOW_SQUID_SQUIRT: Self = Self(734);
+            /// `minecraft:entity.goat.ambient` (`735`).
+            pub const ENTITY_GOAT_AMBIENT: Self = Self(735);
+            /// `minecraft:entity.goat.death` (`736`).
+            pub const ENTITY_GOAT_DEATH: Self = Self(736);
+            /// `minecraft:entity.goat.eat` (`737`).
+            pub const ENTITY_GOAT_EAT: Self = Self(737);
+            /// `minecraft:entity.goat.hurt` (`738`).
+            pub const ENTITY_GOAT_HURT: Self = Self(738);
+            /// `minecraft:entity.goat.long_jump` (`739`).
+            pub const ENTITY_GOAT_LONG_JUMP: Self = Self(739);
+            /// `minecraft:entity.goat.milk` (`740`).
+            pub const ENTITY_GOAT_MILK: Self = Self(740);
+            /// `minecraft:entity.goat.prepare_ram` (`741`).
+            pub const ENTITY_GOAT_PREPARE_RAM: Self = Self(741);
+            /// `minecraft:entity.goat.ram_impact` (`742`).
+            pub const ENTITY_GOAT_RAM_IMPACT: Self = Self(742);
+            /// `minecraft:entity.goat.horn_break` (`743`).
+            pub const ENTITY_GOAT_HORN_BREAK: Self = Self(743);
+            /// `minecraft:entity.goat.screaming.ambient` (`744`).
+            pub const ENTITY_GOAT_SCREAMING_AMBIENT: Self = Self(744);
+            /// `minecraft:entity.goat.screaming.death` (`745`).
+            pub const ENTITY_GOAT_SCREAMING_DEATH: Self = Self(745);
+            /// `minecraft:entity.goat.screaming.eat` (`746`).
+            pub const ENTITY_GOAT_SCREAMING_EAT: Self = Self(746);
+            /// `minecraft:entity.goat.screaming.hurt` (`747`).
+            pub const ENTITY_GOAT_SCREAMING_HURT: Self = Self(747);
+            /// `minecraft:entity.goat.screaming.long_jump` (`748`).
+            pub const ENTITY_GOAT_SCREAMING_LONG_JUMP: Self = Self(748);
+            /// `minecraft:entity.goat.screaming.milk` (`749`).
+            pub const ENTITY_GOAT_SCREAMING_MILK: Self = Self(749);
+            /// `minecraft:entity.goat.screaming.prepare_ram` (`750`).
+            pub const ENTITY_GOAT_SCREAMING_PREPARE_RAM: Self = Self(750);
+            /// `minecraft:entity.goat.screaming.ram_impact` (`751`).
+            pub const ENTITY_GOAT_SCREAMING_RAM_IMPACT: Self = Self(751);
+            /// `minecraft:entity.goat.step` (`752`).
+            pub const ENTITY_GOAT_STEP: Self = Self(752);
+            /// `minecraft:item.golden_dandelion.use` (`753`).
+            pub const ITEM_GOLDEN_DANDELION_USE: Self = Self(753);
+            /// `minecraft:item.golden_dandelion.unuse` (`754`).
+            pub const ITEM_GOLDEN_DANDELION_UNUSE: Self = Self(754);
+            /// `minecraft:block.grass.break` (`755`).
+            pub const BLOCK_GRASS_BREAK: Self = Self(755);
+            /// `minecraft:block.grass.fall` (`756`).
+            pub const BLOCK_GRASS_FALL: Self = Self(756);
+            /// `minecraft:block.grass.hit` (`757`).
+            pub const BLOCK_GRASS_HIT: Self = Self(757);
+            /// `minecraft:block.grass.place` (`758`).
+            pub const BLOCK_GRASS_PLACE: Self = Self(758);
+            /// `minecraft:block.grass.step` (`759`).
+            pub const BLOCK_GRASS_STEP: Self = Self(759);
+            /// `minecraft:block.gravel.break` (`760`).
+            pub const BLOCK_GRAVEL_BREAK: Self = Self(760);
+            /// `minecraft:block.gravel.fall` (`761`).
+            pub const BLOCK_GRAVEL_FALL: Self = Self(761);
+            /// `minecraft:block.gravel.hit` (`762`).
+            pub const BLOCK_GRAVEL_HIT: Self = Self(762);
+            /// `minecraft:block.gravel.place` (`763`).
+            pub const BLOCK_GRAVEL_PLACE: Self = Self(763);
+            /// `minecraft:block.gravel.step` (`764`).
+            pub const BLOCK_GRAVEL_STEP: Self = Self(764);
+            /// `minecraft:block.grindstone.use` (`765`).
+            pub const BLOCK_GRINDSTONE_USE: Self = Self(765);
+            /// `minecraft:block.growing_plant.crop` (`766`).
+            pub const BLOCK_GROWING_PLANT_CROP: Self = Self(766);
+            /// `minecraft:entity.guardian.ambient` (`767`).
+            pub const ENTITY_GUARDIAN_AMBIENT: Self = Self(767);
+            /// `minecraft:entity.guardian.ambient_land` (`768`).
+            pub const ENTITY_GUARDIAN_AMBIENT_LAND: Self = Self(768);
+            /// `minecraft:entity.guardian.attack` (`769`).
+            pub const ENTITY_GUARDIAN_ATTACK: Self = Self(769);
+            /// `minecraft:entity.guardian.death` (`770`).
+            pub const ENTITY_GUARDIAN_DEATH: Self = Self(770);
+            /// `minecraft:entity.guardian.death_land` (`771`).
+            pub const ENTITY_GUARDIAN_DEATH_LAND: Self = Self(771);
+            /// `minecraft:entity.guardian.flop` (`772`).
+            pub const ENTITY_GUARDIAN_FLOP: Self = Self(772);
+            /// `minecraft:entity.guardian.hurt` (`773`).
+            pub const ENTITY_GUARDIAN_HURT: Self = Self(773);
+            /// `minecraft:entity.guardian.hurt_land` (`774`).
+            pub const ENTITY_GUARDIAN_HURT_LAND: Self = Self(774);
+            /// `minecraft:block.hanging_roots.break` (`775`).
+            pub const BLOCK_HANGING_ROOTS_BREAK: Self = Self(775);
+            /// `minecraft:block.hanging_roots.fall` (`776`).
+            pub const BLOCK_HANGING_ROOTS_FALL: Self = Self(776);
+            /// `minecraft:block.hanging_roots.hit` (`777`).
+            pub const BLOCK_HANGING_ROOTS_HIT: Self = Self(777);
+            /// `minecraft:block.hanging_roots.place` (`778`).
+            pub const BLOCK_HANGING_ROOTS_PLACE: Self = Self(778);
+            /// `minecraft:block.hanging_roots.step` (`779`).
+            pub const BLOCK_HANGING_ROOTS_STEP: Self = Self(779);
+            /// `minecraft:block.hanging_sign.step` (`780`).
+            pub const BLOCK_HANGING_SIGN_STEP: Self = Self(780);
+            /// `minecraft:block.hanging_sign.break` (`781`).
+            pub const BLOCK_HANGING_SIGN_BREAK: Self = Self(781);
+            /// `minecraft:block.hanging_sign.fall` (`782`).
+            pub const BLOCK_HANGING_SIGN_FALL: Self = Self(782);
+            /// `minecraft:block.hanging_sign.hit` (`783`).
+            pub const BLOCK_HANGING_SIGN_HIT: Self = Self(783);
+            /// `minecraft:block.hanging_sign.place` (`784`).
+            pub const BLOCK_HANGING_SIGN_PLACE: Self = Self(784);
+            /// `minecraft:entity.happy_ghast.ambient` (`785`).
+            pub const ENTITY_HAPPY_GHAST_AMBIENT: Self = Self(785);
+            /// `minecraft:entity.happy_ghast.death` (`786`).
+            pub const ENTITY_HAPPY_GHAST_DEATH: Self = Self(786);
+            /// `minecraft:entity.happy_ghast.hurt` (`787`).
+            pub const ENTITY_HAPPY_GHAST_HURT: Self = Self(787);
+            /// `minecraft:entity.happy_ghast.riding` (`788`).
+            pub const ENTITY_HAPPY_GHAST_RIDING: Self = Self(788);
+            /// `minecraft:block.heavy_core.break` (`789`).
+            pub const BLOCK_HEAVY_CORE_BREAK: Self = Self(789);
+            /// `minecraft:block.heavy_core.fall` (`790`).
+            pub const BLOCK_HEAVY_CORE_FALL: Self = Self(790);
+            /// `minecraft:block.heavy_core.hit` (`791`).
+            pub const BLOCK_HEAVY_CORE_HIT: Self = Self(791);
+            /// `minecraft:block.heavy_core.place` (`792`).
+            pub const BLOCK_HEAVY_CORE_PLACE: Self = Self(792);
+            /// `minecraft:block.heavy_core.step` (`793`).
+            pub const BLOCK_HEAVY_CORE_STEP: Self = Self(793);
+            /// `minecraft:block.nether_wood_hanging_sign.step` (`794`).
+            pub const BLOCK_NETHER_WOOD_HANGING_SIGN_STEP: Self = Self(794);
+            /// `minecraft:block.nether_wood_hanging_sign.break` (`795`).
+            pub const BLOCK_NETHER_WOOD_HANGING_SIGN_BREAK: Self = Self(795);
+            /// `minecraft:block.nether_wood_hanging_sign.fall` (`796`).
+            pub const BLOCK_NETHER_WOOD_HANGING_SIGN_FALL: Self = Self(796);
+            /// `minecraft:block.nether_wood_hanging_sign.hit` (`797`).
+            pub const BLOCK_NETHER_WOOD_HANGING_SIGN_HIT: Self = Self(797);
+            /// `minecraft:block.nether_wood_hanging_sign.place` (`798`).
+            pub const BLOCK_NETHER_WOOD_HANGING_SIGN_PLACE: Self = Self(798);
+            /// `minecraft:block.bamboo_wood_hanging_sign.step` (`799`).
+            pub const BLOCK_BAMBOO_WOOD_HANGING_SIGN_STEP: Self = Self(799);
+            /// `minecraft:block.bamboo_wood_hanging_sign.break` (`800`).
+            pub const BLOCK_BAMBOO_WOOD_HANGING_SIGN_BREAK: Self = Self(800);
+            /// `minecraft:block.bamboo_wood_hanging_sign.fall` (`801`).
+            pub const BLOCK_BAMBOO_WOOD_HANGING_SIGN_FALL: Self = Self(801);
+            /// `minecraft:block.bamboo_wood_hanging_sign.hit` (`802`).
+            pub const BLOCK_BAMBOO_WOOD_HANGING_SIGN_HIT: Self = Self(802);
+            /// `minecraft:block.bamboo_wood_hanging_sign.place` (`803`).
+            pub const BLOCK_BAMBOO_WOOD_HANGING_SIGN_PLACE: Self = Self(803);
+            /// `minecraft:block.trial_spawner.break` (`804`).
+            pub const BLOCK_TRIAL_SPAWNER_BREAK: Self = Self(804);
+            /// `minecraft:block.trial_spawner.step` (`805`).
+            pub const BLOCK_TRIAL_SPAWNER_STEP: Self = Self(805);
+            /// `minecraft:block.trial_spawner.place` (`806`).
+            pub const BLOCK_TRIAL_SPAWNER_PLACE: Self = Self(806);
+            /// `minecraft:block.trial_spawner.hit` (`807`).
+            pub const BLOCK_TRIAL_SPAWNER_HIT: Self = Self(807);
+            /// `minecraft:block.trial_spawner.fall` (`808`).
+            pub const BLOCK_TRIAL_SPAWNER_FALL: Self = Self(808);
+            /// `minecraft:block.trial_spawner.spawn_mob` (`809`).
+            pub const BLOCK_TRIAL_SPAWNER_SPAWN_MOB: Self = Self(809);
+            /// `minecraft:block.trial_spawner.about_to_spawn_item` (`810`).
+            pub const BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM: Self = Self(810);
+            /// `minecraft:block.trial_spawner.spawn_item` (`811`).
+            pub const BLOCK_TRIAL_SPAWNER_SPAWN_ITEM: Self = Self(811);
+            /// `minecraft:block.trial_spawner.spawn_item_begin` (`812`).
+            pub const BLOCK_TRIAL_SPAWNER_SPAWN_ITEM_BEGIN: Self = Self(812);
+            /// `minecraft:block.trial_spawner.detect_player` (`813`).
+            pub const BLOCK_TRIAL_SPAWNER_DETECT_PLAYER: Self = Self(813);
+            /// `minecraft:block.trial_spawner.ominous_activate` (`814`).
+            pub const BLOCK_TRIAL_SPAWNER_OMINOUS_ACTIVATE: Self = Self(814);
+            /// `minecraft:block.trial_spawner.ambient` (`815`).
+            pub const BLOCK_TRIAL_SPAWNER_AMBIENT: Self = Self(815);
+            /// `minecraft:block.trial_spawner.ambient_ominous` (`816`).
+            pub const BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS: Self = Self(816);
+            /// `minecraft:block.trial_spawner.open_shutter` (`817`).
+            pub const BLOCK_TRIAL_SPAWNER_OPEN_SHUTTER: Self = Self(817);
+            /// `minecraft:block.trial_spawner.close_shutter` (`818`).
+            pub const BLOCK_TRIAL_SPAWNER_CLOSE_SHUTTER: Self = Self(818);
+            /// `minecraft:block.trial_spawner.eject_item` (`819`).
+            pub const BLOCK_TRIAL_SPAWNER_EJECT_ITEM: Self = Self(819);
+            /// `minecraft:entity.happy_ghast.equip` (`820`).
+            pub const ENTITY_HAPPY_GHAST_EQUIP: Self = Self(820);
+            /// `minecraft:entity.happy_ghast.unequip` (`821`).
+            pub const ENTITY_HAPPY_GHAST_UNEQUIP: Self = Self(821);
+            /// `minecraft:entity.happy_ghast.harness_goggles_up` (`822`).
+            pub const ENTITY_HAPPY_GHAST_HARNESS_GOGGLES_UP: Self = Self(822);
+            /// `minecraft:entity.happy_ghast.harness_goggles_down` (`823`).
+            pub const ENTITY_HAPPY_GHAST_HARNESS_GOGGLES_DOWN: Self = Self(823);
+            /// `minecraft:item.hoe.till` (`824`).
+            pub const ITEM_HOE_TILL: Self = Self(824);
+            /// `minecraft:entity.hoglin.ambient` (`825`).
+            pub const ENTITY_HOGLIN_AMBIENT: Self = Self(825);
+            /// `minecraft:entity.hoglin.angry` (`826`).
+            pub const ENTITY_HOGLIN_ANGRY: Self = Self(826);
+            /// `minecraft:entity.hoglin.attack` (`827`).
+            pub const ENTITY_HOGLIN_ATTACK: Self = Self(827);
+            /// `minecraft:entity.hoglin.converted_to_zombified` (`828`).
+            pub const ENTITY_HOGLIN_CONVERTED_TO_ZOMBIFIED: Self = Self(828);
+            /// `minecraft:entity.hoglin.death` (`829`).
+            pub const ENTITY_HOGLIN_DEATH: Self = Self(829);
+            /// `minecraft:entity.hoglin.hurt` (`830`).
+            pub const ENTITY_HOGLIN_HURT: Self = Self(830);
+            /// `minecraft:entity.hoglin.retreat` (`831`).
+            pub const ENTITY_HOGLIN_RETREAT: Self = Self(831);
+            /// `minecraft:entity.hoglin.step` (`832`).
+            pub const ENTITY_HOGLIN_STEP: Self = Self(832);
+            /// `minecraft:block.honey_block.break` (`833`).
+            pub const BLOCK_HONEY_BLOCK_BREAK: Self = Self(833);
+            /// `minecraft:block.honey_block.fall` (`834`).
+            pub const BLOCK_HONEY_BLOCK_FALL: Self = Self(834);
+            /// `minecraft:block.honey_block.hit` (`835`).
+            pub const BLOCK_HONEY_BLOCK_HIT: Self = Self(835);
+            /// `minecraft:block.honey_block.place` (`836`).
+            pub const BLOCK_HONEY_BLOCK_PLACE: Self = Self(836);
+            /// `minecraft:block.honey_block.slide` (`837`).
+            pub const BLOCK_HONEY_BLOCK_SLIDE: Self = Self(837);
+            /// `minecraft:block.honey_block.step` (`838`).
+            pub const BLOCK_HONEY_BLOCK_STEP: Self = Self(838);
+            /// `minecraft:item.honeycomb.wax_on` (`839`).
+            pub const ITEM_HONEYCOMB_WAX_ON: Self = Self(839);
+            /// `minecraft:item.honey_bottle.drink` (`840`).
+            pub const ITEM_HONEY_BOTTLE_DRINK: Self = Self(840);
+            /// `minecraft:item.goat_horn.sound.0` (`841`).
+            pub const ITEM_GOAT_HORN_SOUND_0: Self = Self(841);
+            /// `minecraft:item.goat_horn.sound.1` (`842`).
+            pub const ITEM_GOAT_HORN_SOUND_1: Self = Self(842);
+            /// `minecraft:item.goat_horn.sound.2` (`843`).
+            pub const ITEM_GOAT_HORN_SOUND_2: Self = Self(843);
+            /// `minecraft:item.goat_horn.sound.3` (`844`).
+            pub const ITEM_GOAT_HORN_SOUND_3: Self = Self(844);
+            /// `minecraft:item.goat_horn.sound.4` (`845`).
+            pub const ITEM_GOAT_HORN_SOUND_4: Self = Self(845);
+            /// `minecraft:item.goat_horn.sound.5` (`846`).
+            pub const ITEM_GOAT_HORN_SOUND_5: Self = Self(846);
+            /// `minecraft:item.goat_horn.sound.6` (`847`).
+            pub const ITEM_GOAT_HORN_SOUND_6: Self = Self(847);
+            /// `minecraft:item.goat_horn.sound.7` (`848`).
+            pub const ITEM_GOAT_HORN_SOUND_7: Self = Self(848);
+            /// `minecraft:entity.horse.ambient` (`849`).
+            pub const ENTITY_HORSE_AMBIENT: Self = Self(849);
+            /// `minecraft:entity.baby_horse.ambient` (`850`).
+            pub const ENTITY_BABY_HORSE_AMBIENT: Self = Self(850);
+            /// `minecraft:entity.horse.angry` (`851`).
+            pub const ENTITY_HORSE_ANGRY: Self = Self(851);
+            /// `minecraft:entity.baby_horse.angry` (`852`).
+            pub const ENTITY_BABY_HORSE_ANGRY: Self = Self(852);
+            /// `minecraft:entity.horse.armor` (`853`).
+            pub const ENTITY_HORSE_ARMOR: Self = Self(853);
+            /// `minecraft:item.horse_armor.unequip` (`854`).
+            pub const ITEM_HORSE_ARMOR_UNEQUIP: Self = Self(854);
+            /// `minecraft:entity.horse.breathe` (`855`).
+            pub const ENTITY_HORSE_BREATHE: Self = Self(855);
+            /// `minecraft:entity.baby_horse.breathe` (`856`).
+            pub const ENTITY_BABY_HORSE_BREATHE: Self = Self(856);
+            /// `minecraft:entity.horse.death` (`857`).
+            pub const ENTITY_HORSE_DEATH: Self = Self(857);
+            /// `minecraft:entity.baby_horse.death` (`858`).
+            pub const ENTITY_BABY_HORSE_DEATH: Self = Self(858);
+            /// `minecraft:entity.horse.eat` (`859`).
+            pub const ENTITY_HORSE_EAT: Self = Self(859);
+            /// `minecraft:entity.baby_horse.eat` (`860`).
+            pub const ENTITY_BABY_HORSE_EAT: Self = Self(860);
+            /// `minecraft:entity.horse.gallop` (`861`).
+            pub const ENTITY_HORSE_GALLOP: Self = Self(861);
+            /// `minecraft:entity.horse.hurt` (`862`).
+            pub const ENTITY_HORSE_HURT: Self = Self(862);
+            /// `minecraft:entity.baby_horse.hurt` (`863`).
+            pub const ENTITY_BABY_HORSE_HURT: Self = Self(863);
+            /// `minecraft:entity.horse.jump` (`864`).
+            pub const ENTITY_HORSE_JUMP: Self = Self(864);
+            /// `minecraft:entity.horse.land` (`865`).
+            pub const ENTITY_HORSE_LAND: Self = Self(865);
+            /// `minecraft:entity.baby_horse.land` (`866`).
+            pub const ENTITY_BABY_HORSE_LAND: Self = Self(866);
+            /// `minecraft:entity.horse.saddle` (`867`).
+            pub const ENTITY_HORSE_SADDLE: Self = Self(867);
+            /// `minecraft:entity.horse.step` (`868`).
+            pub const ENTITY_HORSE_STEP: Self = Self(868);
+            /// `minecraft:entity.baby_horse.step` (`869`).
+            pub const ENTITY_BABY_HORSE_STEP: Self = Self(869);
+            /// `minecraft:entity.horse.step_wood` (`870`).
+            pub const ENTITY_HORSE_STEP_WOOD: Self = Self(870);
+            /// `minecraft:entity.hostile.big_fall` (`871`).
+            pub const ENTITY_HOSTILE_BIG_FALL: Self = Self(871);
+            /// `minecraft:entity.hostile.death` (`872`).
+            pub const ENTITY_HOSTILE_DEATH: Self = Self(872);
+            /// `minecraft:entity.hostile.hurt` (`873`).
+            pub const ENTITY_HOSTILE_HURT: Self = Self(873);
+            /// `minecraft:entity.hostile.small_fall` (`874`).
+            pub const ENTITY_HOSTILE_SMALL_FALL: Self = Self(874);
+            /// `minecraft:entity.hostile.splash` (`875`).
+            pub const ENTITY_HOSTILE_SPLASH: Self = Self(875);
+            /// `minecraft:entity.hostile.swim` (`876`).
+            pub const ENTITY_HOSTILE_SWIM: Self = Self(876);
+            /// `minecraft:entity.husk.ambient` (`877`).
+            pub const ENTITY_HUSK_AMBIENT: Self = Self(877);
+            /// `minecraft:entity.husk.converted_to_zombie` (`878`).
+            pub const ENTITY_HUSK_CONVERTED_TO_ZOMBIE: Self = Self(878);
+            /// `minecraft:entity.husk.death` (`879`).
+            pub const ENTITY_HUSK_DEATH: Self = Self(879);
+            /// `minecraft:entity.husk.hurt` (`880`).
+            pub const ENTITY_HUSK_HURT: Self = Self(880);
+            /// `minecraft:entity.husk.step` (`881`).
+            pub const ENTITY_HUSK_STEP: Self = Self(881);
+            /// `minecraft:entity.illusioner.ambient` (`882`).
+            pub const ENTITY_ILLUSIONER_AMBIENT: Self = Self(882);
+            /// `minecraft:entity.illusioner.cast_spell` (`883`).
+            pub const ENTITY_ILLUSIONER_CAST_SPELL: Self = Self(883);
+            /// `minecraft:entity.illusioner.death` (`884`).
+            pub const ENTITY_ILLUSIONER_DEATH: Self = Self(884);
+            /// `minecraft:entity.illusioner.hurt` (`885`).
+            pub const ENTITY_ILLUSIONER_HURT: Self = Self(885);
+            /// `minecraft:entity.illusioner.mirror_move` (`886`).
+            pub const ENTITY_ILLUSIONER_MIRROR_MOVE: Self = Self(886);
+            /// `minecraft:entity.illusioner.prepare_blindness` (`887`).
+            pub const ENTITY_ILLUSIONER_PREPARE_BLINDNESS: Self = Self(887);
+            /// `minecraft:entity.illusioner.prepare_mirror` (`888`).
+            pub const ENTITY_ILLUSIONER_PREPARE_MIRROR: Self = Self(888);
+            /// `minecraft:item.ink_sac.use` (`889`).
+            pub const ITEM_INK_SAC_USE: Self = Self(889);
+            /// `minecraft:block.iron.break` (`890`).
+            pub const BLOCK_IRON_BREAK: Self = Self(890);
+            /// `minecraft:block.iron.step` (`891`).
+            pub const BLOCK_IRON_STEP: Self = Self(891);
+            /// `minecraft:block.iron.place` (`892`).
+            pub const BLOCK_IRON_PLACE: Self = Self(892);
+            /// `minecraft:block.iron.hit` (`893`).
+            pub const BLOCK_IRON_HIT: Self = Self(893);
+            /// `minecraft:block.iron.fall` (`894`).
+            pub const BLOCK_IRON_FALL: Self = Self(894);
+            /// `minecraft:block.iron_door.close` (`895`).
+            pub const BLOCK_IRON_DOOR_CLOSE: Self = Self(895);
+            /// `minecraft:block.iron_door.open` (`896`).
+            pub const BLOCK_IRON_DOOR_OPEN: Self = Self(896);
+            /// `minecraft:entity.iron_golem.attack` (`897`).
+            pub const ENTITY_IRON_GOLEM_ATTACK: Self = Self(897);
+            /// `minecraft:entity.iron_golem.damage` (`898`).
+            pub const ENTITY_IRON_GOLEM_DAMAGE: Self = Self(898);
+            /// `minecraft:entity.iron_golem.death` (`899`).
+            pub const ENTITY_IRON_GOLEM_DEATH: Self = Self(899);
+            /// `minecraft:entity.iron_golem.hurt` (`900`).
+            pub const ENTITY_IRON_GOLEM_HURT: Self = Self(900);
+            /// `minecraft:entity.iron_golem.repair` (`901`).
+            pub const ENTITY_IRON_GOLEM_REPAIR: Self = Self(901);
+            /// `minecraft:entity.iron_golem.step` (`902`).
+            pub const ENTITY_IRON_GOLEM_STEP: Self = Self(902);
+            /// `minecraft:block.iron_trapdoor.close` (`903`).
+            pub const BLOCK_IRON_TRAPDOOR_CLOSE: Self = Self(903);
+            /// `minecraft:block.iron_trapdoor.open` (`904`).
+            pub const BLOCK_IRON_TRAPDOOR_OPEN: Self = Self(904);
+            /// `minecraft:entity.item_frame.add_item` (`905`).
+            pub const ENTITY_ITEM_FRAME_ADD_ITEM: Self = Self(905);
+            /// `minecraft:entity.item_frame.break` (`906`).
+            pub const ENTITY_ITEM_FRAME_BREAK: Self = Self(906);
+            /// `minecraft:entity.item_frame.place` (`907`).
+            pub const ENTITY_ITEM_FRAME_PLACE: Self = Self(907);
+            /// `minecraft:entity.item_frame.remove_item` (`908`).
+            pub const ENTITY_ITEM_FRAME_REMOVE_ITEM: Self = Self(908);
+            /// `minecraft:entity.item_frame.rotate_item` (`909`).
+            pub const ENTITY_ITEM_FRAME_ROTATE_ITEM: Self = Self(909);
+            /// `minecraft:entity.item.break` (`910`).
+            pub const ENTITY_ITEM_BREAK: Self = Self(910);
+            /// `minecraft:entity.item.pickup` (`911`).
+            pub const ENTITY_ITEM_PICKUP: Self = Self(911);
+            /// `minecraft:block.ladder.break` (`912`).
+            pub const BLOCK_LADDER_BREAK: Self = Self(912);
+            /// `minecraft:block.ladder.fall` (`913`).
+            pub const BLOCK_LADDER_FALL: Self = Self(913);
+            /// `minecraft:block.ladder.hit` (`914`).
+            pub const BLOCK_LADDER_HIT: Self = Self(914);
+            /// `minecraft:block.ladder.place` (`915`).
+            pub const BLOCK_LADDER_PLACE: Self = Self(915);
+            /// `minecraft:block.ladder.step` (`916`).
+            pub const BLOCK_LADDER_STEP: Self = Self(916);
+            /// `minecraft:block.lantern.break` (`917`).
+            pub const BLOCK_LANTERN_BREAK: Self = Self(917);
+            /// `minecraft:block.lantern.fall` (`918`).
+            pub const BLOCK_LANTERN_FALL: Self = Self(918);
+            /// `minecraft:block.lantern.hit` (`919`).
+            pub const BLOCK_LANTERN_HIT: Self = Self(919);
+            /// `minecraft:block.lantern.place` (`920`).
+            pub const BLOCK_LANTERN_PLACE: Self = Self(920);
+            /// `minecraft:block.lantern.step` (`921`).
+            pub const BLOCK_LANTERN_STEP: Self = Self(921);
+            /// `minecraft:block.large_amethyst_bud.break` (`922`).
+            pub const BLOCK_LARGE_AMETHYST_BUD_BREAK: Self = Self(922);
+            /// `minecraft:block.large_amethyst_bud.place` (`923`).
+            pub const BLOCK_LARGE_AMETHYST_BUD_PLACE: Self = Self(923);
+            /// `minecraft:block.lava.ambient` (`924`).
+            pub const BLOCK_LAVA_AMBIENT: Self = Self(924);
+            /// `minecraft:block.lava.extinguish` (`925`).
+            pub const BLOCK_LAVA_EXTINGUISH: Self = Self(925);
+            /// `minecraft:block.lava.pop` (`926`).
+            pub const BLOCK_LAVA_POP: Self = Self(926);
+            /// `minecraft:block.leaf_litter.break` (`927`).
+            pub const BLOCK_LEAF_LITTER_BREAK: Self = Self(927);
+            /// `minecraft:block.leaf_litter.step` (`928`).
+            pub const BLOCK_LEAF_LITTER_STEP: Self = Self(928);
+            /// `minecraft:block.leaf_litter.place` (`929`).
+            pub const BLOCK_LEAF_LITTER_PLACE: Self = Self(929);
+            /// `minecraft:block.leaf_litter.hit` (`930`).
+            pub const BLOCK_LEAF_LITTER_HIT: Self = Self(930);
+            /// `minecraft:block.leaf_litter.fall` (`931`).
+            pub const BLOCK_LEAF_LITTER_FALL: Self = Self(931);
+            /// `minecraft:item.lead.untied` (`932`).
+            pub const ITEM_LEAD_UNTIED: Self = Self(932);
+            /// `minecraft:item.lead.tied` (`933`).
+            pub const ITEM_LEAD_TIED: Self = Self(933);
+            /// `minecraft:item.lead.break` (`934`).
+            pub const ITEM_LEAD_BREAK: Self = Self(934);
+            /// `minecraft:block.lever.click` (`935`).
+            pub const BLOCK_LEVER_CLICK: Self = Self(935);
+            /// `minecraft:entity.lightning_bolt.impact` (`936`).
+            pub const ENTITY_LIGHTNING_BOLT_IMPACT: Self = Self(936);
+            /// `minecraft:entity.lightning_bolt.thunder` (`937`).
+            pub const ENTITY_LIGHTNING_BOLT_THUNDER: Self = Self(937);
+            /// `minecraft:entity.lingering_potion.throw` (`938`).
+            pub const ENTITY_LINGERING_POTION_THROW: Self = Self(938);
+            /// `minecraft:entity.llama.ambient` (`939`).
+            pub const ENTITY_LLAMA_AMBIENT: Self = Self(939);
+            /// `minecraft:entity.llama.angry` (`940`).
+            pub const ENTITY_LLAMA_ANGRY: Self = Self(940);
+            /// `minecraft:entity.llama.chest` (`941`).
+            pub const ENTITY_LLAMA_CHEST: Self = Self(941);
+            /// `minecraft:entity.llama.death` (`942`).
+            pub const ENTITY_LLAMA_DEATH: Self = Self(942);
+            /// `minecraft:entity.llama.eat` (`943`).
+            pub const ENTITY_LLAMA_EAT: Self = Self(943);
+            /// `minecraft:entity.llama.hurt` (`944`).
+            pub const ENTITY_LLAMA_HURT: Self = Self(944);
+            /// `minecraft:entity.llama.spit` (`945`).
+            pub const ENTITY_LLAMA_SPIT: Self = Self(945);
+            /// `minecraft:entity.llama.step` (`946`).
+            pub const ENTITY_LLAMA_STEP: Self = Self(946);
+            /// `minecraft:entity.llama.swag` (`947`).
+            pub const ENTITY_LLAMA_SWAG: Self = Self(947);
+            /// `minecraft:item.llama_carpet.unequip` (`948`).
+            pub const ITEM_LLAMA_CARPET_UNEQUIP: Self = Self(948);
+            /// `minecraft:entity.magma_cube.death_small` (`949`).
+            pub const ENTITY_MAGMA_CUBE_DEATH_SMALL: Self = Self(949);
+            /// `minecraft:block.lodestone.break` (`950`).
+            pub const BLOCK_LODESTONE_BREAK: Self = Self(950);
+            /// `minecraft:block.lodestone.step` (`951`).
+            pub const BLOCK_LODESTONE_STEP: Self = Self(951);
+            /// `minecraft:block.lodestone.place` (`952`).
+            pub const BLOCK_LODESTONE_PLACE: Self = Self(952);
+            /// `minecraft:block.lodestone.hit` (`953`).
+            pub const BLOCK_LODESTONE_HIT: Self = Self(953);
+            /// `minecraft:block.lodestone.fall` (`954`).
+            pub const BLOCK_LODESTONE_FALL: Self = Self(954);
+            /// `minecraft:item.lodestone_compass.lock` (`955`).
+            pub const ITEM_LODESTONE_COMPASS_LOCK: Self = Self(955);
+            /// `minecraft:item.spear.lunge_1` (`956`).
+            pub const ITEM_SPEAR_LUNGE_1: Self = Self(956);
+            /// `minecraft:item.spear.lunge_2` (`957`).
+            pub const ITEM_SPEAR_LUNGE_2: Self = Self(957);
+            /// `minecraft:item.spear.lunge_3` (`958`).
+            pub const ITEM_SPEAR_LUNGE_3: Self = Self(958);
+            /// `minecraft:item.mace.smash_air` (`959`).
+            pub const ITEM_MACE_SMASH_AIR: Self = Self(959);
+            /// `minecraft:item.mace.smash_ground` (`960`).
+            pub const ITEM_MACE_SMASH_GROUND: Self = Self(960);
+            /// `minecraft:item.mace.smash_ground_heavy` (`961`).
+            pub const ITEM_MACE_SMASH_GROUND_HEAVY: Self = Self(961);
+            /// `minecraft:entity.magma_cube.death` (`962`).
+            pub const ENTITY_MAGMA_CUBE_DEATH: Self = Self(962);
+            /// `minecraft:entity.magma_cube.hurt` (`963`).
+            pub const ENTITY_MAGMA_CUBE_HURT: Self = Self(963);
+            /// `minecraft:entity.magma_cube.hurt_small` (`964`).
+            pub const ENTITY_MAGMA_CUBE_HURT_SMALL: Self = Self(964);
+            /// `minecraft:entity.magma_cube.jump` (`965`).
+            pub const ENTITY_MAGMA_CUBE_JUMP: Self = Self(965);
+            /// `minecraft:entity.magma_cube.squish` (`966`).
+            pub const ENTITY_MAGMA_CUBE_SQUISH: Self = Self(966);
+            /// `minecraft:entity.magma_cube.squish_small` (`967`).
+            pub const ENTITY_MAGMA_CUBE_SQUISH_SMALL: Self = Self(967);
+            /// `minecraft:block.mangrove_roots.break` (`968`).
+            pub const BLOCK_MANGROVE_ROOTS_BREAK: Self = Self(968);
+            /// `minecraft:block.mangrove_roots.fall` (`969`).
+            pub const BLOCK_MANGROVE_ROOTS_FALL: Self = Self(969);
+            /// `minecraft:block.mangrove_roots.hit` (`970`).
+            pub const BLOCK_MANGROVE_ROOTS_HIT: Self = Self(970);
+            /// `minecraft:block.mangrove_roots.place` (`971`).
+            pub const BLOCK_MANGROVE_ROOTS_PLACE: Self = Self(971);
+            /// `minecraft:block.mangrove_roots.step` (`972`).
+            pub const BLOCK_MANGROVE_ROOTS_STEP: Self = Self(972);
+            /// `minecraft:block.medium_amethyst_bud.break` (`973`).
+            pub const BLOCK_MEDIUM_AMETHYST_BUD_BREAK: Self = Self(973);
+            /// `minecraft:block.medium_amethyst_bud.place` (`974`).
+            pub const BLOCK_MEDIUM_AMETHYST_BUD_PLACE: Self = Self(974);
+            /// `minecraft:block.metal.break` (`975`).
+            pub const BLOCK_METAL_BREAK: Self = Self(975);
+            /// `minecraft:block.metal.fall` (`976`).
+            pub const BLOCK_METAL_FALL: Self = Self(976);
+            /// `minecraft:block.metal.hit` (`977`).
+            pub const BLOCK_METAL_HIT: Self = Self(977);
+            /// `minecraft:block.metal.place` (`978`).
+            pub const BLOCK_METAL_PLACE: Self = Self(978);
+            /// `minecraft:block.metal_pressure_plate.click_off` (`979`).
+            pub const BLOCK_METAL_PRESSURE_PLATE_CLICK_OFF: Self = Self(979);
+            /// `minecraft:block.metal_pressure_plate.click_on` (`980`).
+            pub const BLOCK_METAL_PRESSURE_PLATE_CLICK_ON: Self = Self(980);
+            /// `minecraft:block.metal.step` (`981`).
+            pub const BLOCK_METAL_STEP: Self = Self(981);
+            /// `minecraft:entity.minecart.inside.underwater` (`982`).
+            pub const ENTITY_MINECART_INSIDE_UNDERWATER: Self = Self(982);
+            /// `minecraft:entity.minecart.inside` (`983`).
+            pub const ENTITY_MINECART_INSIDE: Self = Self(983);
+            /// `minecraft:entity.minecart.riding` (`984`).
+            pub const ENTITY_MINECART_RIDING: Self = Self(984);
+            /// `minecraft:entity.mooshroom.convert` (`985`).
+            pub const ENTITY_MOOSHROOM_CONVERT: Self = Self(985);
+            /// `minecraft:entity.mooshroom.eat` (`986`).
+            pub const ENTITY_MOOSHROOM_EAT: Self = Self(986);
+            /// `minecraft:entity.mooshroom.milk` (`987`).
+            pub const ENTITY_MOOSHROOM_MILK: Self = Self(987);
+            /// `minecraft:entity.mooshroom.suspicious_milk` (`988`).
+            pub const ENTITY_MOOSHROOM_SUSPICIOUS_MILK: Self = Self(988);
+            /// `minecraft:entity.mooshroom.shear` (`989`).
+            pub const ENTITY_MOOSHROOM_SHEAR: Self = Self(989);
+            /// `minecraft:block.moss_carpet.break` (`990`).
+            pub const BLOCK_MOSS_CARPET_BREAK: Self = Self(990);
+            /// `minecraft:block.moss_carpet.fall` (`991`).
+            pub const BLOCK_MOSS_CARPET_FALL: Self = Self(991);
+            /// `minecraft:block.moss_carpet.hit` (`992`).
+            pub const BLOCK_MOSS_CARPET_HIT: Self = Self(992);
+            /// `minecraft:block.moss_carpet.place` (`993`).
+            pub const BLOCK_MOSS_CARPET_PLACE: Self = Self(993);
+            /// `minecraft:block.moss_carpet.step` (`994`).
+            pub const BLOCK_MOSS_CARPET_STEP: Self = Self(994);
+            /// `minecraft:block.pink_petals.break` (`995`).
+            pub const BLOCK_PINK_PETALS_BREAK: Self = Self(995);
+            /// `minecraft:block.pink_petals.fall` (`996`).
+            pub const BLOCK_PINK_PETALS_FALL: Self = Self(996);
+            /// `minecraft:block.pink_petals.hit` (`997`).
+            pub const BLOCK_PINK_PETALS_HIT: Self = Self(997);
+            /// `minecraft:block.pink_petals.place` (`998`).
+            pub const BLOCK_PINK_PETALS_PLACE: Self = Self(998);
+            /// `minecraft:block.pink_petals.step` (`999`).
+            pub const BLOCK_PINK_PETALS_STEP: Self = Self(999);
+            /// `minecraft:block.moss.break` (`1000`).
+            pub const BLOCK_MOSS_BREAK: Self = Self(1000);
+            /// `minecraft:block.moss.fall` (`1001`).
+            pub const BLOCK_MOSS_FALL: Self = Self(1001);
+            /// `minecraft:block.moss.hit` (`1002`).
+            pub const BLOCK_MOSS_HIT: Self = Self(1002);
+            /// `minecraft:block.moss.place` (`1003`).
+            pub const BLOCK_MOSS_PLACE: Self = Self(1003);
+            /// `minecraft:block.moss.step` (`1004`).
+            pub const BLOCK_MOSS_STEP: Self = Self(1004);
+            /// `minecraft:block.mud.break` (`1005`).
+            pub const BLOCK_MUD_BREAK: Self = Self(1005);
+            /// `minecraft:block.mud.fall` (`1006`).
+            pub const BLOCK_MUD_FALL: Self = Self(1006);
+            /// `minecraft:block.mud.hit` (`1007`).
+            pub const BLOCK_MUD_HIT: Self = Self(1007);
+            /// `minecraft:block.mud.place` (`1008`).
+            pub const BLOCK_MUD_PLACE: Self = Self(1008);
+            /// `minecraft:block.mud.step` (`1009`).
+            pub const BLOCK_MUD_STEP: Self = Self(1009);
+            /// `minecraft:block.mud_bricks.break` (`1010`).
+            pub const BLOCK_MUD_BRICKS_BREAK: Self = Self(1010);
+            /// `minecraft:block.mud_bricks.fall` (`1011`).
+            pub const BLOCK_MUD_BRICKS_FALL: Self = Self(1011);
+            /// `minecraft:block.mud_bricks.hit` (`1012`).
+            pub const BLOCK_MUD_BRICKS_HIT: Self = Self(1012);
+            /// `minecraft:block.mud_bricks.place` (`1013`).
+            pub const BLOCK_MUD_BRICKS_PLACE: Self = Self(1013);
+            /// `minecraft:block.mud_bricks.step` (`1014`).
+            pub const BLOCK_MUD_BRICKS_STEP: Self = Self(1014);
+            /// `minecraft:block.muddy_mangrove_roots.break` (`1015`).
+            pub const BLOCK_MUDDY_MANGROVE_ROOTS_BREAK: Self = Self(1015);
+            /// `minecraft:block.muddy_mangrove_roots.fall` (`1016`).
+            pub const BLOCK_MUDDY_MANGROVE_ROOTS_FALL: Self = Self(1016);
+            /// `minecraft:block.muddy_mangrove_roots.hit` (`1017`).
+            pub const BLOCK_MUDDY_MANGROVE_ROOTS_HIT: Self = Self(1017);
+            /// `minecraft:block.muddy_mangrove_roots.place` (`1018`).
+            pub const BLOCK_MUDDY_MANGROVE_ROOTS_PLACE: Self = Self(1018);
+            /// `minecraft:block.muddy_mangrove_roots.step` (`1019`).
+            pub const BLOCK_MUDDY_MANGROVE_ROOTS_STEP: Self = Self(1019);
+            /// `minecraft:entity.mule.ambient` (`1020`).
+            pub const ENTITY_MULE_AMBIENT: Self = Self(1020);
+            /// `minecraft:entity.mule.angry` (`1021`).
+            pub const ENTITY_MULE_ANGRY: Self = Self(1021);
+            /// `minecraft:entity.mule.chest` (`1022`).
+            pub const ENTITY_MULE_CHEST: Self = Self(1022);
+            /// `minecraft:entity.mule.death` (`1023`).
+            pub const ENTITY_MULE_DEATH: Self = Self(1023);
+            /// `minecraft:entity.mule.eat` (`1024`).
+            pub const ENTITY_MULE_EAT: Self = Self(1024);
+            /// `minecraft:entity.mule.hurt` (`1025`).
+            pub const ENTITY_MULE_HURT: Self = Self(1025);
+            /// `minecraft:entity.mule.jump` (`1026`).
+            pub const ENTITY_MULE_JUMP: Self = Self(1026);
+            /// `minecraft:music.creative` (`1027`).
+            pub const MUSIC_CREATIVE: Self = Self(1027);
+            /// `minecraft:music.credits` (`1028`).
+            pub const MUSIC_CREDITS: Self = Self(1028);
+            /// `minecraft:music_disc.5` (`1029`).
+            pub const MUSIC_DISC_5: Self = Self(1029);
+            /// `minecraft:music_disc.11` (`1030`).
+            pub const MUSIC_DISC_11: Self = Self(1030);
+            /// `minecraft:music_disc.13` (`1031`).
+            pub const MUSIC_DISC_13: Self = Self(1031);
+            /// `minecraft:music_disc.blocks` (`1032`).
+            pub const MUSIC_DISC_BLOCKS: Self = Self(1032);
+            /// `minecraft:music_disc.bounce` (`1033`).
+            pub const MUSIC_DISC_BOUNCE: Self = Self(1033);
+            /// `minecraft:music_disc.cat` (`1034`).
+            pub const MUSIC_DISC_CAT: Self = Self(1034);
+            /// `minecraft:music_disc.chirp` (`1035`).
+            pub const MUSIC_DISC_CHIRP: Self = Self(1035);
+            /// `minecraft:music_disc.far` (`1036`).
+            pub const MUSIC_DISC_FAR: Self = Self(1036);
+            /// `minecraft:music_disc.lava_chicken` (`1037`).
+            pub const MUSIC_DISC_LAVA_CHICKEN: Self = Self(1037);
+            /// `minecraft:music_disc.mall` (`1038`).
+            pub const MUSIC_DISC_MALL: Self = Self(1038);
+            /// `minecraft:music_disc.mellohi` (`1039`).
+            pub const MUSIC_DISC_MELLOHI: Self = Self(1039);
+            /// `minecraft:music_disc.pigstep` (`1040`).
+            pub const MUSIC_DISC_PIGSTEP: Self = Self(1040);
+            /// `minecraft:music_disc.stal` (`1041`).
+            pub const MUSIC_DISC_STAL: Self = Self(1041);
+            /// `minecraft:music_disc.strad` (`1042`).
+            pub const MUSIC_DISC_STRAD: Self = Self(1042);
+            /// `minecraft:music_disc.wait` (`1043`).
+            pub const MUSIC_DISC_WAIT: Self = Self(1043);
+            /// `minecraft:music_disc.ward` (`1044`).
+            pub const MUSIC_DISC_WARD: Self = Self(1044);
+            /// `minecraft:music_disc.otherside` (`1045`).
+            pub const MUSIC_DISC_OTHERSIDE: Self = Self(1045);
+            /// `minecraft:music_disc.relic` (`1046`).
+            pub const MUSIC_DISC_RELIC: Self = Self(1046);
+            /// `minecraft:music_disc.creator` (`1047`).
+            pub const MUSIC_DISC_CREATOR: Self = Self(1047);
+            /// `minecraft:music_disc.creator_music_box` (`1048`).
+            pub const MUSIC_DISC_CREATOR_MUSIC_BOX: Self = Self(1048);
+            /// `minecraft:music_disc.precipice` (`1049`).
+            pub const MUSIC_DISC_PRECIPICE: Self = Self(1049);
+            /// `minecraft:music_disc.tears` (`1050`).
+            pub const MUSIC_DISC_TEARS: Self = Self(1050);
+            /// `minecraft:music.dragon` (`1051`).
+            pub const MUSIC_DRAGON: Self = Self(1051);
+            /// `minecraft:music.end` (`1052`).
+            pub const MUSIC_END: Self = Self(1052);
+            /// `minecraft:music.game` (`1053`).
+            pub const MUSIC_GAME: Self = Self(1053);
+            /// `minecraft:music.menu` (`1054`).
+            pub const MUSIC_MENU: Self = Self(1054);
+            /// `minecraft:music.nether.basalt_deltas` (`1055`).
+            pub const MUSIC_NETHER_BASALT_DELTAS: Self = Self(1055);
+            /// `minecraft:music.nether.crimson_forest` (`1056`).
+            pub const MUSIC_NETHER_CRIMSON_FOREST: Self = Self(1056);
+            /// `minecraft:music.overworld.deep_dark` (`1057`).
+            pub const MUSIC_OVERWORLD_DEEP_DARK: Self = Self(1057);
+            /// `minecraft:music.overworld.dripstone_caves` (`1058`).
+            pub const MUSIC_OVERWORLD_DRIPSTONE_CAVES: Self = Self(1058);
+            /// `minecraft:music.overworld.grove` (`1059`).
+            pub const MUSIC_OVERWORLD_GROVE: Self = Self(1059);
+            /// `minecraft:music.overworld.jagged_peaks` (`1060`).
+            pub const MUSIC_OVERWORLD_JAGGED_PEAKS: Self = Self(1060);
+            /// `minecraft:music.overworld.lush_caves` (`1061`).
+            pub const MUSIC_OVERWORLD_LUSH_CAVES: Self = Self(1061);
+            /// `minecraft:music.overworld.swamp` (`1062`).
+            pub const MUSIC_OVERWORLD_SWAMP: Self = Self(1062);
+            /// `minecraft:music.overworld.forest` (`1063`).
+            pub const MUSIC_OVERWORLD_FOREST: Self = Self(1063);
+            /// `minecraft:music.overworld.old_growth_taiga` (`1064`).
+            pub const MUSIC_OVERWORLD_OLD_GROWTH_TAIGA: Self = Self(1064);
+            /// `minecraft:music.overworld.meadow` (`1065`).
+            pub const MUSIC_OVERWORLD_MEADOW: Self = Self(1065);
+            /// `minecraft:music.overworld.cherry_grove` (`1066`).
+            pub const MUSIC_OVERWORLD_CHERRY_GROVE: Self = Self(1066);
+            /// `minecraft:music.nether.nether_wastes` (`1067`).
+            pub const MUSIC_NETHER_NETHER_WASTES: Self = Self(1067);
+            /// `minecraft:music.overworld.frozen_peaks` (`1068`).
+            pub const MUSIC_OVERWORLD_FROZEN_PEAKS: Self = Self(1068);
+            /// `minecraft:music.overworld.snowy_slopes` (`1069`).
+            pub const MUSIC_OVERWORLD_SNOWY_SLOPES: Self = Self(1069);
+            /// `minecraft:music.nether.soul_sand_valley` (`1070`).
+            pub const MUSIC_NETHER_SOUL_SAND_VALLEY: Self = Self(1070);
+            /// `minecraft:music.overworld.stony_peaks` (`1071`).
+            pub const MUSIC_OVERWORLD_STONY_PEAKS: Self = Self(1071);
+            /// `minecraft:music.nether.warped_forest` (`1072`).
+            pub const MUSIC_NETHER_WARPED_FOREST: Self = Self(1072);
+            /// `minecraft:music.overworld.flower_forest` (`1073`).
+            pub const MUSIC_OVERWORLD_FLOWER_FOREST: Self = Self(1073);
+            /// `minecraft:music.overworld.desert` (`1074`).
+            pub const MUSIC_OVERWORLD_DESERT: Self = Self(1074);
+            /// `minecraft:music.overworld.badlands` (`1075`).
+            pub const MUSIC_OVERWORLD_BADLANDS: Self = Self(1075);
+            /// `minecraft:music.overworld.jungle` (`1076`).
+            pub const MUSIC_OVERWORLD_JUNGLE: Self = Self(1076);
+            /// `minecraft:music.overworld.sparse_jungle` (`1077`).
+            pub const MUSIC_OVERWORLD_SPARSE_JUNGLE: Self = Self(1077);
+            /// `minecraft:music.overworld.bamboo_jungle` (`1078`).
+            pub const MUSIC_OVERWORLD_BAMBOO_JUNGLE: Self = Self(1078);
+            /// `minecraft:music.overworld.sulfur_caves` (`1079`).
+            pub const MUSIC_OVERWORLD_SULFUR_CAVES: Self = Self(1079);
+            /// `minecraft:music.under_water` (`1080`).
+            pub const MUSIC_UNDER_WATER: Self = Self(1080);
+            /// `minecraft:entity.nautilus.ambient` (`1081`).
+            pub const ENTITY_NAUTILUS_AMBIENT: Self = Self(1081);
+            /// `minecraft:entity.nautilus.ambient_land` (`1082`).
+            pub const ENTITY_NAUTILUS_AMBIENT_LAND: Self = Self(1082);
+            /// `minecraft:entity.nautilus.dash` (`1083`).
+            pub const ENTITY_NAUTILUS_DASH: Self = Self(1083);
+            /// `minecraft:entity.nautilus.dash_land` (`1084`).
+            pub const ENTITY_NAUTILUS_DASH_LAND: Self = Self(1084);
+            /// `minecraft:entity.nautilus.dash_ready` (`1085`).
+            pub const ENTITY_NAUTILUS_DASH_READY: Self = Self(1085);
+            /// `minecraft:entity.nautilus.dash_ready_land` (`1086`).
+            pub const ENTITY_NAUTILUS_DASH_READY_LAND: Self = Self(1086);
+            /// `minecraft:entity.nautilus.death` (`1087`).
+            pub const ENTITY_NAUTILUS_DEATH: Self = Self(1087);
+            /// `minecraft:entity.nautilus.death_land` (`1088`).
+            pub const ENTITY_NAUTILUS_DEATH_LAND: Self = Self(1088);
+            /// `minecraft:entity.nautilus.eat` (`1089`).
+            pub const ENTITY_NAUTILUS_EAT: Self = Self(1089);
+            /// `minecraft:entity.nautilus.hurt` (`1090`).
+            pub const ENTITY_NAUTILUS_HURT: Self = Self(1090);
+            /// `minecraft:entity.nautilus.hurt_land` (`1091`).
+            pub const ENTITY_NAUTILUS_HURT_LAND: Self = Self(1091);
+            /// `minecraft:entity.nautilus.swim` (`1092`).
+            pub const ENTITY_NAUTILUS_SWIM: Self = Self(1092);
+            /// `minecraft:block.nether_bricks.break` (`1093`).
+            pub const BLOCK_NETHER_BRICKS_BREAK: Self = Self(1093);
+            /// `minecraft:block.nether_bricks.step` (`1094`).
+            pub const BLOCK_NETHER_BRICKS_STEP: Self = Self(1094);
+            /// `minecraft:block.nether_bricks.place` (`1095`).
+            pub const BLOCK_NETHER_BRICKS_PLACE: Self = Self(1095);
+            /// `minecraft:block.nether_bricks.hit` (`1096`).
+            pub const BLOCK_NETHER_BRICKS_HIT: Self = Self(1096);
+            /// `minecraft:block.nether_bricks.fall` (`1097`).
+            pub const BLOCK_NETHER_BRICKS_FALL: Self = Self(1097);
+            /// `minecraft:block.nether_wart.break` (`1098`).
+            pub const BLOCK_NETHER_WART_BREAK: Self = Self(1098);
+            /// `minecraft:item.nether_wart.plant` (`1099`).
+            pub const ITEM_NETHER_WART_PLANT: Self = Self(1099);
+            /// `minecraft:block.nether_wood.break` (`1100`).
+            pub const BLOCK_NETHER_WOOD_BREAK: Self = Self(1100);
+            /// `minecraft:block.nether_wood.fall` (`1101`).
+            pub const BLOCK_NETHER_WOOD_FALL: Self = Self(1101);
+            /// `minecraft:block.nether_wood.hit` (`1102`).
+            pub const BLOCK_NETHER_WOOD_HIT: Self = Self(1102);
+            /// `minecraft:block.nether_wood.place` (`1103`).
+            pub const BLOCK_NETHER_WOOD_PLACE: Self = Self(1103);
+            /// `minecraft:block.nether_wood.step` (`1104`).
+            pub const BLOCK_NETHER_WOOD_STEP: Self = Self(1104);
+            /// `minecraft:block.nether_wood_door.close` (`1105`).
+            pub const BLOCK_NETHER_WOOD_DOOR_CLOSE: Self = Self(1105);
+            /// `minecraft:block.nether_wood_door.open` (`1106`).
+            pub const BLOCK_NETHER_WOOD_DOOR_OPEN: Self = Self(1106);
+            /// `minecraft:block.nether_wood_trapdoor.close` (`1107`).
+            pub const BLOCK_NETHER_WOOD_TRAPDOOR_CLOSE: Self = Self(1107);
+            /// `minecraft:block.nether_wood_trapdoor.open` (`1108`).
+            pub const BLOCK_NETHER_WOOD_TRAPDOOR_OPEN: Self = Self(1108);
+            /// `minecraft:block.nether_wood_button.click_off` (`1109`).
+            pub const BLOCK_NETHER_WOOD_BUTTON_CLICK_OFF: Self = Self(1109);
+            /// `minecraft:block.nether_wood_button.click_on` (`1110`).
+            pub const BLOCK_NETHER_WOOD_BUTTON_CLICK_ON: Self = Self(1110);
+            /// `minecraft:block.nether_wood_pressure_plate.click_off` (`1111`).
+            pub const BLOCK_NETHER_WOOD_PRESSURE_PLATE_CLICK_OFF: Self = Self(1111);
+            /// `minecraft:block.nether_wood_pressure_plate.click_on` (`1112`).
+            pub const BLOCK_NETHER_WOOD_PRESSURE_PLATE_CLICK_ON: Self = Self(1112);
+            /// `minecraft:block.nether_wood_fence_gate.close` (`1113`).
+            pub const BLOCK_NETHER_WOOD_FENCE_GATE_CLOSE: Self = Self(1113);
+            /// `minecraft:block.nether_wood_fence_gate.open` (`1114`).
+            pub const BLOCK_NETHER_WOOD_FENCE_GATE_OPEN: Self = Self(1114);
+            /// `minecraft:intentionally_empty` (`1115`).
+            pub const INTENTIONALLY_EMPTY: Self = Self(1115);
+            /// `minecraft:block.packed_mud.break` (`1116`).
+            pub const BLOCK_PACKED_MUD_BREAK: Self = Self(1116);
+            /// `minecraft:block.packed_mud.fall` (`1117`).
+            pub const BLOCK_PACKED_MUD_FALL: Self = Self(1117);
+            /// `minecraft:block.packed_mud.hit` (`1118`).
+            pub const BLOCK_PACKED_MUD_HIT: Self = Self(1118);
+            /// `minecraft:block.packed_mud.place` (`1119`).
+            pub const BLOCK_PACKED_MUD_PLACE: Self = Self(1119);
+            /// `minecraft:block.packed_mud.step` (`1120`).
+            pub const BLOCK_PACKED_MUD_STEP: Self = Self(1120);
+            /// `minecraft:block.stem.break` (`1121`).
+            pub const BLOCK_STEM_BREAK: Self = Self(1121);
+            /// `minecraft:block.stem.step` (`1122`).
+            pub const BLOCK_STEM_STEP: Self = Self(1122);
+            /// `minecraft:block.stem.place` (`1123`).
+            pub const BLOCK_STEM_PLACE: Self = Self(1123);
+            /// `minecraft:block.stem.hit` (`1124`).
+            pub const BLOCK_STEM_HIT: Self = Self(1124);
+            /// `minecraft:block.stem.fall` (`1125`).
+            pub const BLOCK_STEM_FALL: Self = Self(1125);
+            /// `minecraft:block.nylium.break` (`1126`).
+            pub const BLOCK_NYLIUM_BREAK: Self = Self(1126);
+            /// `minecraft:block.nylium.step` (`1127`).
+            pub const BLOCK_NYLIUM_STEP: Self = Self(1127);
+            /// `minecraft:block.nylium.place` (`1128`).
+            pub const BLOCK_NYLIUM_PLACE: Self = Self(1128);
+            /// `minecraft:block.nylium.hit` (`1129`).
+            pub const BLOCK_NYLIUM_HIT: Self = Self(1129);
+            /// `minecraft:block.nylium.fall` (`1130`).
+            pub const BLOCK_NYLIUM_FALL: Self = Self(1130);
+            /// `minecraft:block.nether_sprouts.break` (`1131`).
+            pub const BLOCK_NETHER_SPROUTS_BREAK: Self = Self(1131);
+            /// `minecraft:block.nether_sprouts.step` (`1132`).
+            pub const BLOCK_NETHER_SPROUTS_STEP: Self = Self(1132);
+            /// `minecraft:block.nether_sprouts.place` (`1133`).
+            pub const BLOCK_NETHER_SPROUTS_PLACE: Self = Self(1133);
+            /// `minecraft:block.nether_sprouts.hit` (`1134`).
+            pub const BLOCK_NETHER_SPROUTS_HIT: Self = Self(1134);
+            /// `minecraft:block.nether_sprouts.fall` (`1135`).
+            pub const BLOCK_NETHER_SPROUTS_FALL: Self = Self(1135);
+            /// `minecraft:block.fungus.break` (`1136`).
+            pub const BLOCK_FUNGUS_BREAK: Self = Self(1136);
+            /// `minecraft:block.fungus.step` (`1137`).
+            pub const BLOCK_FUNGUS_STEP: Self = Self(1137);
+            /// `minecraft:block.fungus.place` (`1138`).
+            pub const BLOCK_FUNGUS_PLACE: Self = Self(1138);
+            /// `minecraft:block.fungus.hit` (`1139`).
+            pub const BLOCK_FUNGUS_HIT: Self = Self(1139);
+            /// `minecraft:block.fungus.fall` (`1140`).
+            pub const BLOCK_FUNGUS_FALL: Self = Self(1140);
+            /// `minecraft:block.weeping_vines.break` (`1141`).
+            pub const BLOCK_WEEPING_VINES_BREAK: Self = Self(1141);
+            /// `minecraft:block.weeping_vines.step` (`1142`).
+            pub const BLOCK_WEEPING_VINES_STEP: Self = Self(1142);
+            /// `minecraft:block.weeping_vines.place` (`1143`).
+            pub const BLOCK_WEEPING_VINES_PLACE: Self = Self(1143);
+            /// `minecraft:block.weeping_vines.hit` (`1144`).
+            pub const BLOCK_WEEPING_VINES_HIT: Self = Self(1144);
+            /// `minecraft:block.weeping_vines.fall` (`1145`).
+            pub const BLOCK_WEEPING_VINES_FALL: Self = Self(1145);
+            /// `minecraft:block.wart_block.break` (`1146`).
+            pub const BLOCK_WART_BLOCK_BREAK: Self = Self(1146);
+            /// `minecraft:block.wart_block.step` (`1147`).
+            pub const BLOCK_WART_BLOCK_STEP: Self = Self(1147);
+            /// `minecraft:block.wart_block.place` (`1148`).
+            pub const BLOCK_WART_BLOCK_PLACE: Self = Self(1148);
+            /// `minecraft:block.wart_block.hit` (`1149`).
+            pub const BLOCK_WART_BLOCK_HIT: Self = Self(1149);
+            /// `minecraft:block.wart_block.fall` (`1150`).
+            pub const BLOCK_WART_BLOCK_FALL: Self = Self(1150);
+            /// `minecraft:block.netherite_block.break` (`1151`).
+            pub const BLOCK_NETHERITE_BLOCK_BREAK: Self = Self(1151);
+            /// `minecraft:block.netherite_block.step` (`1152`).
+            pub const BLOCK_NETHERITE_BLOCK_STEP: Self = Self(1152);
+            /// `minecraft:block.netherite_block.place` (`1153`).
+            pub const BLOCK_NETHERITE_BLOCK_PLACE: Self = Self(1153);
+            /// `minecraft:block.netherite_block.hit` (`1154`).
+            pub const BLOCK_NETHERITE_BLOCK_HIT: Self = Self(1154);
+            /// `minecraft:block.netherite_block.fall` (`1155`).
+            pub const BLOCK_NETHERITE_BLOCK_FALL: Self = Self(1155);
+            /// `minecraft:block.netherrack.break` (`1156`).
+            pub const BLOCK_NETHERRACK_BREAK: Self = Self(1156);
+            /// `minecraft:block.netherrack.step` (`1157`).
+            pub const BLOCK_NETHERRACK_STEP: Self = Self(1157);
+            /// `minecraft:block.netherrack.place` (`1158`).
+            pub const BLOCK_NETHERRACK_PLACE: Self = Self(1158);
+            /// `minecraft:block.netherrack.hit` (`1159`).
+            pub const BLOCK_NETHERRACK_HIT: Self = Self(1159);
+            /// `minecraft:block.netherrack.fall` (`1160`).
+            pub const BLOCK_NETHERRACK_FALL: Self = Self(1160);
+            /// `minecraft:block.note_block.basedrum` (`1161`).
+            pub const BLOCK_NOTE_BLOCK_BASEDRUM: Self = Self(1161);
+            /// `minecraft:block.note_block.bass` (`1162`).
+            pub const BLOCK_NOTE_BLOCK_BASS: Self = Self(1162);
+            /// `minecraft:block.note_block.bell` (`1163`).
+            pub const BLOCK_NOTE_BLOCK_BELL: Self = Self(1163);
+            /// `minecraft:block.note_block.chime` (`1164`).
+            pub const BLOCK_NOTE_BLOCK_CHIME: Self = Self(1164);
+            /// `minecraft:block.note_block.flute` (`1165`).
+            pub const BLOCK_NOTE_BLOCK_FLUTE: Self = Self(1165);
+            /// `minecraft:block.note_block.guitar` (`1166`).
+            pub const BLOCK_NOTE_BLOCK_GUITAR: Self = Self(1166);
+            /// `minecraft:block.note_block.harp` (`1167`).
+            pub const BLOCK_NOTE_BLOCK_HARP: Self = Self(1167);
+            /// `minecraft:block.note_block.hat` (`1168`).
+            pub const BLOCK_NOTE_BLOCK_HAT: Self = Self(1168);
+            /// `minecraft:block.note_block.pling` (`1169`).
+            pub const BLOCK_NOTE_BLOCK_PLING: Self = Self(1169);
+            /// `minecraft:block.note_block.snare` (`1170`).
+            pub const BLOCK_NOTE_BLOCK_SNARE: Self = Self(1170);
+            /// `minecraft:block.note_block.trumpet` (`1171`).
+            pub const BLOCK_NOTE_BLOCK_TRUMPET: Self = Self(1171);
+            /// `minecraft:block.note_block.trumpet_exposed` (`1172`).
+            pub const BLOCK_NOTE_BLOCK_TRUMPET_EXPOSED: Self = Self(1172);
+            /// `minecraft:block.note_block.trumpet_oxidized` (`1173`).
+            pub const BLOCK_NOTE_BLOCK_TRUMPET_OXIDIZED: Self = Self(1173);
+            /// `minecraft:block.note_block.trumpet_weathered` (`1174`).
+            pub const BLOCK_NOTE_BLOCK_TRUMPET_WEATHERED: Self = Self(1174);
+            /// `minecraft:block.note_block.xylophone` (`1175`).
+            pub const BLOCK_NOTE_BLOCK_XYLOPHONE: Self = Self(1175);
+            /// `minecraft:block.note_block.iron_xylophone` (`1176`).
+            pub const BLOCK_NOTE_BLOCK_IRON_XYLOPHONE: Self = Self(1176);
+            /// `minecraft:block.note_block.cow_bell` (`1177`).
+            pub const BLOCK_NOTE_BLOCK_COW_BELL: Self = Self(1177);
+            /// `minecraft:block.note_block.didgeridoo` (`1178`).
+            pub const BLOCK_NOTE_BLOCK_DIDGERIDOO: Self = Self(1178);
+            /// `minecraft:block.note_block.bit` (`1179`).
+            pub const BLOCK_NOTE_BLOCK_BIT: Self = Self(1179);
+            /// `minecraft:block.note_block.banjo` (`1180`).
+            pub const BLOCK_NOTE_BLOCK_BANJO: Self = Self(1180);
+            /// `minecraft:block.note_block.imitate.zombie` (`1181`).
+            pub const BLOCK_NOTE_BLOCK_IMITATE_ZOMBIE: Self = Self(1181);
+            /// `minecraft:block.note_block.imitate.skeleton` (`1182`).
+            pub const BLOCK_NOTE_BLOCK_IMITATE_SKELETON: Self = Self(1182);
+            /// `minecraft:block.note_block.imitate.creeper` (`1183`).
+            pub const BLOCK_NOTE_BLOCK_IMITATE_CREEPER: Self = Self(1183);
+            /// `minecraft:block.note_block.imitate.ender_dragon` (`1184`).
+            pub const BLOCK_NOTE_BLOCK_IMITATE_ENDER_DRAGON: Self = Self(1184);
+            /// `minecraft:block.note_block.imitate.wither_skeleton` (`1185`).
+            pub const BLOCK_NOTE_BLOCK_IMITATE_WITHER_SKELETON: Self = Self(1185);
+            /// `minecraft:block.note_block.imitate.piglin` (`1186`).
+            pub const BLOCK_NOTE_BLOCK_IMITATE_PIGLIN: Self = Self(1186);
+            /// `minecraft:entity.ocelot.hurt` (`1187`).
+            pub const ENTITY_OCELOT_HURT: Self = Self(1187);
+            /// `minecraft:entity.ocelot.ambient` (`1188`).
+            pub const ENTITY_OCELOT_AMBIENT: Self = Self(1188);
+            /// `minecraft:entity.ocelot.death` (`1189`).
+            pub const ENTITY_OCELOT_DEATH: Self = Self(1189);
+            /// `minecraft:item.ominous_bottle.dispose` (`1190`).
+            pub const ITEM_OMINOUS_BOTTLE_DISPOSE: Self = Self(1190);
+            /// `minecraft:entity.painting.break` (`1191`).
+            pub const ENTITY_PAINTING_BREAK: Self = Self(1191);
+            /// `minecraft:entity.painting.place` (`1192`).
+            pub const ENTITY_PAINTING_PLACE: Self = Self(1192);
+            /// `minecraft:block.pale_hanging_moss.idle` (`1193`).
+            pub const BLOCK_PALE_HANGING_MOSS_IDLE: Self = Self(1193);
+            /// `minecraft:entity.panda.pre_sneeze` (`1194`).
+            pub const ENTITY_PANDA_PRE_SNEEZE: Self = Self(1194);
+            /// `minecraft:entity.panda.sneeze` (`1195`).
+            pub const ENTITY_PANDA_SNEEZE: Self = Self(1195);
+            /// `minecraft:entity.panda.ambient` (`1196`).
+            pub const ENTITY_PANDA_AMBIENT: Self = Self(1196);
+            /// `minecraft:entity.panda.death` (`1197`).
+            pub const ENTITY_PANDA_DEATH: Self = Self(1197);
+            /// `minecraft:entity.panda.eat` (`1198`).
+            pub const ENTITY_PANDA_EAT: Self = Self(1198);
+            /// `minecraft:entity.panda.step` (`1199`).
+            pub const ENTITY_PANDA_STEP: Self = Self(1199);
+            /// `minecraft:entity.panda.cant_breed` (`1200`).
+            pub const ENTITY_PANDA_CANT_BREED: Self = Self(1200);
+            /// `minecraft:entity.panda.aggressive_ambient` (`1201`).
+            pub const ENTITY_PANDA_AGGRESSIVE_AMBIENT: Self = Self(1201);
+            /// `minecraft:entity.panda.worried_ambient` (`1202`).
+            pub const ENTITY_PANDA_WORRIED_AMBIENT: Self = Self(1202);
+            /// `minecraft:entity.panda.hurt` (`1203`).
+            pub const ENTITY_PANDA_HURT: Self = Self(1203);
+            /// `minecraft:entity.panda.bite` (`1204`).
+            pub const ENTITY_PANDA_BITE: Self = Self(1204);
+            /// `minecraft:entity.parched.ambient` (`1205`).
+            pub const ENTITY_PARCHED_AMBIENT: Self = Self(1205);
+            /// `minecraft:entity.parched.death` (`1206`).
+            pub const ENTITY_PARCHED_DEATH: Self = Self(1206);
+            /// `minecraft:entity.parched.hurt` (`1207`).
+            pub const ENTITY_PARCHED_HURT: Self = Self(1207);
+            /// `minecraft:entity.parched.step` (`1208`).
+            pub const ENTITY_PARCHED_STEP: Self = Self(1208);
+            /// `minecraft:entity.parrot.ambient` (`1209`).
+            pub const ENTITY_PARROT_AMBIENT: Self = Self(1209);
+            /// `minecraft:entity.parrot.death` (`1210`).
+            pub const ENTITY_PARROT_DEATH: Self = Self(1210);
+            /// `minecraft:entity.parrot.eat` (`1211`).
+            pub const ENTITY_PARROT_EAT: Self = Self(1211);
+            /// `minecraft:entity.parrot.fly` (`1212`).
+            pub const ENTITY_PARROT_FLY: Self = Self(1212);
+            /// `minecraft:entity.parrot.hurt` (`1213`).
+            pub const ENTITY_PARROT_HURT: Self = Self(1213);
+            /// `minecraft:entity.parrot.imitate.blaze` (`1214`).
+            pub const ENTITY_PARROT_IMITATE_BLAZE: Self = Self(1214);
+            /// `minecraft:entity.parrot.imitate.bogged` (`1215`).
+            pub const ENTITY_PARROT_IMITATE_BOGGED: Self = Self(1215);
+            /// `minecraft:entity.parrot.imitate.breeze` (`1216`).
+            pub const ENTITY_PARROT_IMITATE_BREEZE: Self = Self(1216);
+            /// `minecraft:entity.parrot.imitate.camel_husk` (`1217`).
+            pub const ENTITY_PARROT_IMITATE_CAMEL_HUSK: Self = Self(1217);
+            /// `minecraft:entity.parrot.imitate.creaking` (`1218`).
+            pub const ENTITY_PARROT_IMITATE_CREAKING: Self = Self(1218);
+            /// `minecraft:entity.parrot.imitate.creeper` (`1219`).
+            pub const ENTITY_PARROT_IMITATE_CREEPER: Self = Self(1219);
+            /// `minecraft:entity.parrot.imitate.drowned` (`1220`).
+            pub const ENTITY_PARROT_IMITATE_DROWNED: Self = Self(1220);
+            /// `minecraft:entity.parrot.imitate.elder_guardian` (`1221`).
+            pub const ENTITY_PARROT_IMITATE_ELDER_GUARDIAN: Self = Self(1221);
+            /// `minecraft:entity.parrot.imitate.ender_dragon` (`1222`).
+            pub const ENTITY_PARROT_IMITATE_ENDER_DRAGON: Self = Self(1222);
+            /// `minecraft:entity.parrot.imitate.endermite` (`1223`).
+            pub const ENTITY_PARROT_IMITATE_ENDERMITE: Self = Self(1223);
+            /// `minecraft:entity.parrot.imitate.evoker` (`1224`).
+            pub const ENTITY_PARROT_IMITATE_EVOKER: Self = Self(1224);
+            /// `minecraft:entity.parrot.imitate.ghast` (`1225`).
+            pub const ENTITY_PARROT_IMITATE_GHAST: Self = Self(1225);
+            /// `minecraft:entity.parrot.imitate.guardian` (`1226`).
+            pub const ENTITY_PARROT_IMITATE_GUARDIAN: Self = Self(1226);
+            /// `minecraft:entity.parrot.imitate.hoglin` (`1227`).
+            pub const ENTITY_PARROT_IMITATE_HOGLIN: Self = Self(1227);
+            /// `minecraft:entity.parrot.imitate.husk` (`1228`).
+            pub const ENTITY_PARROT_IMITATE_HUSK: Self = Self(1228);
+            /// `minecraft:entity.parrot.imitate.illusioner` (`1229`).
+            pub const ENTITY_PARROT_IMITATE_ILLUSIONER: Self = Self(1229);
+            /// `minecraft:entity.parrot.imitate.magma_cube` (`1230`).
+            pub const ENTITY_PARROT_IMITATE_MAGMA_CUBE: Self = Self(1230);
+            /// `minecraft:entity.parrot.imitate.phantom` (`1231`).
+            pub const ENTITY_PARROT_IMITATE_PHANTOM: Self = Self(1231);
+            /// `minecraft:entity.parrot.imitate.parched` (`1232`).
+            pub const ENTITY_PARROT_IMITATE_PARCHED: Self = Self(1232);
+            /// `minecraft:entity.parrot.imitate.piglin` (`1233`).
+            pub const ENTITY_PARROT_IMITATE_PIGLIN: Self = Self(1233);
+            /// `minecraft:entity.parrot.imitate.piglin_brute` (`1234`).
+            pub const ENTITY_PARROT_IMITATE_PIGLIN_BRUTE: Self = Self(1234);
+            /// `minecraft:entity.parrot.imitate.pillager` (`1235`).
+            pub const ENTITY_PARROT_IMITATE_PILLAGER: Self = Self(1235);
+            /// `minecraft:entity.parrot.imitate.ravager` (`1236`).
+            pub const ENTITY_PARROT_IMITATE_RAVAGER: Self = Self(1236);
+            /// `minecraft:entity.parrot.imitate.shulker` (`1237`).
+            pub const ENTITY_PARROT_IMITATE_SHULKER: Self = Self(1237);
+            /// `minecraft:entity.parrot.imitate.silverfish` (`1238`).
+            pub const ENTITY_PARROT_IMITATE_SILVERFISH: Self = Self(1238);
+            /// `minecraft:entity.parrot.imitate.skeleton` (`1239`).
+            pub const ENTITY_PARROT_IMITATE_SKELETON: Self = Self(1239);
+            /// `minecraft:entity.parrot.imitate.slime` (`1240`).
+            pub const ENTITY_PARROT_IMITATE_SLIME: Self = Self(1240);
+            /// `minecraft:entity.parrot.imitate.spider` (`1241`).
+            pub const ENTITY_PARROT_IMITATE_SPIDER: Self = Self(1241);
+            /// `minecraft:entity.parrot.imitate.stray` (`1242`).
+            pub const ENTITY_PARROT_IMITATE_STRAY: Self = Self(1242);
+            /// `minecraft:entity.parrot.imitate.vex` (`1243`).
+            pub const ENTITY_PARROT_IMITATE_VEX: Self = Self(1243);
+            /// `minecraft:entity.parrot.imitate.vindicator` (`1244`).
+            pub const ENTITY_PARROT_IMITATE_VINDICATOR: Self = Self(1244);
+            /// `minecraft:entity.parrot.imitate.warden` (`1245`).
+            pub const ENTITY_PARROT_IMITATE_WARDEN: Self = Self(1245);
+            /// `minecraft:entity.parrot.imitate.witch` (`1246`).
+            pub const ENTITY_PARROT_IMITATE_WITCH: Self = Self(1246);
+            /// `minecraft:entity.parrot.imitate.wither` (`1247`).
+            pub const ENTITY_PARROT_IMITATE_WITHER: Self = Self(1247);
+            /// `minecraft:entity.parrot.imitate.wither_skeleton` (`1248`).
+            pub const ENTITY_PARROT_IMITATE_WITHER_SKELETON: Self = Self(1248);
+            /// `minecraft:entity.parrot.imitate.zoglin` (`1249`).
+            pub const ENTITY_PARROT_IMITATE_ZOGLIN: Self = Self(1249);
+            /// `minecraft:entity.parrot.imitate.zombie` (`1250`).
+            pub const ENTITY_PARROT_IMITATE_ZOMBIE: Self = Self(1250);
+            /// `minecraft:entity.parrot.imitate.zombie_horse` (`1251`).
+            pub const ENTITY_PARROT_IMITATE_ZOMBIE_HORSE: Self = Self(1251);
+            /// `minecraft:entity.parrot.imitate.zombie_nautilus` (`1252`).
+            pub const ENTITY_PARROT_IMITATE_ZOMBIE_NAUTILUS: Self = Self(1252);
+            /// `minecraft:entity.parrot.imitate.zombie_villager` (`1253`).
+            pub const ENTITY_PARROT_IMITATE_ZOMBIE_VILLAGER: Self = Self(1253);
+            /// `minecraft:entity.parrot.step` (`1254`).
+            pub const ENTITY_PARROT_STEP: Self = Self(1254);
+            /// `minecraft:entity.phantom.ambient` (`1255`).
+            pub const ENTITY_PHANTOM_AMBIENT: Self = Self(1255);
+            /// `minecraft:entity.phantom.bite` (`1256`).
+            pub const ENTITY_PHANTOM_BITE: Self = Self(1256);
+            /// `minecraft:entity.phantom.death` (`1257`).
+            pub const ENTITY_PHANTOM_DEATH: Self = Self(1257);
+            /// `minecraft:entity.phantom.flap` (`1258`).
+            pub const ENTITY_PHANTOM_FLAP: Self = Self(1258);
+            /// `minecraft:entity.phantom.hurt` (`1259`).
+            pub const ENTITY_PHANTOM_HURT: Self = Self(1259);
+            /// `minecraft:entity.phantom.swoop` (`1260`).
+            pub const ENTITY_PHANTOM_SWOOP: Self = Self(1260);
+            /// `minecraft:entity.pig.saddle` (`1261`).
+            pub const ENTITY_PIG_SADDLE: Self = Self(1261);
+            /// `minecraft:entity.pig.step` (`1262`).
+            pub const ENTITY_PIG_STEP: Self = Self(1262);
+            /// `minecraft:entity.baby_pig.step` (`1263`).
+            pub const ENTITY_BABY_PIG_STEP: Self = Self(1263);
+            /// `minecraft:entity.baby_pig.ambient` (`1264`).
+            pub const ENTITY_BABY_PIG_AMBIENT: Self = Self(1264);
+            /// `minecraft:entity.baby_pig.eat` (`1265`).
+            pub const ENTITY_BABY_PIG_EAT: Self = Self(1265);
+            /// `minecraft:entity.baby_pig.hurt` (`1266`).
+            pub const ENTITY_BABY_PIG_HURT: Self = Self(1266);
+            /// `minecraft:entity.baby_pig.death` (`1267`).
+            pub const ENTITY_BABY_PIG_DEATH: Self = Self(1267);
+            /// `minecraft:entity.pig.ambient` (`1268`).
+            pub const ENTITY_PIG_AMBIENT: Self = Self(1268);
+            /// `minecraft:entity.pig.hurt` (`1269`).
+            pub const ENTITY_PIG_HURT: Self = Self(1269);
+            /// `minecraft:entity.pig.death` (`1270`).
+            pub const ENTITY_PIG_DEATH: Self = Self(1270);
+            /// `minecraft:entity.pig.eat` (`1271`).
+            pub const ENTITY_PIG_EAT: Self = Self(1271);
+            /// `minecraft:entity.pig_mini.ambient` (`1272`).
+            pub const ENTITY_PIG_MINI_AMBIENT: Self = Self(1272);
+            /// `minecraft:entity.pig_mini.hurt` (`1273`).
+            pub const ENTITY_PIG_MINI_HURT: Self = Self(1273);
+            /// `minecraft:entity.pig_mini.death` (`1274`).
+            pub const ENTITY_PIG_MINI_DEATH: Self = Self(1274);
+            /// `minecraft:entity.pig_mini.eat` (`1275`).
+            pub const ENTITY_PIG_MINI_EAT: Self = Self(1275);
+            /// `minecraft:entity.pig_big.ambient` (`1276`).
+            pub const ENTITY_PIG_BIG_AMBIENT: Self = Self(1276);
+            /// `minecraft:entity.pig_big.hurt` (`1277`).
+            pub const ENTITY_PIG_BIG_HURT: Self = Self(1277);
+            /// `minecraft:entity.pig_big.death` (`1278`).
+            pub const ENTITY_PIG_BIG_DEATH: Self = Self(1278);
+            /// `minecraft:entity.pig_big.eat` (`1279`).
+            pub const ENTITY_PIG_BIG_EAT: Self = Self(1279);
+            /// `minecraft:entity.piglin.admiring_item` (`1280`).
+            pub const ENTITY_PIGLIN_ADMIRING_ITEM: Self = Self(1280);
+            /// `minecraft:entity.piglin.ambient` (`1281`).
+            pub const ENTITY_PIGLIN_AMBIENT: Self = Self(1281);
+            /// `minecraft:entity.piglin.angry` (`1282`).
+            pub const ENTITY_PIGLIN_ANGRY: Self = Self(1282);
+            /// `minecraft:entity.piglin.celebrate` (`1283`).
+            pub const ENTITY_PIGLIN_CELEBRATE: Self = Self(1283);
+            /// `minecraft:entity.piglin.death` (`1284`).
+            pub const ENTITY_PIGLIN_DEATH: Self = Self(1284);
+            /// `minecraft:entity.piglin.jealous` (`1285`).
+            pub const ENTITY_PIGLIN_JEALOUS: Self = Self(1285);
+            /// `minecraft:entity.piglin.hurt` (`1286`).
+            pub const ENTITY_PIGLIN_HURT: Self = Self(1286);
+            /// `minecraft:entity.piglin.retreat` (`1287`).
+            pub const ENTITY_PIGLIN_RETREAT: Self = Self(1287);
+            /// `minecraft:entity.piglin.step` (`1288`).
+            pub const ENTITY_PIGLIN_STEP: Self = Self(1288);
+            /// `minecraft:entity.piglin.converted_to_zombified` (`1289`).
+            pub const ENTITY_PIGLIN_CONVERTED_TO_ZOMBIFIED: Self = Self(1289);
+            /// `minecraft:entity.piglin_brute.ambient` (`1290`).
+            pub const ENTITY_PIGLIN_BRUTE_AMBIENT: Self = Self(1290);
+            /// `minecraft:entity.piglin_brute.angry` (`1291`).
+            pub const ENTITY_PIGLIN_BRUTE_ANGRY: Self = Self(1291);
+            /// `minecraft:entity.piglin_brute.death` (`1292`).
+            pub const ENTITY_PIGLIN_BRUTE_DEATH: Self = Self(1292);
+            /// `minecraft:entity.piglin_brute.hurt` (`1293`).
+            pub const ENTITY_PIGLIN_BRUTE_HURT: Self = Self(1293);
+            /// `minecraft:entity.piglin_brute.step` (`1294`).
+            pub const ENTITY_PIGLIN_BRUTE_STEP: Self = Self(1294);
+            /// `minecraft:entity.piglin_brute.converted_to_zombified` (`1295`).
+            pub const ENTITY_PIGLIN_BRUTE_CONVERTED_TO_ZOMBIFIED: Self = Self(1295);
+            /// `minecraft:entity.pillager.ambient` (`1296`).
+            pub const ENTITY_PILLAGER_AMBIENT: Self = Self(1296);
+            /// `minecraft:entity.pillager.celebrate` (`1297`).
+            pub const ENTITY_PILLAGER_CELEBRATE: Self = Self(1297);
+            /// `minecraft:entity.pillager.death` (`1298`).
+            pub const ENTITY_PILLAGER_DEATH: Self = Self(1298);
+            /// `minecraft:entity.pillager.hurt` (`1299`).
+            pub const ENTITY_PILLAGER_HURT: Self = Self(1299);
+            /// `minecraft:block.piston.contract` (`1300`).
+            pub const BLOCK_PISTON_CONTRACT: Self = Self(1300);
+            /// `minecraft:block.piston.extend` (`1301`).
+            pub const BLOCK_PISTON_EXTEND: Self = Self(1301);
+            /// `minecraft:entity.player.attack.crit` (`1302`).
+            pub const ENTITY_PLAYER_ATTACK_CRIT: Self = Self(1302);
+            /// `minecraft:entity.player.attack.knockback` (`1303`).
+            pub const ENTITY_PLAYER_ATTACK_KNOCKBACK: Self = Self(1303);
+            /// `minecraft:entity.player.attack.nodamage` (`1304`).
+            pub const ENTITY_PLAYER_ATTACK_NODAMAGE: Self = Self(1304);
+            /// `minecraft:entity.player.attack.strong` (`1305`).
+            pub const ENTITY_PLAYER_ATTACK_STRONG: Self = Self(1305);
+            /// `minecraft:entity.player.attack.sweep` (`1306`).
+            pub const ENTITY_PLAYER_ATTACK_SWEEP: Self = Self(1306);
+            /// `minecraft:entity.player.attack.weak` (`1307`).
+            pub const ENTITY_PLAYER_ATTACK_WEAK: Self = Self(1307);
+            /// `minecraft:entity.player.big_fall` (`1308`).
+            pub const ENTITY_PLAYER_BIG_FALL: Self = Self(1308);
+            /// `minecraft:entity.player.breath` (`1309`).
+            pub const ENTITY_PLAYER_BREATH: Self = Self(1309);
+            /// `minecraft:entity.player.burp` (`1310`).
+            pub const ENTITY_PLAYER_BURP: Self = Self(1310);
+            /// `minecraft:entity.player.death` (`1311`).
+            pub const ENTITY_PLAYER_DEATH: Self = Self(1311);
+            /// `minecraft:entity.player.hurt` (`1312`).
+            pub const ENTITY_PLAYER_HURT: Self = Self(1312);
+            /// `minecraft:entity.player.hurt_drown` (`1313`).
+            pub const ENTITY_PLAYER_HURT_DROWN: Self = Self(1313);
+            /// `minecraft:entity.player.hurt_freeze` (`1314`).
+            pub const ENTITY_PLAYER_HURT_FREEZE: Self = Self(1314);
+            /// `minecraft:entity.player.hurt_on_fire` (`1315`).
+            pub const ENTITY_PLAYER_HURT_ON_FIRE: Self = Self(1315);
+            /// `minecraft:entity.player.hurt_sweet_berry_bush` (`1316`).
+            pub const ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH: Self = Self(1316);
+            /// `minecraft:entity.player.levelup` (`1317`).
+            pub const ENTITY_PLAYER_LEVELUP: Self = Self(1317);
+            /// `minecraft:entity.player.small_fall` (`1318`).
+            pub const ENTITY_PLAYER_SMALL_FALL: Self = Self(1318);
+            /// `minecraft:entity.player.splash` (`1319`).
+            pub const ENTITY_PLAYER_SPLASH: Self = Self(1319);
+            /// `minecraft:entity.player.splash.high_speed` (`1320`).
+            pub const ENTITY_PLAYER_SPLASH_HIGH_SPEED: Self = Self(1320);
+            /// `minecraft:entity.player.swim` (`1321`).
+            pub const ENTITY_PLAYER_SWIM: Self = Self(1321);
+            /// `minecraft:entity.player.teleport` (`1322`).
+            pub const ENTITY_PLAYER_TELEPORT: Self = Self(1322);
+            /// `minecraft:entity.polar_bear.ambient` (`1323`).
+            pub const ENTITY_POLAR_BEAR_AMBIENT: Self = Self(1323);
+            /// `minecraft:entity.polar_bear.ambient_baby` (`1324`).
+            pub const ENTITY_POLAR_BEAR_AMBIENT_BABY: Self = Self(1324);
+            /// `minecraft:entity.polar_bear.death` (`1325`).
+            pub const ENTITY_POLAR_BEAR_DEATH: Self = Self(1325);
+            /// `minecraft:entity.polar_bear.hurt` (`1326`).
+            pub const ENTITY_POLAR_BEAR_HURT: Self = Self(1326);
+            /// `minecraft:entity.polar_bear.step` (`1327`).
+            pub const ENTITY_POLAR_BEAR_STEP: Self = Self(1327);
+            /// `minecraft:entity.polar_bear.warning` (`1328`).
+            pub const ENTITY_POLAR_BEAR_WARNING: Self = Self(1328);
+            /// `minecraft:block.polished_deepslate.break` (`1329`).
+            pub const BLOCK_POLISHED_DEEPSLATE_BREAK: Self = Self(1329);
+            /// `minecraft:block.polished_deepslate.fall` (`1330`).
+            pub const BLOCK_POLISHED_DEEPSLATE_FALL: Self = Self(1330);
+            /// `minecraft:block.polished_deepslate.hit` (`1331`).
+            pub const BLOCK_POLISHED_DEEPSLATE_HIT: Self = Self(1331);
+            /// `minecraft:block.polished_deepslate.place` (`1332`).
+            pub const BLOCK_POLISHED_DEEPSLATE_PLACE: Self = Self(1332);
+            /// `minecraft:block.polished_deepslate.step` (`1333`).
+            pub const BLOCK_POLISHED_DEEPSLATE_STEP: Self = Self(1333);
+            /// `minecraft:block.portal.ambient` (`1334`).
+            pub const BLOCK_PORTAL_AMBIENT: Self = Self(1334);
+            /// `minecraft:block.portal.travel` (`1335`).
+            pub const BLOCK_PORTAL_TRAVEL: Self = Self(1335);
+            /// `minecraft:block.portal.trigger` (`1336`).
+            pub const BLOCK_PORTAL_TRIGGER: Self = Self(1336);
+            /// `minecraft:block.powder_snow.break` (`1337`).
+            pub const BLOCK_POWDER_SNOW_BREAK: Self = Self(1337);
+            /// `minecraft:block.powder_snow.fall` (`1338`).
+            pub const BLOCK_POWDER_SNOW_FALL: Self = Self(1338);
+            /// `minecraft:block.powder_snow.hit` (`1339`).
+            pub const BLOCK_POWDER_SNOW_HIT: Self = Self(1339);
+            /// `minecraft:block.powder_snow.place` (`1340`).
+            pub const BLOCK_POWDER_SNOW_PLACE: Self = Self(1340);
+            /// `minecraft:block.powder_snow.step` (`1341`).
+            pub const BLOCK_POWDER_SNOW_STEP: Self = Self(1341);
+            /// `minecraft:entity.puffer_fish.blow_out` (`1342`).
+            pub const ENTITY_PUFFER_FISH_BLOW_OUT: Self = Self(1342);
+            /// `minecraft:entity.puffer_fish.blow_up` (`1343`).
+            pub const ENTITY_PUFFER_FISH_BLOW_UP: Self = Self(1343);
+            /// `minecraft:entity.puffer_fish.death` (`1344`).
+            pub const ENTITY_PUFFER_FISH_DEATH: Self = Self(1344);
+            /// `minecraft:entity.puffer_fish.flop` (`1345`).
+            pub const ENTITY_PUFFER_FISH_FLOP: Self = Self(1345);
+            /// `minecraft:entity.puffer_fish.hurt` (`1346`).
+            pub const ENTITY_PUFFER_FISH_HURT: Self = Self(1346);
+            /// `minecraft:entity.puffer_fish.sting` (`1347`).
+            pub const ENTITY_PUFFER_FISH_STING: Self = Self(1347);
+            /// `minecraft:block.pumpkin.carve` (`1348`).
+            pub const BLOCK_PUMPKIN_CARVE: Self = Self(1348);
+            /// `minecraft:entity.rabbit.ambient` (`1349`).
+            pub const ENTITY_RABBIT_AMBIENT: Self = Self(1349);
+            /// `minecraft:entity.rabbit.attack` (`1350`).
+            pub const ENTITY_RABBIT_ATTACK: Self = Self(1350);
+            /// `minecraft:entity.rabbit.death` (`1351`).
+            pub const ENTITY_RABBIT_DEATH: Self = Self(1351);
+            /// `minecraft:entity.rabbit.hurt` (`1352`).
+            pub const ENTITY_RABBIT_HURT: Self = Self(1352);
+            /// `minecraft:entity.rabbit.jump` (`1353`).
+            pub const ENTITY_RABBIT_JUMP: Self = Self(1353);
+            /// `minecraft:event.raid.horn` (`1354`).
+            pub const EVENT_RAID_HORN: Self = Self(1354);
+            /// `minecraft:entity.ravager.ambient` (`1355`).
+            pub const ENTITY_RAVAGER_AMBIENT: Self = Self(1355);
+            /// `minecraft:entity.ravager.attack` (`1356`).
+            pub const ENTITY_RAVAGER_ATTACK: Self = Self(1356);
+            /// `minecraft:entity.ravager.celebrate` (`1357`).
+            pub const ENTITY_RAVAGER_CELEBRATE: Self = Self(1357);
+            /// `minecraft:entity.ravager.death` (`1358`).
+            pub const ENTITY_RAVAGER_DEATH: Self = Self(1358);
+            /// `minecraft:entity.ravager.hurt` (`1359`).
+            pub const ENTITY_RAVAGER_HURT: Self = Self(1359);
+            /// `minecraft:entity.ravager.step` (`1360`).
+            pub const ENTITY_RAVAGER_STEP: Self = Self(1360);
+            /// `minecraft:entity.ravager.stunned` (`1361`).
+            pub const ENTITY_RAVAGER_STUNNED: Self = Self(1361);
+            /// `minecraft:entity.ravager.roar` (`1362`).
+            pub const ENTITY_RAVAGER_ROAR: Self = Self(1362);
+            /// `minecraft:block.nether_gold_ore.break` (`1363`).
+            pub const BLOCK_NETHER_GOLD_ORE_BREAK: Self = Self(1363);
+            /// `minecraft:block.nether_gold_ore.fall` (`1364`).
+            pub const BLOCK_NETHER_GOLD_ORE_FALL: Self = Self(1364);
+            /// `minecraft:block.nether_gold_ore.hit` (`1365`).
+            pub const BLOCK_NETHER_GOLD_ORE_HIT: Self = Self(1365);
+            /// `minecraft:block.nether_gold_ore.place` (`1366`).
+            pub const BLOCK_NETHER_GOLD_ORE_PLACE: Self = Self(1366);
+            /// `minecraft:block.nether_gold_ore.step` (`1367`).
+            pub const BLOCK_NETHER_GOLD_ORE_STEP: Self = Self(1367);
+            /// `minecraft:block.nether_ore.break` (`1368`).
+            pub const BLOCK_NETHER_ORE_BREAK: Self = Self(1368);
+            /// `minecraft:block.nether_ore.fall` (`1369`).
+            pub const BLOCK_NETHER_ORE_FALL: Self = Self(1369);
+            /// `minecraft:block.nether_ore.hit` (`1370`).
+            pub const BLOCK_NETHER_ORE_HIT: Self = Self(1370);
+            /// `minecraft:block.nether_ore.place` (`1371`).
+            pub const BLOCK_NETHER_ORE_PLACE: Self = Self(1371);
+            /// `minecraft:block.nether_ore.step` (`1372`).
+            pub const BLOCK_NETHER_ORE_STEP: Self = Self(1372);
+            /// `minecraft:block.redstone_torch.burnout` (`1373`).
+            pub const BLOCK_REDSTONE_TORCH_BURNOUT: Self = Self(1373);
+            /// `minecraft:block.resin.break` (`1374`).
+            pub const BLOCK_RESIN_BREAK: Self = Self(1374);
+            /// `minecraft:block.resin.fall` (`1375`).
+            pub const BLOCK_RESIN_FALL: Self = Self(1375);
+            /// `minecraft:block.resin.place` (`1376`).
+            pub const BLOCK_RESIN_PLACE: Self = Self(1376);
+            /// `minecraft:block.resin.step` (`1377`).
+            pub const BLOCK_RESIN_STEP: Self = Self(1377);
+            /// `minecraft:block.resin_bricks.break` (`1378`).
+            pub const BLOCK_RESIN_BRICKS_BREAK: Self = Self(1378);
+            /// `minecraft:block.resin_bricks.fall` (`1379`).
+            pub const BLOCK_RESIN_BRICKS_FALL: Self = Self(1379);
+            /// `minecraft:block.resin_bricks.hit` (`1380`).
+            pub const BLOCK_RESIN_BRICKS_HIT: Self = Self(1380);
+            /// `minecraft:block.resin_bricks.place` (`1381`).
+            pub const BLOCK_RESIN_BRICKS_PLACE: Self = Self(1381);
+            /// `minecraft:block.resin_bricks.step` (`1382`).
+            pub const BLOCK_RESIN_BRICKS_STEP: Self = Self(1382);
+            /// `minecraft:block.respawn_anchor.ambient` (`1383`).
+            pub const BLOCK_RESPAWN_ANCHOR_AMBIENT: Self = Self(1383);
+            /// `minecraft:block.respawn_anchor.charge` (`1384`).
+            pub const BLOCK_RESPAWN_ANCHOR_CHARGE: Self = Self(1384);
+            /// `minecraft:block.respawn_anchor.deplete` (`1385`).
+            pub const BLOCK_RESPAWN_ANCHOR_DEPLETE: Self = Self(1385);
+            /// `minecraft:block.respawn_anchor.set_spawn` (`1386`).
+            pub const BLOCK_RESPAWN_ANCHOR_SET_SPAWN: Self = Self(1386);
+            /// `minecraft:block.rooted_dirt.break` (`1387`).
+            pub const BLOCK_ROOTED_DIRT_BREAK: Self = Self(1387);
+            /// `minecraft:block.rooted_dirt.fall` (`1388`).
+            pub const BLOCK_ROOTED_DIRT_FALL: Self = Self(1388);
+            /// `minecraft:block.rooted_dirt.hit` (`1389`).
+            pub const BLOCK_ROOTED_DIRT_HIT: Self = Self(1389);
+            /// `minecraft:block.rooted_dirt.place` (`1390`).
+            pub const BLOCK_ROOTED_DIRT_PLACE: Self = Self(1390);
+            /// `minecraft:block.rooted_dirt.step` (`1391`).
+            pub const BLOCK_ROOTED_DIRT_STEP: Self = Self(1391);
+            /// `minecraft:entity.salmon.ambient` (`1392`).
+            pub const ENTITY_SALMON_AMBIENT: Self = Self(1392);
+            /// `minecraft:entity.salmon.death` (`1393`).
+            pub const ENTITY_SALMON_DEATH: Self = Self(1393);
+            /// `minecraft:entity.salmon.flop` (`1394`).
+            pub const ENTITY_SALMON_FLOP: Self = Self(1394);
+            /// `minecraft:entity.salmon.hurt` (`1395`).
+            pub const ENTITY_SALMON_HURT: Self = Self(1395);
+            /// `minecraft:block.sand.break` (`1396`).
+            pub const BLOCK_SAND_BREAK: Self = Self(1396);
+            /// `minecraft:block.sand.fall` (`1397`).
+            pub const BLOCK_SAND_FALL: Self = Self(1397);
+            /// `minecraft:block.sand.hit` (`1398`).
+            pub const BLOCK_SAND_HIT: Self = Self(1398);
+            /// `minecraft:block.sand.place` (`1399`).
+            pub const BLOCK_SAND_PLACE: Self = Self(1399);
+            /// `minecraft:block.sand.step` (`1400`).
+            pub const BLOCK_SAND_STEP: Self = Self(1400);
+            /// `minecraft:block.sand.idle` (`1401`).
+            pub const BLOCK_SAND_IDLE: Self = Self(1401);
+            /// `minecraft:block.scaffolding.break` (`1402`).
+            pub const BLOCK_SCAFFOLDING_BREAK: Self = Self(1402);
+            /// `minecraft:block.scaffolding.fall` (`1403`).
+            pub const BLOCK_SCAFFOLDING_FALL: Self = Self(1403);
+            /// `minecraft:block.scaffolding.hit` (`1404`).
+            pub const BLOCK_SCAFFOLDING_HIT: Self = Self(1404);
+            /// `minecraft:block.scaffolding.place` (`1405`).
+            pub const BLOCK_SCAFFOLDING_PLACE: Self = Self(1405);
+            /// `minecraft:block.scaffolding.step` (`1406`).
+            pub const BLOCK_SCAFFOLDING_STEP: Self = Self(1406);
+            /// `minecraft:block.sculk.spread` (`1407`).
+            pub const BLOCK_SCULK_SPREAD: Self = Self(1407);
+            /// `minecraft:block.sculk.charge` (`1408`).
+            pub const BLOCK_SCULK_CHARGE: Self = Self(1408);
+            /// `minecraft:block.sculk.break` (`1409`).
+            pub const BLOCK_SCULK_BREAK: Self = Self(1409);
+            /// `minecraft:block.sculk.fall` (`1410`).
+            pub const BLOCK_SCULK_FALL: Self = Self(1410);
+            /// `minecraft:block.sculk.hit` (`1411`).
+            pub const BLOCK_SCULK_HIT: Self = Self(1411);
+            /// `minecraft:block.sculk.place` (`1412`).
+            pub const BLOCK_SCULK_PLACE: Self = Self(1412);
+            /// `minecraft:block.sculk.step` (`1413`).
+            pub const BLOCK_SCULK_STEP: Self = Self(1413);
+            /// `minecraft:block.sculk_catalyst.bloom` (`1414`).
+            pub const BLOCK_SCULK_CATALYST_BLOOM: Self = Self(1414);
+            /// `minecraft:block.sculk_catalyst.break` (`1415`).
+            pub const BLOCK_SCULK_CATALYST_BREAK: Self = Self(1415);
+            /// `minecraft:block.sculk_catalyst.fall` (`1416`).
+            pub const BLOCK_SCULK_CATALYST_FALL: Self = Self(1416);
+            /// `minecraft:block.sculk_catalyst.hit` (`1417`).
+            pub const BLOCK_SCULK_CATALYST_HIT: Self = Self(1417);
+            /// `minecraft:block.sculk_catalyst.place` (`1418`).
+            pub const BLOCK_SCULK_CATALYST_PLACE: Self = Self(1418);
+            /// `minecraft:block.sculk_catalyst.step` (`1419`).
+            pub const BLOCK_SCULK_CATALYST_STEP: Self = Self(1419);
+            /// `minecraft:block.sculk_sensor.clicking` (`1420`).
+            pub const BLOCK_SCULK_SENSOR_CLICKING: Self = Self(1420);
+            /// `minecraft:block.sculk_sensor.clicking_stop` (`1421`).
+            pub const BLOCK_SCULK_SENSOR_CLICKING_STOP: Self = Self(1421);
+            /// `minecraft:block.sculk_sensor.break` (`1422`).
+            pub const BLOCK_SCULK_SENSOR_BREAK: Self = Self(1422);
+            /// `minecraft:block.sculk_sensor.fall` (`1423`).
+            pub const BLOCK_SCULK_SENSOR_FALL: Self = Self(1423);
+            /// `minecraft:block.sculk_sensor.hit` (`1424`).
+            pub const BLOCK_SCULK_SENSOR_HIT: Self = Self(1424);
+            /// `minecraft:block.sculk_sensor.place` (`1425`).
+            pub const BLOCK_SCULK_SENSOR_PLACE: Self = Self(1425);
+            /// `minecraft:block.sculk_sensor.step` (`1426`).
+            pub const BLOCK_SCULK_SENSOR_STEP: Self = Self(1426);
+            /// `minecraft:block.sculk_shrieker.break` (`1427`).
+            pub const BLOCK_SCULK_SHRIEKER_BREAK: Self = Self(1427);
+            /// `minecraft:block.sculk_shrieker.fall` (`1428`).
+            pub const BLOCK_SCULK_SHRIEKER_FALL: Self = Self(1428);
+            /// `minecraft:block.sculk_shrieker.hit` (`1429`).
+            pub const BLOCK_SCULK_SHRIEKER_HIT: Self = Self(1429);
+            /// `minecraft:block.sculk_shrieker.place` (`1430`).
+            pub const BLOCK_SCULK_SHRIEKER_PLACE: Self = Self(1430);
+            /// `minecraft:block.sculk_shrieker.shriek` (`1431`).
+            pub const BLOCK_SCULK_SHRIEKER_SHRIEK: Self = Self(1431);
+            /// `minecraft:block.sculk_shrieker.step` (`1432`).
+            pub const BLOCK_SCULK_SHRIEKER_STEP: Self = Self(1432);
+            /// `minecraft:block.sculk_vein.break` (`1433`).
+            pub const BLOCK_SCULK_VEIN_BREAK: Self = Self(1433);
+            /// `minecraft:block.sculk_vein.fall` (`1434`).
+            pub const BLOCK_SCULK_VEIN_FALL: Self = Self(1434);
+            /// `minecraft:block.sculk_vein.hit` (`1435`).
+            pub const BLOCK_SCULK_VEIN_HIT: Self = Self(1435);
+            /// `minecraft:block.sculk_vein.place` (`1436`).
+            pub const BLOCK_SCULK_VEIN_PLACE: Self = Self(1436);
+            /// `minecraft:block.sculk_vein.step` (`1437`).
+            pub const BLOCK_SCULK_VEIN_STEP: Self = Self(1437);
+            /// `minecraft:entity.sheep.ambient` (`1438`).
+            pub const ENTITY_SHEEP_AMBIENT: Self = Self(1438);
+            /// `minecraft:entity.sheep.death` (`1439`).
+            pub const ENTITY_SHEEP_DEATH: Self = Self(1439);
+            /// `minecraft:entity.sheep.hurt` (`1440`).
+            pub const ENTITY_SHEEP_HURT: Self = Self(1440);
+            /// `minecraft:entity.sheep.shear` (`1441`).
+            pub const ENTITY_SHEEP_SHEAR: Self = Self(1441);
+            /// `minecraft:entity.sheep.step` (`1442`).
+            pub const ENTITY_SHEEP_STEP: Self = Self(1442);
+            /// `minecraft:item.shears.snip` (`1443`).
+            pub const ITEM_SHEARS_SNIP: Self = Self(1443);
+            /// `minecraft:block.shelf.activate` (`1444`).
+            pub const BLOCK_SHELF_ACTIVATE: Self = Self(1444);
+            /// `minecraft:block.shelf.break` (`1445`).
+            pub const BLOCK_SHELF_BREAK: Self = Self(1445);
+            /// `minecraft:block.shelf.deactivate` (`1446`).
+            pub const BLOCK_SHELF_DEACTIVATE: Self = Self(1446);
+            /// `minecraft:block.shelf.fall` (`1447`).
+            pub const BLOCK_SHELF_FALL: Self = Self(1447);
+            /// `minecraft:block.shelf.hit` (`1448`).
+            pub const BLOCK_SHELF_HIT: Self = Self(1448);
+            /// `minecraft:block.shelf.multi_swap` (`1449`).
+            pub const BLOCK_SHELF_MULTI_SWAP: Self = Self(1449);
+            /// `minecraft:block.shelf.place` (`1450`).
+            pub const BLOCK_SHELF_PLACE: Self = Self(1450);
+            /// `minecraft:block.shelf.place_item` (`1451`).
+            pub const BLOCK_SHELF_PLACE_ITEM: Self = Self(1451);
+            /// `minecraft:block.shelf.single_swap` (`1452`).
+            pub const BLOCK_SHELF_SINGLE_SWAP: Self = Self(1452);
+            /// `minecraft:block.shelf.step` (`1453`).
+            pub const BLOCK_SHELF_STEP: Self = Self(1453);
+            /// `minecraft:block.shelf.take_item` (`1454`).
+            pub const BLOCK_SHELF_TAKE_ITEM: Self = Self(1454);
+            /// `minecraft:item.shield.block` (`1455`).
+            pub const ITEM_SHIELD_BLOCK: Self = Self(1455);
+            /// `minecraft:item.shield.break` (`1456`).
+            pub const ITEM_SHIELD_BREAK: Self = Self(1456);
+            /// `minecraft:block.shroomlight.break` (`1457`).
+            pub const BLOCK_SHROOMLIGHT_BREAK: Self = Self(1457);
+            /// `minecraft:block.shroomlight.step` (`1458`).
+            pub const BLOCK_SHROOMLIGHT_STEP: Self = Self(1458);
+            /// `minecraft:block.shroomlight.place` (`1459`).
+            pub const BLOCK_SHROOMLIGHT_PLACE: Self = Self(1459);
+            /// `minecraft:block.shroomlight.hit` (`1460`).
+            pub const BLOCK_SHROOMLIGHT_HIT: Self = Self(1460);
+            /// `minecraft:block.shroomlight.fall` (`1461`).
+            pub const BLOCK_SHROOMLIGHT_FALL: Self = Self(1461);
+            /// `minecraft:item.shovel.flatten` (`1462`).
+            pub const ITEM_SHOVEL_FLATTEN: Self = Self(1462);
+            /// `minecraft:entity.shulker.ambient` (`1463`).
+            pub const ENTITY_SHULKER_AMBIENT: Self = Self(1463);
+            /// `minecraft:block.shulker_box.close` (`1464`).
+            pub const BLOCK_SHULKER_BOX_CLOSE: Self = Self(1464);
+            /// `minecraft:block.shulker_box.open` (`1465`).
+            pub const BLOCK_SHULKER_BOX_OPEN: Self = Self(1465);
+            /// `minecraft:entity.shulker_bullet.hit` (`1466`).
+            pub const ENTITY_SHULKER_BULLET_HIT: Self = Self(1466);
+            /// `minecraft:entity.shulker_bullet.hurt` (`1467`).
+            pub const ENTITY_SHULKER_BULLET_HURT: Self = Self(1467);
+            /// `minecraft:entity.shulker.close` (`1468`).
+            pub const ENTITY_SHULKER_CLOSE: Self = Self(1468);
+            /// `minecraft:entity.shulker.death` (`1469`).
+            pub const ENTITY_SHULKER_DEATH: Self = Self(1469);
+            /// `minecraft:entity.shulker.hurt` (`1470`).
+            pub const ENTITY_SHULKER_HURT: Self = Self(1470);
+            /// `minecraft:entity.shulker.hurt_closed` (`1471`).
+            pub const ENTITY_SHULKER_HURT_CLOSED: Self = Self(1471);
+            /// `minecraft:entity.shulker.open` (`1472`).
+            pub const ENTITY_SHULKER_OPEN: Self = Self(1472);
+            /// `minecraft:entity.shulker.shoot` (`1473`).
+            pub const ENTITY_SHULKER_SHOOT: Self = Self(1473);
+            /// `minecraft:entity.shulker.teleport` (`1474`).
+            pub const ENTITY_SHULKER_TELEPORT: Self = Self(1474);
+            /// `minecraft:entity.silverfish.ambient` (`1475`).
+            pub const ENTITY_SILVERFISH_AMBIENT: Self = Self(1475);
+            /// `minecraft:entity.silverfish.death` (`1476`).
+            pub const ENTITY_SILVERFISH_DEATH: Self = Self(1476);
+            /// `minecraft:entity.silverfish.hurt` (`1477`).
+            pub const ENTITY_SILVERFISH_HURT: Self = Self(1477);
+            /// `minecraft:entity.silverfish.step` (`1478`).
+            pub const ENTITY_SILVERFISH_STEP: Self = Self(1478);
+            /// `minecraft:entity.skeleton.ambient` (`1479`).
+            pub const ENTITY_SKELETON_AMBIENT: Self = Self(1479);
+            /// `minecraft:entity.skeleton.converted_to_stray` (`1480`).
+            pub const ENTITY_SKELETON_CONVERTED_TO_STRAY: Self = Self(1480);
+            /// `minecraft:entity.skeleton.death` (`1481`).
+            pub const ENTITY_SKELETON_DEATH: Self = Self(1481);
+            /// `minecraft:entity.skeleton_horse.ambient` (`1482`).
+            pub const ENTITY_SKELETON_HORSE_AMBIENT: Self = Self(1482);
+            /// `minecraft:entity.skeleton_horse.death` (`1483`).
+            pub const ENTITY_SKELETON_HORSE_DEATH: Self = Self(1483);
+            /// `minecraft:entity.skeleton_horse.hurt` (`1484`).
+            pub const ENTITY_SKELETON_HORSE_HURT: Self = Self(1484);
+            /// `minecraft:entity.skeleton_horse.swim` (`1485`).
+            pub const ENTITY_SKELETON_HORSE_SWIM: Self = Self(1485);
+            /// `minecraft:entity.skeleton_horse.ambient_water` (`1486`).
+            pub const ENTITY_SKELETON_HORSE_AMBIENT_WATER: Self = Self(1486);
+            /// `minecraft:entity.skeleton_horse.gallop_water` (`1487`).
+            pub const ENTITY_SKELETON_HORSE_GALLOP_WATER: Self = Self(1487);
+            /// `minecraft:entity.skeleton_horse.jump_water` (`1488`).
+            pub const ENTITY_SKELETON_HORSE_JUMP_WATER: Self = Self(1488);
+            /// `minecraft:entity.skeleton_horse.step_water` (`1489`).
+            pub const ENTITY_SKELETON_HORSE_STEP_WATER: Self = Self(1489);
+            /// `minecraft:entity.skeleton.hurt` (`1490`).
+            pub const ENTITY_SKELETON_HURT: Self = Self(1490);
+            /// `minecraft:entity.skeleton.shoot` (`1491`).
+            pub const ENTITY_SKELETON_SHOOT: Self = Self(1491);
+            /// `minecraft:entity.skeleton.step` (`1492`).
+            pub const ENTITY_SKELETON_STEP: Self = Self(1492);
+            /// `minecraft:entity.slime.attack` (`1493`).
+            pub const ENTITY_SLIME_ATTACK: Self = Self(1493);
+            /// `minecraft:entity.slime.death` (`1494`).
+            pub const ENTITY_SLIME_DEATH: Self = Self(1494);
+            /// `minecraft:entity.slime.hurt` (`1495`).
+            pub const ENTITY_SLIME_HURT: Self = Self(1495);
+            /// `minecraft:entity.slime.jump` (`1496`).
+            pub const ENTITY_SLIME_JUMP: Self = Self(1496);
+            /// `minecraft:entity.slime.squish` (`1497`).
+            pub const ENTITY_SLIME_SQUISH: Self = Self(1497);
+            /// `minecraft:block.slime_block.break` (`1498`).
+            pub const BLOCK_SLIME_BLOCK_BREAK: Self = Self(1498);
+            /// `minecraft:block.slime_block.fall` (`1499`).
+            pub const BLOCK_SLIME_BLOCK_FALL: Self = Self(1499);
+            /// `minecraft:block.slime_block.hit` (`1500`).
+            pub const BLOCK_SLIME_BLOCK_HIT: Self = Self(1500);
+            /// `minecraft:block.slime_block.place` (`1501`).
+            pub const BLOCK_SLIME_BLOCK_PLACE: Self = Self(1501);
+            /// `minecraft:block.slime_block.step` (`1502`).
+            pub const BLOCK_SLIME_BLOCK_STEP: Self = Self(1502);
+            /// `minecraft:block.small_amethyst_bud.break` (`1503`).
+            pub const BLOCK_SMALL_AMETHYST_BUD_BREAK: Self = Self(1503);
+            /// `minecraft:block.small_amethyst_bud.place` (`1504`).
+            pub const BLOCK_SMALL_AMETHYST_BUD_PLACE: Self = Self(1504);
+            /// `minecraft:block.small_dripleaf.break` (`1505`).
+            pub const BLOCK_SMALL_DRIPLEAF_BREAK: Self = Self(1505);
+            /// `minecraft:block.small_dripleaf.fall` (`1506`).
+            pub const BLOCK_SMALL_DRIPLEAF_FALL: Self = Self(1506);
+            /// `minecraft:block.small_dripleaf.hit` (`1507`).
+            pub const BLOCK_SMALL_DRIPLEAF_HIT: Self = Self(1507);
+            /// `minecraft:block.small_dripleaf.place` (`1508`).
+            pub const BLOCK_SMALL_DRIPLEAF_PLACE: Self = Self(1508);
+            /// `minecraft:block.small_dripleaf.step` (`1509`).
+            pub const BLOCK_SMALL_DRIPLEAF_STEP: Self = Self(1509);
+            /// `minecraft:block.soul_sand.break` (`1510`).
+            pub const BLOCK_SOUL_SAND_BREAK: Self = Self(1510);
+            /// `minecraft:block.soul_sand.step` (`1511`).
+            pub const BLOCK_SOUL_SAND_STEP: Self = Self(1511);
+            /// `minecraft:block.soul_sand.place` (`1512`).
+            pub const BLOCK_SOUL_SAND_PLACE: Self = Self(1512);
+            /// `minecraft:block.soul_sand.hit` (`1513`).
+            pub const BLOCK_SOUL_SAND_HIT: Self = Self(1513);
+            /// `minecraft:block.soul_sand.fall` (`1514`).
+            pub const BLOCK_SOUL_SAND_FALL: Self = Self(1514);
+            /// `minecraft:block.soul_soil.break` (`1515`).
+            pub const BLOCK_SOUL_SOIL_BREAK: Self = Self(1515);
+            /// `minecraft:block.soul_soil.step` (`1516`).
+            pub const BLOCK_SOUL_SOIL_STEP: Self = Self(1516);
+            /// `minecraft:block.soul_soil.place` (`1517`).
+            pub const BLOCK_SOUL_SOIL_PLACE: Self = Self(1517);
+            /// `minecraft:block.soul_soil.hit` (`1518`).
+            pub const BLOCK_SOUL_SOIL_HIT: Self = Self(1518);
+            /// `minecraft:block.soul_soil.fall` (`1519`).
+            pub const BLOCK_SOUL_SOIL_FALL: Self = Self(1519);
+            /// `minecraft:particle.soul_escape` (`1520`).
+            pub const PARTICLE_SOUL_ESCAPE: Self = Self(1520);
+            /// `minecraft:block.spawner.break` (`1521`).
+            pub const BLOCK_SPAWNER_BREAK: Self = Self(1521);
+            /// `minecraft:block.spawner.fall` (`1522`).
+            pub const BLOCK_SPAWNER_FALL: Self = Self(1522);
+            /// `minecraft:block.spawner.hit` (`1523`).
+            pub const BLOCK_SPAWNER_HIT: Self = Self(1523);
+            /// `minecraft:block.spawner.place` (`1524`).
+            pub const BLOCK_SPAWNER_PLACE: Self = Self(1524);
+            /// `minecraft:block.spawner.step` (`1525`).
+            pub const BLOCK_SPAWNER_STEP: Self = Self(1525);
+            /// `minecraft:item.spear.use` (`1526`).
+            pub const ITEM_SPEAR_USE: Self = Self(1526);
+            /// `minecraft:item.spear.hit` (`1527`).
+            pub const ITEM_SPEAR_HIT: Self = Self(1527);
+            /// `minecraft:item.spear.attack` (`1528`).
+            pub const ITEM_SPEAR_ATTACK: Self = Self(1528);
+            /// `minecraft:item.spear_wood.use` (`1529`).
+            pub const ITEM_SPEAR_WOOD_USE: Self = Self(1529);
+            /// `minecraft:item.spear_wood.hit` (`1530`).
+            pub const ITEM_SPEAR_WOOD_HIT: Self = Self(1530);
+            /// `minecraft:item.spear_wood.attack` (`1531`).
+            pub const ITEM_SPEAR_WOOD_ATTACK: Self = Self(1531);
+            /// `minecraft:block.spore_blossom.break` (`1532`).
+            pub const BLOCK_SPORE_BLOSSOM_BREAK: Self = Self(1532);
+            /// `minecraft:block.spore_blossom.fall` (`1533`).
+            pub const BLOCK_SPORE_BLOSSOM_FALL: Self = Self(1533);
+            /// `minecraft:block.spore_blossom.hit` (`1534`).
+            pub const BLOCK_SPORE_BLOSSOM_HIT: Self = Self(1534);
+            /// `minecraft:block.spore_blossom.place` (`1535`).
+            pub const BLOCK_SPORE_BLOSSOM_PLACE: Self = Self(1535);
+            /// `minecraft:block.spore_blossom.step` (`1536`).
+            pub const BLOCK_SPORE_BLOSSOM_STEP: Self = Self(1536);
+            /// `minecraft:entity.strider.ambient` (`1537`).
+            pub const ENTITY_STRIDER_AMBIENT: Self = Self(1537);
+            /// `minecraft:entity.strider.happy` (`1538`).
+            pub const ENTITY_STRIDER_HAPPY: Self = Self(1538);
+            /// `minecraft:entity.strider.retreat` (`1539`).
+            pub const ENTITY_STRIDER_RETREAT: Self = Self(1539);
+            /// `minecraft:entity.strider.death` (`1540`).
+            pub const ENTITY_STRIDER_DEATH: Self = Self(1540);
+            /// `minecraft:entity.strider.hurt` (`1541`).
+            pub const ENTITY_STRIDER_HURT: Self = Self(1541);
+            /// `minecraft:entity.strider.step` (`1542`).
+            pub const ENTITY_STRIDER_STEP: Self = Self(1542);
+            /// `minecraft:entity.strider.step_lava` (`1543`).
+            pub const ENTITY_STRIDER_STEP_LAVA: Self = Self(1543);
+            /// `minecraft:entity.strider.eat` (`1544`).
+            pub const ENTITY_STRIDER_EAT: Self = Self(1544);
+            /// `minecraft:entity.strider.saddle` (`1545`).
+            pub const ENTITY_STRIDER_SADDLE: Self = Self(1545);
+            /// `minecraft:entity.slime.death_small` (`1546`).
+            pub const ENTITY_SLIME_DEATH_SMALL: Self = Self(1546);
+            /// `minecraft:entity.slime.hurt_small` (`1547`).
+            pub const ENTITY_SLIME_HURT_SMALL: Self = Self(1547);
+            /// `minecraft:entity.slime.jump_small` (`1548`).
+            pub const ENTITY_SLIME_JUMP_SMALL: Self = Self(1548);
+            /// `minecraft:entity.slime.squish_small` (`1549`).
+            pub const ENTITY_SLIME_SQUISH_SMALL: Self = Self(1549);
+            /// `minecraft:block.smithing_table.use` (`1550`).
+            pub const BLOCK_SMITHING_TABLE_USE: Self = Self(1550);
+            /// `minecraft:block.smoker.smoke` (`1551`).
+            pub const BLOCK_SMOKER_SMOKE: Self = Self(1551);
+            /// `minecraft:entity.sniffer.step` (`1552`).
+            pub const ENTITY_SNIFFER_STEP: Self = Self(1552);
+            /// `minecraft:entity.sniffer.eat` (`1553`).
+            pub const ENTITY_SNIFFER_EAT: Self = Self(1553);
+            /// `minecraft:entity.sniffer.idle` (`1554`).
+            pub const ENTITY_SNIFFER_IDLE: Self = Self(1554);
+            /// `minecraft:entity.sniffer.hurt` (`1555`).
+            pub const ENTITY_SNIFFER_HURT: Self = Self(1555);
+            /// `minecraft:entity.sniffer.death` (`1556`).
+            pub const ENTITY_SNIFFER_DEATH: Self = Self(1556);
+            /// `minecraft:entity.sniffer.drop_seed` (`1557`).
+            pub const ENTITY_SNIFFER_DROP_SEED: Self = Self(1557);
+            /// `minecraft:entity.sniffer.scenting` (`1558`).
+            pub const ENTITY_SNIFFER_SCENTING: Self = Self(1558);
+            /// `minecraft:entity.sniffer.sniffing` (`1559`).
+            pub const ENTITY_SNIFFER_SNIFFING: Self = Self(1559);
+            /// `minecraft:entity.sniffer.searching` (`1560`).
+            pub const ENTITY_SNIFFER_SEARCHING: Self = Self(1560);
+            /// `minecraft:entity.sniffer.digging` (`1561`).
+            pub const ENTITY_SNIFFER_DIGGING: Self = Self(1561);
+            /// `minecraft:entity.sniffer.digging_stop` (`1562`).
+            pub const ENTITY_SNIFFER_DIGGING_STOP: Self = Self(1562);
+            /// `minecraft:entity.sniffer.happy` (`1563`).
+            pub const ENTITY_SNIFFER_HAPPY: Self = Self(1563);
+            /// `minecraft:block.sniffer_egg.plop` (`1564`).
+            pub const BLOCK_SNIFFER_EGG_PLOP: Self = Self(1564);
+            /// `minecraft:block.sniffer_egg.crack` (`1565`).
+            pub const BLOCK_SNIFFER_EGG_CRACK: Self = Self(1565);
+            /// `minecraft:block.sniffer_egg.hatch` (`1566`).
+            pub const BLOCK_SNIFFER_EGG_HATCH: Self = Self(1566);
+            /// `minecraft:entity.snowball.throw` (`1567`).
+            pub const ENTITY_SNOWBALL_THROW: Self = Self(1567);
+            /// `minecraft:block.snow.break` (`1568`).
+            pub const BLOCK_SNOW_BREAK: Self = Self(1568);
+            /// `minecraft:block.snow.fall` (`1569`).
+            pub const BLOCK_SNOW_FALL: Self = Self(1569);
+            /// `minecraft:entity.snow_golem.ambient` (`1570`).
+            pub const ENTITY_SNOW_GOLEM_AMBIENT: Self = Self(1570);
+            /// `minecraft:entity.snow_golem.death` (`1571`).
+            pub const ENTITY_SNOW_GOLEM_DEATH: Self = Self(1571);
+            /// `minecraft:entity.snow_golem.hurt` (`1572`).
+            pub const ENTITY_SNOW_GOLEM_HURT: Self = Self(1572);
+            /// `minecraft:entity.snow_golem.shoot` (`1573`).
+            pub const ENTITY_SNOW_GOLEM_SHOOT: Self = Self(1573);
+            /// `minecraft:entity.snow_golem.shear` (`1574`).
+            pub const ENTITY_SNOW_GOLEM_SHEAR: Self = Self(1574);
+            /// `minecraft:block.snow.hit` (`1575`).
+            pub const BLOCK_SNOW_HIT: Self = Self(1575);
+            /// `minecraft:block.snow.place` (`1576`).
+            pub const BLOCK_SNOW_PLACE: Self = Self(1576);
+            /// `minecraft:block.snow.step` (`1577`).
+            pub const BLOCK_SNOW_STEP: Self = Self(1577);
+            /// `minecraft:entity.spider.ambient` (`1578`).
+            pub const ENTITY_SPIDER_AMBIENT: Self = Self(1578);
+            /// `minecraft:entity.spider.death` (`1579`).
+            pub const ENTITY_SPIDER_DEATH: Self = Self(1579);
+            /// `minecraft:entity.spider.hurt` (`1580`).
+            pub const ENTITY_SPIDER_HURT: Self = Self(1580);
+            /// `minecraft:entity.spider.step` (`1581`).
+            pub const ENTITY_SPIDER_STEP: Self = Self(1581);
+            /// `minecraft:entity.splash_potion.break` (`1582`).
+            pub const ENTITY_SPLASH_POTION_BREAK: Self = Self(1582);
+            /// `minecraft:entity.splash_potion.throw` (`1583`).
+            pub const ENTITY_SPLASH_POTION_THROW: Self = Self(1583);
+            /// `minecraft:block.sponge.break` (`1584`).
+            pub const BLOCK_SPONGE_BREAK: Self = Self(1584);
+            /// `minecraft:block.sponge.fall` (`1585`).
+            pub const BLOCK_SPONGE_FALL: Self = Self(1585);
+            /// `minecraft:block.sponge.hit` (`1586`).
+            pub const BLOCK_SPONGE_HIT: Self = Self(1586);
+            /// `minecraft:block.sponge.place` (`1587`).
+            pub const BLOCK_SPONGE_PLACE: Self = Self(1587);
+            /// `minecraft:block.sponge.step` (`1588`).
+            pub const BLOCK_SPONGE_STEP: Self = Self(1588);
+            /// `minecraft:block.sponge.absorb` (`1589`).
+            pub const BLOCK_SPONGE_ABSORB: Self = Self(1589);
+            /// `minecraft:item.spyglass.use` (`1590`).
+            pub const ITEM_SPYGLASS_USE: Self = Self(1590);
+            /// `minecraft:item.spyglass.stop_using` (`1591`).
+            pub const ITEM_SPYGLASS_STOP_USING: Self = Self(1591);
+            /// `minecraft:entity.squid.ambient` (`1592`).
+            pub const ENTITY_SQUID_AMBIENT: Self = Self(1592);
+            /// `minecraft:entity.squid.death` (`1593`).
+            pub const ENTITY_SQUID_DEATH: Self = Self(1593);
+            /// `minecraft:entity.squid.hurt` (`1594`).
+            pub const ENTITY_SQUID_HURT: Self = Self(1594);
+            /// `minecraft:entity.squid.squirt` (`1595`).
+            pub const ENTITY_SQUID_SQUIRT: Self = Self(1595);
+            /// `minecraft:block.stone.break` (`1596`).
+            pub const BLOCK_STONE_BREAK: Self = Self(1596);
+            /// `minecraft:block.stone_button.click_off` (`1597`).
+            pub const BLOCK_STONE_BUTTON_CLICK_OFF: Self = Self(1597);
+            /// `minecraft:block.stone_button.click_on` (`1598`).
+            pub const BLOCK_STONE_BUTTON_CLICK_ON: Self = Self(1598);
+            /// `minecraft:block.stone.fall` (`1599`).
+            pub const BLOCK_STONE_FALL: Self = Self(1599);
+            /// `minecraft:block.stone.hit` (`1600`).
+            pub const BLOCK_STONE_HIT: Self = Self(1600);
+            /// `minecraft:block.stone.place` (`1601`).
+            pub const BLOCK_STONE_PLACE: Self = Self(1601);
+            /// `minecraft:block.stone_pressure_plate.click_off` (`1602`).
+            pub const BLOCK_STONE_PRESSURE_PLATE_CLICK_OFF: Self = Self(1602);
+            /// `minecraft:block.stone_pressure_plate.click_on` (`1603`).
+            pub const BLOCK_STONE_PRESSURE_PLATE_CLICK_ON: Self = Self(1603);
+            /// `minecraft:block.stone.step` (`1604`).
+            pub const BLOCK_STONE_STEP: Self = Self(1604);
+            /// `minecraft:entity.stray.ambient` (`1605`).
+            pub const ENTITY_STRAY_AMBIENT: Self = Self(1605);
+            /// `minecraft:entity.stray.death` (`1606`).
+            pub const ENTITY_STRAY_DEATH: Self = Self(1606);
+            /// `minecraft:entity.stray.hurt` (`1607`).
+            pub const ENTITY_STRAY_HURT: Self = Self(1607);
+            /// `minecraft:entity.stray.step` (`1608`).
+            pub const ENTITY_STRAY_STEP: Self = Self(1608);
+            /// `minecraft:block.sulfur_spike.break` (`1609`).
+            pub const BLOCK_SULFUR_SPIKE_BREAK: Self = Self(1609);
+            /// `minecraft:block.sulfur_spike.step` (`1610`).
+            pub const BLOCK_SULFUR_SPIKE_STEP: Self = Self(1610);
+            /// `minecraft:block.sulfur_spike.place` (`1611`).
+            pub const BLOCK_SULFUR_SPIKE_PLACE: Self = Self(1611);
+            /// `minecraft:block.sulfur_spike.hit` (`1612`).
+            pub const BLOCK_SULFUR_SPIKE_HIT: Self = Self(1612);
+            /// `minecraft:block.sulfur_spike.fall` (`1613`).
+            pub const BLOCK_SULFUR_SPIKE_FALL: Self = Self(1613);
+            /// `minecraft:block.sulfur_spike.land` (`1614`).
+            pub const BLOCK_SULFUR_SPIKE_LAND: Self = Self(1614);
+            /// `minecraft:block.sweet_berry_bush.break` (`1615`).
+            pub const BLOCK_SWEET_BERRY_BUSH_BREAK: Self = Self(1615);
+            /// `minecraft:block.sweet_berry_bush.place` (`1616`).
+            pub const BLOCK_SWEET_BERRY_BUSH_PLACE: Self = Self(1616);
+            /// `minecraft:block.sweet_berry_bush.pick_berries` (`1617`).
+            pub const BLOCK_SWEET_BERRY_BUSH_PICK_BERRIES: Self = Self(1617);
+            /// `minecraft:entity.tadpole.death` (`1618`).
+            pub const ENTITY_TADPOLE_DEATH: Self = Self(1618);
+            /// `minecraft:entity.tadpole.flop` (`1619`).
+            pub const ENTITY_TADPOLE_FLOP: Self = Self(1619);
+            /// `minecraft:entity.tadpole.grow_up` (`1620`).
+            pub const ENTITY_TADPOLE_GROW_UP: Self = Self(1620);
+            /// `minecraft:entity.tadpole.hurt` (`1621`).
+            pub const ENTITY_TADPOLE_HURT: Self = Self(1621);
+            /// `minecraft:enchant.thorns.hit` (`1622`).
+            pub const ENCHANT_THORNS_HIT: Self = Self(1622);
+            /// `minecraft:entity.tnt.primed` (`1623`).
+            pub const ENTITY_TNT_PRIMED: Self = Self(1623);
+            /// `minecraft:item.totem.use` (`1624`).
+            pub const ITEM_TOTEM_USE: Self = Self(1624);
+            /// `minecraft:item.trident.hit` (`1625`).
+            pub const ITEM_TRIDENT_HIT: Self = Self(1625);
+            /// `minecraft:item.trident.hit_ground` (`1626`).
+            pub const ITEM_TRIDENT_HIT_GROUND: Self = Self(1626);
+            /// `minecraft:item.trident.return` (`1627`).
+            pub const ITEM_TRIDENT_RETURN: Self = Self(1627);
+            /// `minecraft:item.trident.riptide_1` (`1628`).
+            pub const ITEM_TRIDENT_RIPTIDE_1: Self = Self(1628);
+            /// `minecraft:item.trident.riptide_2` (`1629`).
+            pub const ITEM_TRIDENT_RIPTIDE_2: Self = Self(1629);
+            /// `minecraft:item.trident.riptide_3` (`1630`).
+            pub const ITEM_TRIDENT_RIPTIDE_3: Self = Self(1630);
+            /// `minecraft:item.trident.throw` (`1631`).
+            pub const ITEM_TRIDENT_THROW: Self = Self(1631);
+            /// `minecraft:item.trident.thunder` (`1632`).
+            pub const ITEM_TRIDENT_THUNDER: Self = Self(1632);
+            /// `minecraft:block.tripwire.attach` (`1633`).
+            pub const BLOCK_TRIPWIRE_ATTACH: Self = Self(1633);
+            /// `minecraft:block.tripwire.click_off` (`1634`).
+            pub const BLOCK_TRIPWIRE_CLICK_OFF: Self = Self(1634);
+            /// `minecraft:block.tripwire.click_on` (`1635`).
+            pub const BLOCK_TRIPWIRE_CLICK_ON: Self = Self(1635);
+            /// `minecraft:block.tripwire.detach` (`1636`).
+            pub const BLOCK_TRIPWIRE_DETACH: Self = Self(1636);
+            /// `minecraft:entity.tropical_fish.ambient` (`1637`).
+            pub const ENTITY_TROPICAL_FISH_AMBIENT: Self = Self(1637);
+            /// `minecraft:entity.tropical_fish.death` (`1638`).
+            pub const ENTITY_TROPICAL_FISH_DEATH: Self = Self(1638);
+            /// `minecraft:entity.tropical_fish.flop` (`1639`).
+            pub const ENTITY_TROPICAL_FISH_FLOP: Self = Self(1639);
+            /// `minecraft:entity.tropical_fish.hurt` (`1640`).
+            pub const ENTITY_TROPICAL_FISH_HURT: Self = Self(1640);
+            /// `minecraft:block.tuff.break` (`1641`).
+            pub const BLOCK_TUFF_BREAK: Self = Self(1641);
+            /// `minecraft:block.tuff.step` (`1642`).
+            pub const BLOCK_TUFF_STEP: Self = Self(1642);
+            /// `minecraft:block.tuff.place` (`1643`).
+            pub const BLOCK_TUFF_PLACE: Self = Self(1643);
+            /// `minecraft:block.tuff.hit` (`1644`).
+            pub const BLOCK_TUFF_HIT: Self = Self(1644);
+            /// `minecraft:block.tuff.fall` (`1645`).
+            pub const BLOCK_TUFF_FALL: Self = Self(1645);
+            /// `minecraft:block.tuff_bricks.break` (`1646`).
+            pub const BLOCK_TUFF_BRICKS_BREAK: Self = Self(1646);
+            /// `minecraft:block.tuff_bricks.fall` (`1647`).
+            pub const BLOCK_TUFF_BRICKS_FALL: Self = Self(1647);
+            /// `minecraft:block.tuff_bricks.hit` (`1648`).
+            pub const BLOCK_TUFF_BRICKS_HIT: Self = Self(1648);
+            /// `minecraft:block.tuff_bricks.place` (`1649`).
+            pub const BLOCK_TUFF_BRICKS_PLACE: Self = Self(1649);
+            /// `minecraft:block.tuff_bricks.step` (`1650`).
+            pub const BLOCK_TUFF_BRICKS_STEP: Self = Self(1650);
+            /// `minecraft:block.polished_tuff.break` (`1651`).
+            pub const BLOCK_POLISHED_TUFF_BREAK: Self = Self(1651);
+            /// `minecraft:block.polished_tuff.fall` (`1652`).
+            pub const BLOCK_POLISHED_TUFF_FALL: Self = Self(1652);
+            /// `minecraft:block.polished_tuff.hit` (`1653`).
+            pub const BLOCK_POLISHED_TUFF_HIT: Self = Self(1653);
+            /// `minecraft:block.polished_tuff.place` (`1654`).
+            pub const BLOCK_POLISHED_TUFF_PLACE: Self = Self(1654);
+            /// `minecraft:block.polished_tuff.step` (`1655`).
+            pub const BLOCK_POLISHED_TUFF_STEP: Self = Self(1655);
+            /// `minecraft:entity.turtle.ambient_land` (`1656`).
+            pub const ENTITY_TURTLE_AMBIENT_LAND: Self = Self(1656);
+            /// `minecraft:entity.turtle.death` (`1657`).
+            pub const ENTITY_TURTLE_DEATH: Self = Self(1657);
+            /// `minecraft:entity.turtle.death_baby` (`1658`).
+            pub const ENTITY_TURTLE_DEATH_BABY: Self = Self(1658);
+            /// `minecraft:entity.turtle.egg_break` (`1659`).
+            pub const ENTITY_TURTLE_EGG_BREAK: Self = Self(1659);
+            /// `minecraft:entity.turtle.egg_crack` (`1660`).
+            pub const ENTITY_TURTLE_EGG_CRACK: Self = Self(1660);
+            /// `minecraft:entity.turtle.egg_hatch` (`1661`).
+            pub const ENTITY_TURTLE_EGG_HATCH: Self = Self(1661);
+            /// `minecraft:entity.turtle.hurt` (`1662`).
+            pub const ENTITY_TURTLE_HURT: Self = Self(1662);
+            /// `minecraft:entity.turtle.hurt_baby` (`1663`).
+            pub const ENTITY_TURTLE_HURT_BABY: Self = Self(1663);
+            /// `minecraft:entity.turtle.lay_egg` (`1664`).
+            pub const ENTITY_TURTLE_LAY_EGG: Self = Self(1664);
+            /// `minecraft:entity.turtle.shamble` (`1665`).
+            pub const ENTITY_TURTLE_SHAMBLE: Self = Self(1665);
+            /// `minecraft:entity.turtle.shamble_baby` (`1666`).
+            pub const ENTITY_TURTLE_SHAMBLE_BABY: Self = Self(1666);
+            /// `minecraft:entity.turtle.swim` (`1667`).
+            pub const ENTITY_TURTLE_SWIM: Self = Self(1667);
+            /// `minecraft:ui.button.click` (`1668`).
+            pub const UI_BUTTON_CLICK: Self = Self(1668);
+            /// `minecraft:ui.loom.select_pattern` (`1669`).
+            pub const UI_LOOM_SELECT_PATTERN: Self = Self(1669);
+            /// `minecraft:ui.loom.take_result` (`1670`).
+            pub const UI_LOOM_TAKE_RESULT: Self = Self(1670);
+            /// `minecraft:ui.cartography_table.take_result` (`1671`).
+            pub const UI_CARTOGRAPHY_TABLE_TAKE_RESULT: Self = Self(1671);
+            /// `minecraft:ui.stonecutter.take_result` (`1672`).
+            pub const UI_STONECUTTER_TAKE_RESULT: Self = Self(1672);
+            /// `minecraft:ui.stonecutter.select_recipe` (`1673`).
+            pub const UI_STONECUTTER_SELECT_RECIPE: Self = Self(1673);
+            /// `minecraft:ui.toast.challenge_complete` (`1674`).
+            pub const UI_TOAST_CHALLENGE_COMPLETE: Self = Self(1674);
+            /// `minecraft:ui.toast.in` (`1675`).
+            pub const UI_TOAST_IN: Self = Self(1675);
+            /// `minecraft:ui.toast.out` (`1676`).
+            pub const UI_TOAST_OUT: Self = Self(1676);
+            /// `minecraft:block.vault.activate` (`1677`).
+            pub const BLOCK_VAULT_ACTIVATE: Self = Self(1677);
+            /// `minecraft:block.vault.ambient` (`1678`).
+            pub const BLOCK_VAULT_AMBIENT: Self = Self(1678);
+            /// `minecraft:block.vault.break` (`1679`).
+            pub const BLOCK_VAULT_BREAK: Self = Self(1679);
+            /// `minecraft:block.vault.close_shutter` (`1680`).
+            pub const BLOCK_VAULT_CLOSE_SHUTTER: Self = Self(1680);
+            /// `minecraft:block.vault.deactivate` (`1681`).
+            pub const BLOCK_VAULT_DEACTIVATE: Self = Self(1681);
+            /// `minecraft:block.vault.eject_item` (`1682`).
+            pub const BLOCK_VAULT_EJECT_ITEM: Self = Self(1682);
+            /// `minecraft:block.vault.reject_rewarded_player` (`1683`).
+            pub const BLOCK_VAULT_REJECT_REWARDED_PLAYER: Self = Self(1683);
+            /// `minecraft:block.vault.fall` (`1684`).
+            pub const BLOCK_VAULT_FALL: Self = Self(1684);
+            /// `minecraft:block.vault.hit` (`1685`).
+            pub const BLOCK_VAULT_HIT: Self = Self(1685);
+            /// `minecraft:block.vault.insert_item` (`1686`).
+            pub const BLOCK_VAULT_INSERT_ITEM: Self = Self(1686);
+            /// `minecraft:block.vault.insert_item_fail` (`1687`).
+            pub const BLOCK_VAULT_INSERT_ITEM_FAIL: Self = Self(1687);
+            /// `minecraft:block.vault.open_shutter` (`1688`).
+            pub const BLOCK_VAULT_OPEN_SHUTTER: Self = Self(1688);
+            /// `minecraft:block.vault.place` (`1689`).
+            pub const BLOCK_VAULT_PLACE: Self = Self(1689);
+            /// `minecraft:block.vault.step` (`1690`).
+            pub const BLOCK_VAULT_STEP: Self = Self(1690);
+            /// `minecraft:entity.vex.ambient` (`1691`).
+            pub const ENTITY_VEX_AMBIENT: Self = Self(1691);
+            /// `minecraft:entity.vex.charge` (`1692`).
+            pub const ENTITY_VEX_CHARGE: Self = Self(1692);
+            /// `minecraft:entity.vex.death` (`1693`).
+            pub const ENTITY_VEX_DEATH: Self = Self(1693);
+            /// `minecraft:entity.vex.hurt` (`1694`).
+            pub const ENTITY_VEX_HURT: Self = Self(1694);
+            /// `minecraft:entity.villager.ambient` (`1695`).
+            pub const ENTITY_VILLAGER_AMBIENT: Self = Self(1695);
+            /// `minecraft:entity.villager.celebrate` (`1696`).
+            pub const ENTITY_VILLAGER_CELEBRATE: Self = Self(1696);
+            /// `minecraft:entity.villager.death` (`1697`).
+            pub const ENTITY_VILLAGER_DEATH: Self = Self(1697);
+            /// `minecraft:entity.villager.hurt` (`1698`).
+            pub const ENTITY_VILLAGER_HURT: Self = Self(1698);
+            /// `minecraft:entity.villager.no` (`1699`).
+            pub const ENTITY_VILLAGER_NO: Self = Self(1699);
+            /// `minecraft:entity.villager.trade` (`1700`).
+            pub const ENTITY_VILLAGER_TRADE: Self = Self(1700);
+            /// `minecraft:entity.villager.yes` (`1701`).
+            pub const ENTITY_VILLAGER_YES: Self = Self(1701);
+            /// `minecraft:entity.villager.work_armorer` (`1702`).
+            pub const ENTITY_VILLAGER_WORK_ARMORER: Self = Self(1702);
+            /// `minecraft:entity.villager.work_butcher` (`1703`).
+            pub const ENTITY_VILLAGER_WORK_BUTCHER: Self = Self(1703);
+            /// `minecraft:entity.villager.work_cartographer` (`1704`).
+            pub const ENTITY_VILLAGER_WORK_CARTOGRAPHER: Self = Self(1704);
+            /// `minecraft:entity.villager.work_cleric` (`1705`).
+            pub const ENTITY_VILLAGER_WORK_CLERIC: Self = Self(1705);
+            /// `minecraft:entity.villager.work_farmer` (`1706`).
+            pub const ENTITY_VILLAGER_WORK_FARMER: Self = Self(1706);
+            /// `minecraft:entity.villager.work_fisherman` (`1707`).
+            pub const ENTITY_VILLAGER_WORK_FISHERMAN: Self = Self(1707);
+            /// `minecraft:entity.villager.work_fletcher` (`1708`).
+            pub const ENTITY_VILLAGER_WORK_FLETCHER: Self = Self(1708);
+            /// `minecraft:entity.villager.work_leatherworker` (`1709`).
+            pub const ENTITY_VILLAGER_WORK_LEATHERWORKER: Self = Self(1709);
+            /// `minecraft:entity.villager.work_librarian` (`1710`).
+            pub const ENTITY_VILLAGER_WORK_LIBRARIAN: Self = Self(1710);
+            /// `minecraft:entity.villager.work_mason` (`1711`).
+            pub const ENTITY_VILLAGER_WORK_MASON: Self = Self(1711);
+            /// `minecraft:entity.villager.work_shepherd` (`1712`).
+            pub const ENTITY_VILLAGER_WORK_SHEPHERD: Self = Self(1712);
+            /// `minecraft:entity.villager.work_toolsmith` (`1713`).
+            pub const ENTITY_VILLAGER_WORK_TOOLSMITH: Self = Self(1713);
+            /// `minecraft:entity.villager.work_weaponsmith` (`1714`).
+            pub const ENTITY_VILLAGER_WORK_WEAPONSMITH: Self = Self(1714);
+            /// `minecraft:entity.vindicator.ambient` (`1715`).
+            pub const ENTITY_VINDICATOR_AMBIENT: Self = Self(1715);
+            /// `minecraft:entity.vindicator.celebrate` (`1716`).
+            pub const ENTITY_VINDICATOR_CELEBRATE: Self = Self(1716);
+            /// `minecraft:entity.vindicator.death` (`1717`).
+            pub const ENTITY_VINDICATOR_DEATH: Self = Self(1717);
+            /// `minecraft:entity.vindicator.hurt` (`1718`).
+            pub const ENTITY_VINDICATOR_HURT: Self = Self(1718);
+            /// `minecraft:block.vine.break` (`1719`).
+            pub const BLOCK_VINE_BREAK: Self = Self(1719);
+            /// `minecraft:block.vine.fall` (`1720`).
+            pub const BLOCK_VINE_FALL: Self = Self(1720);
+            /// `minecraft:block.vine.hit` (`1721`).
+            pub const BLOCK_VINE_HIT: Self = Self(1721);
+            /// `minecraft:block.vine.place` (`1722`).
+            pub const BLOCK_VINE_PLACE: Self = Self(1722);
+            /// `minecraft:block.vine.step` (`1723`).
+            pub const BLOCK_VINE_STEP: Self = Self(1723);
+            /// `minecraft:block.lily_pad.place` (`1724`).
+            pub const BLOCK_LILY_PAD_PLACE: Self = Self(1724);
+            /// `minecraft:entity.wandering_trader.ambient` (`1725`).
+            pub const ENTITY_WANDERING_TRADER_AMBIENT: Self = Self(1725);
+            /// `minecraft:entity.wandering_trader.death` (`1726`).
+            pub const ENTITY_WANDERING_TRADER_DEATH: Self = Self(1726);
+            /// `minecraft:entity.wandering_trader.disappeared` (`1727`).
+            pub const ENTITY_WANDERING_TRADER_DISAPPEARED: Self = Self(1727);
+            /// `minecraft:entity.wandering_trader.drink_milk` (`1728`).
+            pub const ENTITY_WANDERING_TRADER_DRINK_MILK: Self = Self(1728);
+            /// `minecraft:entity.wandering_trader.drink_potion` (`1729`).
+            pub const ENTITY_WANDERING_TRADER_DRINK_POTION: Self = Self(1729);
+            /// `minecraft:entity.wandering_trader.hurt` (`1730`).
+            pub const ENTITY_WANDERING_TRADER_HURT: Self = Self(1730);
+            /// `minecraft:entity.wandering_trader.no` (`1731`).
+            pub const ENTITY_WANDERING_TRADER_NO: Self = Self(1731);
+            /// `minecraft:entity.wandering_trader.reappeared` (`1732`).
+            pub const ENTITY_WANDERING_TRADER_REAPPEARED: Self = Self(1732);
+            /// `minecraft:entity.wandering_trader.trade` (`1733`).
+            pub const ENTITY_WANDERING_TRADER_TRADE: Self = Self(1733);
+            /// `minecraft:entity.wandering_trader.yes` (`1734`).
+            pub const ENTITY_WANDERING_TRADER_YES: Self = Self(1734);
+            /// `minecraft:entity.warden.agitated` (`1735`).
+            pub const ENTITY_WARDEN_AGITATED: Self = Self(1735);
+            /// `minecraft:entity.warden.ambient` (`1736`).
+            pub const ENTITY_WARDEN_AMBIENT: Self = Self(1736);
+            /// `minecraft:entity.warden.angry` (`1737`).
+            pub const ENTITY_WARDEN_ANGRY: Self = Self(1737);
+            /// `minecraft:entity.warden.attack_impact` (`1738`).
+            pub const ENTITY_WARDEN_ATTACK_IMPACT: Self = Self(1738);
+            /// `minecraft:entity.warden.death` (`1739`).
+            pub const ENTITY_WARDEN_DEATH: Self = Self(1739);
+            /// `minecraft:entity.warden.dig` (`1740`).
+            pub const ENTITY_WARDEN_DIG: Self = Self(1740);
+            /// `minecraft:entity.warden.emerge` (`1741`).
+            pub const ENTITY_WARDEN_EMERGE: Self = Self(1741);
+            /// `minecraft:entity.warden.heartbeat` (`1742`).
+            pub const ENTITY_WARDEN_HEARTBEAT: Self = Self(1742);
+            /// `minecraft:entity.warden.hurt` (`1743`).
+            pub const ENTITY_WARDEN_HURT: Self = Self(1743);
+            /// `minecraft:entity.warden.listening` (`1744`).
+            pub const ENTITY_WARDEN_LISTENING: Self = Self(1744);
+            /// `minecraft:entity.warden.listening_angry` (`1745`).
+            pub const ENTITY_WARDEN_LISTENING_ANGRY: Self = Self(1745);
+            /// `minecraft:entity.warden.nearby_close` (`1746`).
+            pub const ENTITY_WARDEN_NEARBY_CLOSE: Self = Self(1746);
+            /// `minecraft:entity.warden.nearby_closer` (`1747`).
+            pub const ENTITY_WARDEN_NEARBY_CLOSER: Self = Self(1747);
+            /// `minecraft:entity.warden.nearby_closest` (`1748`).
+            pub const ENTITY_WARDEN_NEARBY_CLOSEST: Self = Self(1748);
+            /// `minecraft:entity.warden.roar` (`1749`).
+            pub const ENTITY_WARDEN_ROAR: Self = Self(1749);
+            /// `minecraft:entity.warden.sniff` (`1750`).
+            pub const ENTITY_WARDEN_SNIFF: Self = Self(1750);
+            /// `minecraft:entity.warden.sonic_boom` (`1751`).
+            pub const ENTITY_WARDEN_SONIC_BOOM: Self = Self(1751);
+            /// `minecraft:entity.warden.sonic_charge` (`1752`).
+            pub const ENTITY_WARDEN_SONIC_CHARGE: Self = Self(1752);
+            /// `minecraft:entity.warden.step` (`1753`).
+            pub const ENTITY_WARDEN_STEP: Self = Self(1753);
+            /// `minecraft:entity.warden.tendril_clicks` (`1754`).
+            pub const ENTITY_WARDEN_TENDRIL_CLICKS: Self = Self(1754);
+            /// `minecraft:block.hanging_sign.waxed_interact_fail` (`1755`).
+            pub const BLOCK_HANGING_SIGN_WAXED_INTERACT_FAIL: Self = Self(1755);
+            /// `minecraft:block.sign.waxed_interact_fail` (`1756`).
+            pub const BLOCK_SIGN_WAXED_INTERACT_FAIL: Self = Self(1756);
+            /// `minecraft:block.water.ambient` (`1757`).
+            pub const BLOCK_WATER_AMBIENT: Self = Self(1757);
+            /// `minecraft:weather.end_flash` (`1758`).
+            pub const WEATHER_END_FLASH: Self = Self(1758);
+            /// `minecraft:weather.rain` (`1759`).
+            pub const WEATHER_RAIN: Self = Self(1759);
+            /// `minecraft:weather.rain.above` (`1760`).
+            pub const WEATHER_RAIN_ABOVE: Self = Self(1760);
+            /// `minecraft:block.wet_grass.break` (`1761`).
+            pub const BLOCK_WET_GRASS_BREAK: Self = Self(1761);
+            /// `minecraft:block.wet_grass.fall` (`1762`).
+            pub const BLOCK_WET_GRASS_FALL: Self = Self(1762);
+            /// `minecraft:block.wet_grass.hit` (`1763`).
+            pub const BLOCK_WET_GRASS_HIT: Self = Self(1763);
+            /// `minecraft:block.wet_grass.place` (`1764`).
+            pub const BLOCK_WET_GRASS_PLACE: Self = Self(1764);
+            /// `minecraft:block.wet_grass.step` (`1765`).
+            pub const BLOCK_WET_GRASS_STEP: Self = Self(1765);
+            /// `minecraft:block.wet_sponge.break` (`1766`).
+            pub const BLOCK_WET_SPONGE_BREAK: Self = Self(1766);
+            /// `minecraft:block.wet_sponge.dries` (`1767`).
+            pub const BLOCK_WET_SPONGE_DRIES: Self = Self(1767);
+            /// `minecraft:block.wet_sponge.fall` (`1768`).
+            pub const BLOCK_WET_SPONGE_FALL: Self = Self(1768);
+            /// `minecraft:block.wet_sponge.hit` (`1769`).
+            pub const BLOCK_WET_SPONGE_HIT: Self = Self(1769);
+            /// `minecraft:block.wet_sponge.place` (`1770`).
+            pub const BLOCK_WET_SPONGE_PLACE: Self = Self(1770);
+            /// `minecraft:block.wet_sponge.step` (`1771`).
+            pub const BLOCK_WET_SPONGE_STEP: Self = Self(1771);
+            /// `minecraft:entity.wind_charge.wind_burst` (`1772`).
+            pub const ENTITY_WIND_CHARGE_WIND_BURST: Self = Self(1772);
+            /// `minecraft:entity.wind_charge.throw` (`1773`).
+            pub const ENTITY_WIND_CHARGE_THROW: Self = Self(1773);
+            /// `minecraft:entity.witch.ambient` (`1774`).
+            pub const ENTITY_WITCH_AMBIENT: Self = Self(1774);
+            /// `minecraft:entity.witch.celebrate` (`1775`).
+            pub const ENTITY_WITCH_CELEBRATE: Self = Self(1775);
+            /// `minecraft:entity.witch.death` (`1776`).
+            pub const ENTITY_WITCH_DEATH: Self = Self(1776);
+            /// `minecraft:entity.witch.drink` (`1777`).
+            pub const ENTITY_WITCH_DRINK: Self = Self(1777);
+            /// `minecraft:entity.witch.hurt` (`1778`).
+            pub const ENTITY_WITCH_HURT: Self = Self(1778);
+            /// `minecraft:entity.witch.throw` (`1779`).
+            pub const ENTITY_WITCH_THROW: Self = Self(1779);
+            /// `minecraft:entity.wither.ambient` (`1780`).
+            pub const ENTITY_WITHER_AMBIENT: Self = Self(1780);
+            /// `minecraft:entity.wither.break_block` (`1781`).
+            pub const ENTITY_WITHER_BREAK_BLOCK: Self = Self(1781);
+            /// `minecraft:entity.wither.death` (`1782`).
+            pub const ENTITY_WITHER_DEATH: Self = Self(1782);
+            /// `minecraft:entity.wither.hurt` (`1783`).
+            pub const ENTITY_WITHER_HURT: Self = Self(1783);
+            /// `minecraft:entity.wither.shoot` (`1784`).
+            pub const ENTITY_WITHER_SHOOT: Self = Self(1784);
+            /// `minecraft:entity.wither_skeleton.ambient` (`1785`).
+            pub const ENTITY_WITHER_SKELETON_AMBIENT: Self = Self(1785);
+            /// `minecraft:entity.wither_skeleton.death` (`1786`).
+            pub const ENTITY_WITHER_SKELETON_DEATH: Self = Self(1786);
+            /// `minecraft:entity.wither_skeleton.hurt` (`1787`).
+            pub const ENTITY_WITHER_SKELETON_HURT: Self = Self(1787);
+            /// `minecraft:entity.wither_skeleton.step` (`1788`).
+            pub const ENTITY_WITHER_SKELETON_STEP: Self = Self(1788);
+            /// `minecraft:entity.wither.spawn` (`1789`).
+            pub const ENTITY_WITHER_SPAWN: Self = Self(1789);
+            /// `minecraft:item.wolf_armor.break` (`1790`).
+            pub const ITEM_WOLF_ARMOR_BREAK: Self = Self(1790);
+            /// `minecraft:entity.baby_wolf.ambient` (`1791`).
+            pub const ENTITY_BABY_WOLF_AMBIENT: Self = Self(1791);
+            /// `minecraft:item.wolf_armor.crack` (`1792`).
+            pub const ITEM_WOLF_ARMOR_CRACK: Self = Self(1792);
+            /// `minecraft:item.wolf_armor.damage` (`1793`).
+            pub const ITEM_WOLF_ARMOR_DAMAGE: Self = Self(1793);
+            /// `minecraft:item.wolf_armor.repair` (`1794`).
+            pub const ITEM_WOLF_ARMOR_REPAIR: Self = Self(1794);
+            /// `minecraft:entity.baby_wolf.death` (`1795`).
+            pub const ENTITY_BABY_WOLF_DEATH: Self = Self(1795);
+            /// `minecraft:entity.baby_wolf.growl` (`1796`).
+            pub const ENTITY_BABY_WOLF_GROWL: Self = Self(1796);
+            /// `minecraft:entity.baby_wolf.hurt` (`1797`).
+            pub const ENTITY_BABY_WOLF_HURT: Self = Self(1797);
+            /// `minecraft:entity.baby_wolf.pant` (`1798`).
+            pub const ENTITY_BABY_WOLF_PANT: Self = Self(1798);
+            /// `minecraft:entity.wolf.shake` (`1799`).
+            pub const ENTITY_WOLF_SHAKE: Self = Self(1799);
+            /// `minecraft:entity.wolf.step` (`1800`).
+            pub const ENTITY_WOLF_STEP: Self = Self(1800);
+            /// `minecraft:entity.baby_wolf.step` (`1801`).
+            pub const ENTITY_BABY_WOLF_STEP: Self = Self(1801);
+            /// `minecraft:entity.baby_wolf.whine` (`1802`).
+            pub const ENTITY_BABY_WOLF_WHINE: Self = Self(1802);
+            /// `minecraft:entity.wolf.ambient` (`1803`).
+            pub const ENTITY_WOLF_AMBIENT: Self = Self(1803);
+            /// `minecraft:entity.wolf.death` (`1804`).
+            pub const ENTITY_WOLF_DEATH: Self = Self(1804);
+            /// `minecraft:entity.wolf.growl` (`1805`).
+            pub const ENTITY_WOLF_GROWL: Self = Self(1805);
+            /// `minecraft:entity.wolf.hurt` (`1806`).
+            pub const ENTITY_WOLF_HURT: Self = Self(1806);
+            /// `minecraft:entity.wolf.pant` (`1807`).
+            pub const ENTITY_WOLF_PANT: Self = Self(1807);
+            /// `minecraft:entity.wolf.whine` (`1808`).
+            pub const ENTITY_WOLF_WHINE: Self = Self(1808);
+            /// `minecraft:entity.wolf_puglin.ambient` (`1809`).
+            pub const ENTITY_WOLF_PUGLIN_AMBIENT: Self = Self(1809);
+            /// `minecraft:entity.wolf_puglin.death` (`1810`).
+            pub const ENTITY_WOLF_PUGLIN_DEATH: Self = Self(1810);
+            /// `minecraft:entity.wolf_puglin.growl` (`1811`).
+            pub const ENTITY_WOLF_PUGLIN_GROWL: Self = Self(1811);
+            /// `minecraft:entity.wolf_puglin.hurt` (`1812`).
+            pub const ENTITY_WOLF_PUGLIN_HURT: Self = Self(1812);
+            /// `minecraft:entity.wolf_puglin.pant` (`1813`).
+            pub const ENTITY_WOLF_PUGLIN_PANT: Self = Self(1813);
+            /// `minecraft:entity.wolf_puglin.whine` (`1814`).
+            pub const ENTITY_WOLF_PUGLIN_WHINE: Self = Self(1814);
+            /// `minecraft:entity.wolf_sad.ambient` (`1815`).
+            pub const ENTITY_WOLF_SAD_AMBIENT: Self = Self(1815);
+            /// `minecraft:entity.wolf_sad.death` (`1816`).
+            pub const ENTITY_WOLF_SAD_DEATH: Self = Self(1816);
+            /// `minecraft:entity.wolf_sad.growl` (`1817`).
+            pub const ENTITY_WOLF_SAD_GROWL: Self = Self(1817);
+            /// `minecraft:entity.wolf_sad.hurt` (`1818`).
+            pub const ENTITY_WOLF_SAD_HURT: Self = Self(1818);
+            /// `minecraft:entity.wolf_sad.pant` (`1819`).
+            pub const ENTITY_WOLF_SAD_PANT: Self = Self(1819);
+            /// `minecraft:entity.wolf_sad.whine` (`1820`).
+            pub const ENTITY_WOLF_SAD_WHINE: Self = Self(1820);
+            /// `minecraft:entity.wolf_angry.ambient` (`1821`).
+            pub const ENTITY_WOLF_ANGRY_AMBIENT: Self = Self(1821);
+            /// `minecraft:entity.wolf_angry.death` (`1822`).
+            pub const ENTITY_WOLF_ANGRY_DEATH: Self = Self(1822);
+            /// `minecraft:entity.wolf_angry.growl` (`1823`).
+            pub const ENTITY_WOLF_ANGRY_GROWL: Self = Self(1823);
+            /// `minecraft:entity.wolf_angry.hurt` (`1824`).
+            pub const ENTITY_WOLF_ANGRY_HURT: Self = Self(1824);
+            /// `minecraft:entity.wolf_angry.pant` (`1825`).
+            pub const ENTITY_WOLF_ANGRY_PANT: Self = Self(1825);
+            /// `minecraft:entity.wolf_angry.whine` (`1826`).
+            pub const ENTITY_WOLF_ANGRY_WHINE: Self = Self(1826);
+            /// `minecraft:entity.wolf_grumpy.ambient` (`1827`).
+            pub const ENTITY_WOLF_GRUMPY_AMBIENT: Self = Self(1827);
+            /// `minecraft:entity.wolf_grumpy.death` (`1828`).
+            pub const ENTITY_WOLF_GRUMPY_DEATH: Self = Self(1828);
+            /// `minecraft:entity.wolf_grumpy.growl` (`1829`).
+            pub const ENTITY_WOLF_GRUMPY_GROWL: Self = Self(1829);
+            /// `minecraft:entity.wolf_grumpy.hurt` (`1830`).
+            pub const ENTITY_WOLF_GRUMPY_HURT: Self = Self(1830);
+            /// `minecraft:entity.wolf_grumpy.pant` (`1831`).
+            pub const ENTITY_WOLF_GRUMPY_PANT: Self = Self(1831);
+            /// `minecraft:entity.wolf_grumpy.whine` (`1832`).
+            pub const ENTITY_WOLF_GRUMPY_WHINE: Self = Self(1832);
+            /// `minecraft:entity.wolf_big.ambient` (`1833`).
+            pub const ENTITY_WOLF_BIG_AMBIENT: Self = Self(1833);
+            /// `minecraft:entity.wolf_big.death` (`1834`).
+            pub const ENTITY_WOLF_BIG_DEATH: Self = Self(1834);
+            /// `minecraft:entity.wolf_big.growl` (`1835`).
+            pub const ENTITY_WOLF_BIG_GROWL: Self = Self(1835);
+            /// `minecraft:entity.wolf_big.hurt` (`1836`).
+            pub const ENTITY_WOLF_BIG_HURT: Self = Self(1836);
+            /// `minecraft:entity.wolf_big.pant` (`1837`).
+            pub const ENTITY_WOLF_BIG_PANT: Self = Self(1837);
+            /// `minecraft:entity.wolf_big.whine` (`1838`).
+            pub const ENTITY_WOLF_BIG_WHINE: Self = Self(1838);
+            /// `minecraft:entity.wolf_cute.ambient` (`1839`).
+            pub const ENTITY_WOLF_CUTE_AMBIENT: Self = Self(1839);
+            /// `minecraft:entity.wolf_cute.death` (`1840`).
+            pub const ENTITY_WOLF_CUTE_DEATH: Self = Self(1840);
+            /// `minecraft:entity.wolf_cute.growl` (`1841`).
+            pub const ENTITY_WOLF_CUTE_GROWL: Self = Self(1841);
+            /// `minecraft:entity.wolf_cute.hurt` (`1842`).
+            pub const ENTITY_WOLF_CUTE_HURT: Self = Self(1842);
+            /// `minecraft:entity.wolf_cute.pant` (`1843`).
+            pub const ENTITY_WOLF_CUTE_PANT: Self = Self(1843);
+            /// `minecraft:entity.wolf_cute.whine` (`1844`).
+            pub const ENTITY_WOLF_CUTE_WHINE: Self = Self(1844);
+            /// `minecraft:block.wooden_door.close` (`1845`).
+            pub const BLOCK_WOODEN_DOOR_CLOSE: Self = Self(1845);
+            /// `minecraft:block.wooden_door.open` (`1846`).
+            pub const BLOCK_WOODEN_DOOR_OPEN: Self = Self(1846);
+            /// `minecraft:block.wooden_trapdoor.close` (`1847`).
+            pub const BLOCK_WOODEN_TRAPDOOR_CLOSE: Self = Self(1847);
+            /// `minecraft:block.wooden_trapdoor.open` (`1848`).
+            pub const BLOCK_WOODEN_TRAPDOOR_OPEN: Self = Self(1848);
+            /// `minecraft:block.wooden_button.click_off` (`1849`).
+            pub const BLOCK_WOODEN_BUTTON_CLICK_OFF: Self = Self(1849);
+            /// `minecraft:block.wooden_button.click_on` (`1850`).
+            pub const BLOCK_WOODEN_BUTTON_CLICK_ON: Self = Self(1850);
+            /// `minecraft:block.wooden_pressure_plate.click_off` (`1851`).
+            pub const BLOCK_WOODEN_PRESSURE_PLATE_CLICK_OFF: Self = Self(1851);
+            /// `minecraft:block.wooden_pressure_plate.click_on` (`1852`).
+            pub const BLOCK_WOODEN_PRESSURE_PLATE_CLICK_ON: Self = Self(1852);
+            /// `minecraft:block.wood.break` (`1853`).
+            pub const BLOCK_WOOD_BREAK: Self = Self(1853);
+            /// `minecraft:block.wood.fall` (`1854`).
+            pub const BLOCK_WOOD_FALL: Self = Self(1854);
+            /// `minecraft:block.wood.hit` (`1855`).
+            pub const BLOCK_WOOD_HIT: Self = Self(1855);
+            /// `minecraft:block.wood.place` (`1856`).
+            pub const BLOCK_WOOD_PLACE: Self = Self(1856);
+            /// `minecraft:block.wood.step` (`1857`).
+            pub const BLOCK_WOOD_STEP: Self = Self(1857);
+            /// `minecraft:block.wool.break` (`1858`).
+            pub const BLOCK_WOOL_BREAK: Self = Self(1858);
+            /// `minecraft:block.wool.fall` (`1859`).
+            pub const BLOCK_WOOL_FALL: Self = Self(1859);
+            /// `minecraft:block.wool.hit` (`1860`).
+            pub const BLOCK_WOOL_HIT: Self = Self(1860);
+            /// `minecraft:block.wool.place` (`1861`).
+            pub const BLOCK_WOOL_PLACE: Self = Self(1861);
+            /// `minecraft:block.wool.step` (`1862`).
+            pub const BLOCK_WOOL_STEP: Self = Self(1862);
+            /// `minecraft:entity.zoglin.ambient` (`1863`).
+            pub const ENTITY_ZOGLIN_AMBIENT: Self = Self(1863);
+            /// `minecraft:entity.zoglin.angry` (`1864`).
+            pub const ENTITY_ZOGLIN_ANGRY: Self = Self(1864);
+            /// `minecraft:entity.zoglin.attack` (`1865`).
+            pub const ENTITY_ZOGLIN_ATTACK: Self = Self(1865);
+            /// `minecraft:entity.zoglin.death` (`1866`).
+            pub const ENTITY_ZOGLIN_DEATH: Self = Self(1866);
+            /// `minecraft:entity.zoglin.hurt` (`1867`).
+            pub const ENTITY_ZOGLIN_HURT: Self = Self(1867);
+            /// `minecraft:entity.zoglin.step` (`1868`).
+            pub const ENTITY_ZOGLIN_STEP: Self = Self(1868);
+            /// `minecraft:entity.zombie.ambient` (`1869`).
+            pub const ENTITY_ZOMBIE_AMBIENT: Self = Self(1869);
+            /// `minecraft:entity.zombie.attack_wooden_door` (`1870`).
+            pub const ENTITY_ZOMBIE_ATTACK_WOODEN_DOOR: Self = Self(1870);
+            /// `minecraft:entity.zombie.attack_iron_door` (`1871`).
+            pub const ENTITY_ZOMBIE_ATTACK_IRON_DOOR: Self = Self(1871);
+            /// `minecraft:entity.zombie.break_wooden_door` (`1872`).
+            pub const ENTITY_ZOMBIE_BREAK_WOODEN_DOOR: Self = Self(1872);
+            /// `minecraft:entity.zombie.converted_to_drowned` (`1873`).
+            pub const ENTITY_ZOMBIE_CONVERTED_TO_DROWNED: Self = Self(1873);
+            /// `minecraft:entity.zombie.death` (`1874`).
+            pub const ENTITY_ZOMBIE_DEATH: Self = Self(1874);
+            /// `minecraft:entity.zombie.destroy_egg` (`1875`).
+            pub const ENTITY_ZOMBIE_DESTROY_EGG: Self = Self(1875);
+            /// `minecraft:entity.zombie_horse.ambient` (`1876`).
+            pub const ENTITY_ZOMBIE_HORSE_AMBIENT: Self = Self(1876);
+            /// `minecraft:entity.zombie_horse.angry` (`1877`).
+            pub const ENTITY_ZOMBIE_HORSE_ANGRY: Self = Self(1877);
+            /// `minecraft:entity.zombie_horse.death` (`1878`).
+            pub const ENTITY_ZOMBIE_HORSE_DEATH: Self = Self(1878);
+            /// `minecraft:entity.zombie_horse.eat` (`1879`).
+            pub const ENTITY_ZOMBIE_HORSE_EAT: Self = Self(1879);
+            /// `minecraft:entity.zombie_horse.hurt` (`1880`).
+            pub const ENTITY_ZOMBIE_HORSE_HURT: Self = Self(1880);
+            /// `minecraft:entity.zombie.hurt` (`1881`).
+            pub const ENTITY_ZOMBIE_HURT: Self = Self(1881);
+            /// `minecraft:entity.zombie.infect` (`1882`).
+            pub const ENTITY_ZOMBIE_INFECT: Self = Self(1882);
+            /// `minecraft:entity.zombie_nautilus.ambient` (`1883`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_AMBIENT: Self = Self(1883);
+            /// `minecraft:entity.zombie_nautilus.ambient_land` (`1884`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_AMBIENT_LAND: Self = Self(1884);
+            /// `minecraft:entity.zombie_nautilus.dash` (`1885`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_DASH: Self = Self(1885);
+            /// `minecraft:entity.zombie_nautilus.dash_land` (`1886`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_DASH_LAND: Self = Self(1886);
+            /// `minecraft:entity.zombie_nautilus.dash_ready` (`1887`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_DASH_READY: Self = Self(1887);
+            /// `minecraft:entity.zombie_nautilus.dash_ready_land` (`1888`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_DASH_READY_LAND: Self = Self(1888);
+            /// `minecraft:entity.zombie_nautilus.death` (`1889`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_DEATH: Self = Self(1889);
+            /// `minecraft:entity.zombie_nautilus.death_land` (`1890`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_DEATH_LAND: Self = Self(1890);
+            /// `minecraft:entity.zombie_nautilus.eat` (`1891`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_EAT: Self = Self(1891);
+            /// `minecraft:entity.zombie_nautilus.hurt` (`1892`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_HURT: Self = Self(1892);
+            /// `minecraft:entity.zombie_nautilus.hurt_land` (`1893`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_HURT_LAND: Self = Self(1893);
+            /// `minecraft:entity.zombie_nautilus.swim` (`1894`).
+            pub const ENTITY_ZOMBIE_NAUTILUS_SWIM: Self = Self(1894);
+            /// `minecraft:entity.zombified_piglin.ambient` (`1895`).
+            pub const ENTITY_ZOMBIFIED_PIGLIN_AMBIENT: Self = Self(1895);
+            /// `minecraft:entity.zombified_piglin.angry` (`1896`).
+            pub const ENTITY_ZOMBIFIED_PIGLIN_ANGRY: Self = Self(1896);
+            /// `minecraft:entity.zombified_piglin.death` (`1897`).
+            pub const ENTITY_ZOMBIFIED_PIGLIN_DEATH: Self = Self(1897);
+            /// `minecraft:entity.zombified_piglin.hurt` (`1898`).
+            pub const ENTITY_ZOMBIFIED_PIGLIN_HURT: Self = Self(1898);
+            /// `minecraft:entity.zombie.step` (`1899`).
+            pub const ENTITY_ZOMBIE_STEP: Self = Self(1899);
+            /// `minecraft:entity.zombie_villager.ambient` (`1900`).
+            pub const ENTITY_ZOMBIE_VILLAGER_AMBIENT: Self = Self(1900);
+            /// `minecraft:entity.zombie_villager.converted` (`1901`).
+            pub const ENTITY_ZOMBIE_VILLAGER_CONVERTED: Self = Self(1901);
+            /// `minecraft:entity.zombie_villager.cure` (`1902`).
+            pub const ENTITY_ZOMBIE_VILLAGER_CURE: Self = Self(1902);
+            /// `minecraft:entity.zombie_villager.death` (`1903`).
+            pub const ENTITY_ZOMBIE_VILLAGER_DEATH: Self = Self(1903);
+            /// `minecraft:entity.zombie_villager.hurt` (`1904`).
+            pub const ENTITY_ZOMBIE_VILLAGER_HURT: Self = Self(1904);
+            /// `minecraft:entity.zombie_villager.step` (`1905`).
+            pub const ENTITY_ZOMBIE_VILLAGER_STEP: Self = Self(1905);
+            /// `minecraft:event.mob_effect.bad_omen` (`1906`).
+            pub const EVENT_MOB_EFFECT_BAD_OMEN: Self = Self(1906);
+            /// `minecraft:event.mob_effect.trial_omen` (`1907`).
+            pub const EVENT_MOB_EFFECT_TRIAL_OMEN: Self = Self(1907);
+            /// `minecraft:event.mob_effect.raid_omen` (`1908`).
+            pub const EVENT_MOB_EFFECT_RAID_OMEN: Self = Self(1908);
+            /// `minecraft:item.saddle.unequip` (`1909`).
+            pub const ITEM_SADDLE_UNEQUIP: Self = Self(1909);
+            /// `minecraft:item.nautilus_saddle_underwater_equip` (`1910`).
+            pub const ITEM_NAUTILUS_SADDLE_UNDERWATER_EQUIP: Self = Self(1910);
+            /// `minecraft:item.nautilus_saddle_equip` (`1911`).
+            pub const ITEM_NAUTILUS_SADDLE_EQUIP: Self = Self(1911);
+            /// `minecraft:block.sulfur.break` (`1912`).
+            pub const BLOCK_SULFUR_BREAK: Self = Self(1912);
+            /// `minecraft:block.sulfur.step` (`1913`).
+            pub const BLOCK_SULFUR_STEP: Self = Self(1913);
+            /// `minecraft:block.sulfur.place` (`1914`).
+            pub const BLOCK_SULFUR_PLACE: Self = Self(1914);
+            /// `minecraft:block.sulfur.hit` (`1915`).
+            pub const BLOCK_SULFUR_HIT: Self = Self(1915);
+            /// `minecraft:block.sulfur.fall` (`1916`).
+            pub const BLOCK_SULFUR_FALL: Self = Self(1916);
+            /// `minecraft:block.potent_sulfur.break` (`1917`).
+            pub const BLOCK_POTENT_SULFUR_BREAK: Self = Self(1917);
+            /// `minecraft:block.potent_sulfur.step` (`1918`).
+            pub const BLOCK_POTENT_SULFUR_STEP: Self = Self(1918);
+            /// `minecraft:block.potent_sulfur.place` (`1919`).
+            pub const BLOCK_POTENT_SULFUR_PLACE: Self = Self(1919);
+            /// `minecraft:block.potent_sulfur.hit` (`1920`).
+            pub const BLOCK_POTENT_SULFUR_HIT: Self = Self(1920);
+            /// `minecraft:block.potent_sulfur.fall` (`1921`).
+            pub const BLOCK_POTENT_SULFUR_FALL: Self = Self(1921);
+            /// `minecraft:block.potent_sulfur.geyser_eruption` (`1922`).
+            pub const BLOCK_POTENT_SULFUR_GEYSER_ERUPTION: Self = Self(1922);
+            /// `minecraft:block.potent_sulfur.geyser_eruption_active` (`1923`).
+            pub const BLOCK_POTENT_SULFUR_GEYSER_ERUPTION_ACTIVE: Self = Self(1923);
+            /// `minecraft:block.potent_sulfur.geyser_continuous_eruption` (`1924`).
+            pub const BLOCK_POTENT_SULFUR_GEYSER_CONTINUOUS_ERUPTION: Self = Self(1924);
+            /// `minecraft:block.potent_sulfur.geyser_continuous_eruption_active` (`1925`).
+            pub const BLOCK_POTENT_SULFUR_GEYSER_CONTINUOUS_ERUPTION_ACTIVE: Self = Self(1925);
+            /// `minecraft:block.cinnabar.break` (`1926`).
+            pub const BLOCK_CINNABAR_BREAK: Self = Self(1926);
+            /// `minecraft:block.cinnabar.step` (`1927`).
+            pub const BLOCK_CINNABAR_STEP: Self = Self(1927);
+            /// `minecraft:block.cinnabar.place` (`1928`).
+            pub const BLOCK_CINNABAR_PLACE: Self = Self(1928);
+            /// `minecraft:block.cinnabar.hit` (`1929`).
+            pub const BLOCK_CINNABAR_HIT: Self = Self(1929);
+            /// `minecraft:block.cinnabar.fall` (`1930`).
+            pub const BLOCK_CINNABAR_FALL: Self = Self(1930);
+            /// `minecraft:entity.sulfur_cube.absorb` (`1931`).
+            pub const ENTITY_SULFUR_CUBE_ABSORB: Self = Self(1931);
+            /// `minecraft:entity.sulfur_cube.bounce` (`1932`).
+            pub const ENTITY_SULFUR_CUBE_BOUNCE: Self = Self(1932);
+            /// `minecraft:entity.sulfur_cube.death` (`1933`).
+            pub const ENTITY_SULFUR_CUBE_DEATH: Self = Self(1933);
+            /// `minecraft:entity.sulfur_cube.eject` (`1934`).
+            pub const ENTITY_SULFUR_CUBE_EJECT: Self = Self(1934);
+            /// `minecraft:entity.sulfur_cube.hurt` (`1935`).
+            pub const ENTITY_SULFUR_CUBE_HURT: Self = Self(1935);
+            /// `minecraft:entity.sulfur_cube.jump` (`1936`).
+            pub const ENTITY_SULFUR_CUBE_JUMP: Self = Self(1936);
+            /// `minecraft:entity.sulfur_cube.regular.hit` (`1937`).
+            pub const ENTITY_SULFUR_CUBE_REGULAR_HIT: Self = Self(1937);
+            /// `minecraft:entity.sulfur_cube.regular.push` (`1938`).
+            pub const ENTITY_SULFUR_CUBE_REGULAR_PUSH: Self = Self(1938);
+            /// `minecraft:entity.sulfur_cube.bouncy.hit` (`1939`).
+            pub const ENTITY_SULFUR_CUBE_BOUNCY_HIT: Self = Self(1939);
+            /// `minecraft:entity.sulfur_cube.bouncy.push` (`1940`).
+            pub const ENTITY_SULFUR_CUBE_BOUNCY_PUSH: Self = Self(1940);
+            /// `minecraft:entity.sulfur_cube.slow_bouncy.hit` (`1941`).
+            pub const ENTITY_SULFUR_CUBE_SLOW_BOUNCY_HIT: Self = Self(1941);
+            /// `minecraft:entity.sulfur_cube.slow_bouncy.push` (`1942`).
+            pub const ENTITY_SULFUR_CUBE_SLOW_BOUNCY_PUSH: Self = Self(1942);
+            /// `minecraft:entity.sulfur_cube.slow_flat.hit` (`1943`).
+            pub const ENTITY_SULFUR_CUBE_SLOW_FLAT_HIT: Self = Self(1943);
+            /// `minecraft:entity.sulfur_cube.slow_flat.push` (`1944`).
+            pub const ENTITY_SULFUR_CUBE_SLOW_FLAT_PUSH: Self = Self(1944);
+            /// `minecraft:entity.sulfur_cube.fast_flat.hit` (`1945`).
+            pub const ENTITY_SULFUR_CUBE_FAST_FLAT_HIT: Self = Self(1945);
+            /// `minecraft:entity.sulfur_cube.fast_flat.push` (`1946`).
+            pub const ENTITY_SULFUR_CUBE_FAST_FLAT_PUSH: Self = Self(1946);
+            /// `minecraft:entity.sulfur_cube.light.hit` (`1947`).
+            pub const ENTITY_SULFUR_CUBE_LIGHT_HIT: Self = Self(1947);
+            /// `minecraft:entity.sulfur_cube.light.push` (`1948`).
+            pub const ENTITY_SULFUR_CUBE_LIGHT_PUSH: Self = Self(1948);
+            /// `minecraft:entity.sulfur_cube.fast_sliding.hit` (`1949`).
+            pub const ENTITY_SULFUR_CUBE_FAST_SLIDING_HIT: Self = Self(1949);
+            /// `minecraft:entity.sulfur_cube.fast_sliding.push` (`1950`).
+            pub const ENTITY_SULFUR_CUBE_FAST_SLIDING_PUSH: Self = Self(1950);
+            /// `minecraft:entity.sulfur_cube.slow_sliding.hit` (`1951`).
+            pub const ENTITY_SULFUR_CUBE_SLOW_SLIDING_HIT: Self = Self(1951);
+            /// `minecraft:entity.sulfur_cube.slow_sliding.push` (`1952`).
+            pub const ENTITY_SULFUR_CUBE_SLOW_SLIDING_PUSH: Self = Self(1952);
+            /// `minecraft:entity.sulfur_cube.sticky.hit` (`1953`).
+            pub const ENTITY_SULFUR_CUBE_STICKY_HIT: Self = Self(1953);
+            /// `minecraft:entity.sulfur_cube.sticky.push` (`1954`).
+            pub const ENTITY_SULFUR_CUBE_STICKY_PUSH: Self = Self(1954);
+            /// `minecraft:entity.sulfur_cube.high_resistance.hit` (`1955`).
+            pub const ENTITY_SULFUR_CUBE_HIGH_RESISTANCE_HIT: Self = Self(1955);
+            /// `minecraft:entity.sulfur_cube.high_resistance.push` (`1956`).
+            pub const ENTITY_SULFUR_CUBE_HIGH_RESISTANCE_PUSH: Self = Self(1956);
+            /// `minecraft:entity.sulfur_cube.explosive.hit` (`1957`).
+            pub const ENTITY_SULFUR_CUBE_EXPLOSIVE_HIT: Self = Self(1957);
+            /// `minecraft:entity.sulfur_cube.explosive.push` (`1958`).
+            pub const ENTITY_SULFUR_CUBE_EXPLOSIVE_PUSH: Self = Self(1958);
+            /// `minecraft:entity.sulfur_cube.hot.hit` (`1959`).
+            pub const ENTITY_SULFUR_CUBE_HOT_HIT: Self = Self(1959);
+            /// `minecraft:entity.sulfur_cube.hot.push` (`1960`).
+            pub const ENTITY_SULFUR_CUBE_HOT_PUSH: Self = Self(1960);
+            /// `minecraft:entity.sulfur_cube.squish` (`1961`).
+            pub const ENTITY_SULFUR_CUBE_SQUISH: Self = Self(1961);
+            /// `minecraft:block.potent_sulfur.noxious_gas` (`1962`).
+            pub const BLOCK_POTENT_SULFUR_NOXIOUS_GAS: Self = Self(1962);
+            /// `minecraft:entity.small_sulfur_cube.death` (`1963`).
+            pub const ENTITY_SMALL_SULFUR_CUBE_DEATH: Self = Self(1963);
+            /// `minecraft:entity.small_sulfur_cube.hurt` (`1964`).
+            pub const ENTITY_SMALL_SULFUR_CUBE_HURT: Self = Self(1964);
+            /// `minecraft:entity.small_sulfur_cube.jump` (`1965`).
+            pub const ENTITY_SMALL_SULFUR_CUBE_JUMP: Self = Self(1965);
+            /// `minecraft:entity.small_sulfur_cube.squish` (`1966`).
+            pub const ENTITY_SMALL_SULFUR_CUBE_SQUISH: Self = Self(1966);
+            /// `minecraft:entity.small_sulfur_cube.eat` (`1967`).
+            pub const ENTITY_SMALL_SULFUR_CUBE_EAT: Self = Self(1967);
+        }
+    };
+}

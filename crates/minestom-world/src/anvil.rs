@@ -5,9 +5,9 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use bytes::BytesMut;
 use minestom_block::Block;
 use minestom_core::ChunkPos;
 use minestom_data::DATA_VERSION;
@@ -15,8 +15,8 @@ use minestom_nbt::{
     NbtCompound, NbtTag, read_gzip_named, read_named, read_zlib_named, write_gzip_named,
     write_zlib_named,
 };
-use minestom_registry::DimensionType;
-use parking_lot::Mutex;
+use minestom_registry::{DimensionType, Registries};
+use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 
 use crate::palette::bits_to_represent;
@@ -51,6 +51,8 @@ pub trait ChunkLoader: Send + Sync + 'static {
     }
 }
 
+type RegionLockMap = FxHashMap<(i32, i32), Arc<RwLock<()>>>;
+
 /// Vanilla Minecraft `.mca` region file loader & saver (`AnvilLoader` in Minestom).
 ///
 /// Supports both:
@@ -62,7 +64,7 @@ pub struct AnvilLoader {
     world_dir: PathBuf,
     primary_region_dir: PathBuf,
     fallback_region_dir: PathBuf,
-    io_lock: Mutex<()>,
+    region_locks: RwLock<RegionLockMap>,
 }
 
 impl std::fmt::Debug for AnvilLoader {
@@ -90,7 +92,7 @@ impl AnvilLoader {
             world_dir: root,
             primary_region_dir: primary,
             fallback_region_dir: fallback,
-            io_lock: Mutex::new(()),
+            region_locks: RwLock::new(FxHashMap::default()),
         }
     }
 
@@ -108,8 +110,19 @@ impl AnvilLoader {
             world_dir: root,
             primary_region_dir: primary,
             fallback_region_dir: fallback,
-            io_lock: Mutex::new(()),
+            region_locks: RwLock::new(FxHashMap::default()),
         }
+    }
+
+    fn lock_for_region(&self, rx: i32, rz: i32) -> Arc<RwLock<()>> {
+        if let Some(existing) = self.region_locks.read().get(&(rx, rz)) {
+            return Arc::clone(existing);
+        }
+        let mut g = self.region_locks.write();
+        Arc::clone(
+            g.entry((rx, rz))
+                .or_insert_with(|| Arc::new(RwLock::new(()))),
+        )
     }
 
     /// Root world folder path.
@@ -143,9 +156,10 @@ impl AnvilLoader {
 
     /// Reads the raw chunk [`NbtCompound`] for `pos` from its `.mca` region file, if present.
     pub fn read_chunk_nbt(&self, pos: ChunkPos) -> Result<Option<NbtCompound>, WorldError> {
-        let _guard = self.io_lock.lock();
         let rx = pos.x.div_euclid(32);
         let rz = pos.z.div_euclid(32);
+        let reg_lock = self.lock_for_region(rx, rz);
+        let _guard = reg_lock.read();
         let Some(mca_path) = self.resolve_existing_region_file(rx, rz) else {
             return Ok(None);
         };
@@ -209,13 +223,14 @@ impl AnvilLoader {
         pos: ChunkPos,
         chunk_nbt: &NbtCompound,
     ) -> Result<(), WorldError> {
-        let _guard = self.io_lock.lock();
-        fs::create_dir_all(&self.primary_region_dir)?;
         let rx = pos.x.div_euclid(32);
         let rz = pos.z.div_euclid(32);
+        let compressed = write_zlib_named("", chunk_nbt)?;
+        let reg_lock = self.lock_for_region(rx, rz);
+        let _guard = reg_lock.write();
+        fs::create_dir_all(&self.primary_region_dir)?;
         let mca_path = self.primary_region_dir.join(Self::region_file_name(rx, rz));
 
-        let compressed = write_zlib_named("", chunk_nbt)?;
         let exact_len = compressed.len() + 1;
         let total_stream_bytes = 4 + exact_len;
         let needed_sectors = total_stream_bytes.div_ceil(SECTOR_BYTES);
@@ -391,9 +406,10 @@ pub fn encode_chunk_to_anvil_nbt(chunk: &Chunk, world_age: i64) -> NbtCompound {
                 }
             }
 
-            block_states_nbt.insert("palette", NbtTag::List(palette_tags.clone()));
-            if palette_tags.len() > 1 {
-                let bpe = bits_to_represent(palette_tags.len() - 1).max(4);
+            let palette_len = palette_tags.len();
+            block_states_nbt.insert("palette", NbtTag::List(palette_tags));
+            if palette_len > 1 {
+                let bpe = bits_to_represent(palette_len - 1).max(4);
                 let packed = pack_anvil_section_indices(&indices, bpe);
                 block_states_nbt.insert("data", NbtTag::LongArray(packed));
             }
@@ -401,10 +417,43 @@ pub fn encode_chunk_to_anvil_nbt(chunk: &Chunk, world_age: i64) -> NbtCompound {
         sec_nbt.insert("block_states", NbtTag::Compound(block_states_nbt));
 
         let mut biomes_nbt = NbtCompound::new();
-        biomes_nbt.insert(
-            "palette",
-            NbtTag::List(vec![NbtTag::String("minecraft:plains".to_owned())]),
-        );
+        let regs = Registries::vanilla();
+        if let Some(single_biome) = sec.biomes().single_value() {
+            let bkey = regs
+                .lookup_dynamic_key("minecraft:worldgen/biome", single_biome)
+                .unwrap_or("minecraft:plains");
+            biomes_nbt.insert(
+                "palette",
+                NbtTag::List(vec![NbtTag::String(bkey.to_owned())]),
+            );
+        } else {
+            let mut biome_palette: Vec<NbtTag> = Vec::new();
+            let mut biome_to_pidx: FxHashMap<u32, u16> = FxHashMap::default();
+            let mut biome_indices = [0_u16; 64];
+            for by in 0..4 {
+                for bz in 0..4 {
+                    for bx in 0..4 {
+                        let bid = sec.get_biome_cell(bx, by, bz);
+                        let pidx = *biome_to_pidx.entry(bid).or_insert_with(|| {
+                            let next = biome_palette.len() as u16;
+                            let bkey = regs
+                                .lookup_dynamic_key("minecraft:worldgen/biome", bid)
+                                .unwrap_or("minecraft:plains");
+                            biome_palette.push(NbtTag::String(bkey.to_owned()));
+                            next
+                        });
+                        biome_indices[(by << 4) | (bz << 2) | bx] = pidx;
+                    }
+                }
+            }
+            let bpal_len = biome_palette.len();
+            biomes_nbt.insert("palette", NbtTag::List(biome_palette));
+            if bpal_len > 1 {
+                let bpe = bits_to_represent(bpal_len - 1).max(1);
+                let packed = pack_anvil_indices(&biome_indices, bpe);
+                biomes_nbt.insert("data", NbtTag::LongArray(packed));
+            }
+        }
         sec_nbt.insert("biomes", NbtTag::Compound(biomes_nbt));
         section_tags.push(NbtTag::Compound(sec_nbt));
     }
@@ -429,7 +478,6 @@ pub fn encode_chunk_to_anvil_nbt(chunk: &Chunk, world_age: i64) -> NbtCompound {
     }
     root.insert("block_entities", NbtTag::List(be_list));
 
-    let _ = BytesMut::new();
     root
 }
 
@@ -501,6 +549,50 @@ pub fn decode_chunk_from_anvil_nbt(
                     }
                 }
             }
+
+            // Decode 4×4×4 biome palette if present
+            if let Some(biomes_nbt) = sec_nbt.get_compound("biomes")
+                && let Some(NbtTag::List(bpal)) = biomes_nbt.get("palette")
+                && !bpal.is_empty()
+            {
+                let regs = Registries::vanilla();
+                let decoded_biomes: Vec<u32> = bpal
+                    .iter()
+                    .map(|t| {
+                        t.as_str()
+                            .and_then(|k| regs.lookup_dynamic_id("minecraft:worldgen/biome", k))
+                            .unwrap_or_else(|| regs.plains_biome_id())
+                    })
+                    .collect();
+                if decoded_biomes.len() == 1 {
+                    let bid = decoded_biomes[0];
+                    if bid != regs.plains_biome_id() {
+                        for by in 0..4 {
+                            for bz in 0..4 {
+                                for bx in 0..4 {
+                                    chunk.set_biome(bx * 4, base_wy + by * 4, bz * 4, bid);
+                                }
+                            }
+                        }
+                    }
+                } else if let Some(NbtTag::LongArray(blongs)) = biomes_nbt.get("data")
+                    && !blongs.is_empty()
+                {
+                    let bpe = bits_to_represent(decoded_biomes.len() - 1).max(1);
+                    let mut bindices = [0_u16; 64];
+                    unpack_anvil_indices(blongs, bpe, &mut bindices);
+                    for (flat, &pidx) in bindices.iter().enumerate() {
+                        let bid = decoded_biomes
+                            .get(usize::from(pidx))
+                            .copied()
+                            .unwrap_or_else(|| regs.plains_biome_id());
+                        let bx = flat & 3;
+                        let bz = (flat >> 2) & 3;
+                        let by = (flat >> 4) & 3;
+                        chunk.set_biome(bx * 4, base_wy + (by as i32) * 4, bz * 4, bid);
+                    }
+                }
+            }
         }
     }
 
@@ -569,9 +661,9 @@ fn palette_nbt_to_block(entry: &NbtCompound) -> Block {
     blk
 }
 
-fn pack_anvil_section_indices(indices: &[u16; 4096], bpe: u8) -> Vec<i64> {
-    let entries_per_long = 64 / usize::from(bpe);
-    let len = 4096_usize.div_ceil(entries_per_long);
+fn pack_anvil_indices(indices: &[u16], bpe: u8) -> Vec<i64> {
+    let entries_per_long = (64 / usize::from(bpe)).max(1);
+    let len = indices.len().div_ceil(entries_per_long);
     let mask = (1_u64 << bpe) - 1;
     let mut words = vec![0_i64; len];
     for (i, &idx) in indices.iter().enumerate() {
@@ -583,8 +675,7 @@ fn pack_anvil_section_indices(indices: &[u16; 4096], bpe: u8) -> Vec<i64> {
     words
 }
 
-fn unpack_anvil_section_indices(words: &[i64], bpe: u8) -> [u16; 4096] {
-    let mut out = [0_u16; 4096];
+fn unpack_anvil_indices(words: &[i64], bpe: u8, out: &mut [u16]) {
     let entries_per_long = (64 / usize::from(bpe)).max(1);
     let mask = (1_u64 << bpe) - 1;
     for (i, slot) in out.iter_mut().enumerate() {
@@ -594,6 +685,15 @@ fn unpack_anvil_section_indices(words: &[i64], bpe: u8) -> [u16; 4096] {
             *slot = (((raw as u64) >> bit_idx) & mask) as u16;
         }
     }
+}
+
+fn pack_anvil_section_indices(indices: &[u16; 4096], bpe: u8) -> Vec<i64> {
+    pack_anvil_indices(indices, bpe)
+}
+
+fn unpack_anvil_section_indices(words: &[i64], bpe: u8) -> [u16; 4096] {
+    let mut out = [0_u16; 4096];
+    unpack_anvil_indices(words, bpe, &mut out);
     out
 }
 

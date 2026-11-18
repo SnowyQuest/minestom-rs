@@ -1,402 +1,25 @@
 //! Entity `Attribute`, `AttributeModifier`, `AttributeInstance`, and sparse `AttributeMap`
-//! (`net.minestom.server.entity.attribute` equivalent for MC 26.2).
+//! (`net.minestom.server.entity.attribute` equivalent for MC 26.2, `40` generated attributes).
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use minestom_data::generated::attributes;
 use minestom_protocol::entity::{AttributeProperty, AttributeWireModifier, AttributeWireOperation};
 
+pub use minestom_data::generated::attributes::{
+    ATTRIBUTE_SPECS, AttributeSpecInfo as AttributeSpec,
+};
+
 use crate::EntityError;
 
-/// Static specification of a vanilla MC 26.2 entity attribute (`attribute.json`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AttributeSpec {
-    /// Numeric protocol ID (`0..40`).
-    pub id: u32,
-    /// Canonical `minecraft:...` resource key.
-    pub key: &'static str,
-    /// Default base value.
-    pub default_value: f64,
-    /// Minimum clamped final value.
-    pub min_value: f64,
-    /// Maximum clamped final value.
-    pub max_value: f64,
-    /// Whether changes are synchronized to clients via `EntityAttributesPacket`.
-    pub client_sync: bool,
-}
-
-/// Complete MC 26.2 attribute specification table (`40` entries, indexed by protocol ID).
-pub static ATTRIBUTE_SPECS: [AttributeSpec; attributes::ATTRIBUTE_COUNT] = [
-    AttributeSpec {
-        id: 0,
-        key: "minecraft:air_drag_modifier",
-        default_value: 1.0,
-        min_value: 0.0,
-        max_value: 2048.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 1,
-        key: "minecraft:armor",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 30.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 2,
-        key: "minecraft:armor_toughness",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 20.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 3,
-        key: "minecraft:attack_damage",
-        default_value: 2.0,
-        min_value: 0.0,
-        max_value: 2048.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 4,
-        key: "minecraft:attack_knockback",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 5.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 5,
-        key: "minecraft:attack_speed",
-        default_value: 4.0,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 6,
-        key: "minecraft:below_name_distance",
-        default_value: 10.0,
-        min_value: 0.0,
-        max_value: 512.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 7,
-        key: "minecraft:block_break_speed",
-        default_value: 1.0,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 8,
-        key: "minecraft:block_interaction_range",
-        default_value: 4.5,
-        min_value: 0.0,
-        max_value: 64.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 9,
-        key: "minecraft:bounciness",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 10,
-        key: "minecraft:burning_time",
-        default_value: 1.0,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 11,
-        key: "minecraft:camera_distance",
-        default_value: 4.0,
-        min_value: 0.0,
-        max_value: 32.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 12,
-        key: "minecraft:explosion_knockback_resistance",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 13,
-        key: "minecraft:entity_interaction_range",
-        default_value: 3.0,
-        min_value: 0.0,
-        max_value: 64.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 14,
-        key: "minecraft:fall_damage_multiplier",
-        default_value: 1.0,
-        min_value: 0.0,
-        max_value: 100.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 15,
-        key: "minecraft:flying_speed",
-        default_value: 0.4,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 16,
-        key: "minecraft:follow_range",
-        default_value: 32.0,
-        min_value: 0.0,
-        max_value: 2048.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 17,
-        key: "minecraft:friction_modifier",
-        default_value: 1.0,
-        min_value: 0.0,
-        max_value: 2048.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 18,
-        key: "minecraft:gravity",
-        default_value: 0.08,
-        min_value: -1.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 19,
-        key: "minecraft:jump_strength",
-        default_value: 0.42,
-        min_value: 0.0,
-        max_value: 32.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 20,
-        key: "minecraft:knockback_resistance",
-        default_value: 0.0,
-        min_value: -2.0,
-        max_value: 1.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 21,
-        key: "minecraft:luck",
-        default_value: 0.0,
-        min_value: -1024.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 22,
-        key: "minecraft:max_absorption",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 2048.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 23,
-        key: "minecraft:max_health",
-        default_value: 20.0,
-        min_value: 1.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 24,
-        key: "minecraft:mining_efficiency",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 25,
-        key: "minecraft:movement_efficiency",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 26,
-        key: "minecraft:movement_speed",
-        default_value: 0.7,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 27,
-        key: "minecraft:name_tag_distance",
-        default_value: 64.0,
-        min_value: 0.0,
-        max_value: 512.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 28,
-        key: "minecraft:oxygen_bonus",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 29,
-        key: "minecraft:safe_fall_distance",
-        default_value: 3.0,
-        min_value: -1024.0,
-        max_value: 1024.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 30,
-        key: "minecraft:scale",
-        default_value: 1.0,
-        min_value: 0.0625,
-        max_value: 16.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 31,
-        key: "minecraft:sneaking_speed",
-        default_value: 0.3,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 32,
-        key: "minecraft:spawn_reinforcements",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 33,
-        key: "minecraft:step_height",
-        default_value: 0.6,
-        min_value: 0.0,
-        max_value: 10.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 34,
-        key: "minecraft:submerged_mining_speed",
-        default_value: 0.2,
-        min_value: 0.0,
-        max_value: 20.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 35,
-        key: "minecraft:sweeping_damage_ratio",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 36,
-        key: "minecraft:tempt_range",
-        default_value: 10.0,
-        min_value: 0.0,
-        max_value: 2048.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 37,
-        key: "minecraft:water_movement_efficiency",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 1.0,
-        client_sync: true,
-    },
-    AttributeSpec {
-        id: 38,
-        key: "minecraft:waypoint_transmit_range",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 60_000_000.0,
-        client_sync: false,
-    },
-    AttributeSpec {
-        id: 39,
-        key: "minecraft:waypoint_receive_range",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 60_000_000.0,
-        client_sync: false,
-    },
-];
-
-/// Strongly typed `Copy` handle for a Minecraft 26.2 entity `Attribute` (`minecraft:attribute`).
+/// Strongly typed `Copy` handle for all **40** Minecraft 26.2 entity `Attribute`s (`minecraft:attribute`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Attribute(u32);
 
-impl Attribute {
-    /// `minecraft:armor` (`1`).
-    pub const ARMOR: Self = Self(attributes::ARMOR);
-    /// `minecraft:armor_toughness` (`2`).
-    pub const ARMOR_TOUGHNESS: Self = Self(attributes::ARMOR_TOUGHNESS);
-    /// `minecraft:attack_damage` (`3`).
-    pub const ATTACK_DAMAGE: Self = Self(attributes::ATTACK_DAMAGE);
-    /// `minecraft:attack_knockback` (`4`).
-    pub const ATTACK_KNOCKBACK: Self = Self(attributes::ATTACK_KNOCKBACK);
-    /// `minecraft:attack_speed` (`5`).
-    pub const ATTACK_SPEED: Self = Self(attributes::ATTACK_SPEED);
-    /// `minecraft:block_break_speed` (`7`).
-    pub const BLOCK_BREAK_SPEED: Self = Self(attributes::BLOCK_BREAK_SPEED);
-    /// `minecraft:block_interaction_range` (`8`).
-    pub const BLOCK_INTERACTION_RANGE: Self = Self(attributes::BLOCK_INTERACTION_RANGE);
-    /// `minecraft:entity_interaction_range` (`13`).
-    pub const ENTITY_INTERACTION_RANGE: Self = Self(attributes::ENTITY_INTERACTION_RANGE);
-    /// `minecraft:fall_damage_multiplier` (`14`).
-    pub const FALL_DAMAGE_MULTIPLIER: Self = Self(attributes::FALL_DAMAGE_MULTIPLIER);
-    /// `minecraft:flying_speed` (`15`).
-    pub const FLYING_SPEED: Self = Self(attributes::FLYING_SPEED);
-    /// `minecraft:follow_range` (`16`).
-    pub const FOLLOW_RANGE: Self = Self(attributes::FOLLOW_RANGE);
-    /// `minecraft:gravity` (`18`).
-    pub const GRAVITY: Self = Self(attributes::GRAVITY);
-    /// `minecraft:jump_strength` (`19`).
-    pub const JUMP_STRENGTH: Self = Self(attributes::JUMP_STRENGTH);
-    /// `minecraft:knockback_resistance` (`20`).
-    pub const KNOCKBACK_RESISTANCE: Self = Self(attributes::KNOCKBACK_RESISTANCE);
-    /// `minecraft:luck` (`21`).
-    pub const LUCK: Self = Self(attributes::LUCK);
-    /// `minecraft:max_absorption` (`22`).
-    pub const MAX_ABSORPTION: Self = Self(attributes::MAX_ABSORPTION);
-    /// `minecraft:max_health` (`23`).
-    pub const MAX_HEALTH: Self = Self(attributes::MAX_HEALTH);
-    /// `minecraft:movement_speed` (`26`).
-    pub const MOVEMENT_SPEED: Self = Self(attributes::MOVEMENT_SPEED);
-    /// `minecraft:safe_fall_distance` (`29`).
-    pub const SAFE_FALL_DISTANCE: Self = Self(attributes::SAFE_FALL_DISTANCE);
-    /// `minecraft:scale` (`30`).
-    pub const SCALE: Self = Self(attributes::SCALE);
-    /// `minecraft:step_height` (`33`).
-    pub const STEP_HEIGHT: Self = Self(attributes::STEP_HEIGHT);
+minestom_data::impl_attribute_constants!(Attribute);
 
+impl Attribute {
     /// Constructs an [`Attribute`] from a validated protocol ID (`0..40`).
     pub const fn from_id(id: u32) -> Result<Self, EntityError> {
         if (id as usize) < ATTRIBUTE_SPECS.len() {
@@ -406,28 +29,25 @@ impl Attribute {
         }
     }
 
-    /// Looks up an [`Attribute`] by its `minecraft:...` resource key.
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        ATTRIBUTE_SPECS
-            .iter()
-            .find(|s| s.key == key)
-            .map(|s| Self(s.id))
+        attributes::lookup_key(key).map(Self)
     }
 
-    /// Numeric protocol ID.
+    /// Numeric protocol ID (`0..40`).
     #[must_use]
     pub const fn id(self) -> u32 {
         self.0
     }
 
-    /// Static [`AttributeSpec`] entry.
+    /// Static generated [`AttributeSpec`] entry.
     #[must_use]
     pub const fn spec(self) -> &'static AttributeSpec {
         &ATTRIBUTE_SPECS[self.0 as usize]
     }
 
-    /// Canonical `minecraft:...` key.
+    /// Canonical `"minecraft:..."` key.
     #[must_use]
     pub const fn key(self) -> &'static str {
         self.spec().key
@@ -443,6 +63,12 @@ impl Attribute {
     #[must_use]
     pub const fn is_client_synced(self) -> bool {
         self.spec().client_sync
+    }
+}
+
+impl fmt::Display for Attribute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.key())
     }
 }
 
@@ -656,6 +282,20 @@ impl AttributeMap {
         map
     }
 
+    /// Creates an [`AttributeMap`] populated from `default_attributes` `(attribute_id, base_value)`
+    /// generated from `entity_type.json`.
+    #[must_use]
+    pub fn from_defaults(defaults: &[(u16, f64)]) -> Self {
+        let mut map = Self::new();
+        for &(aid, base) in defaults {
+            if let Ok(attr) = Attribute::from_id(u32::from(aid)) {
+                map.set_base_value(attr, base);
+            }
+        }
+        map.clear_dirty();
+        map
+    }
+
     /// Returns the computed value of `attribute` (falling back to `attribute.default_value()`).
     #[must_use]
     pub fn get_value(&self, attribute: Attribute) -> f64 {
@@ -694,6 +334,11 @@ impl AttributeMap {
             .is_some_and(|inst| inst.remove_modifier(id))
     }
 
+    /// Iterates over all customized [`AttributeInstance`]s.
+    pub fn iter(&self) -> impl Iterator<Item = &AttributeInstance> {
+        self.instances.values()
+    }
+
     /// Clears all dirty flags without emitting packets.
     pub fn clear_dirty(&mut self) {
         for inst in self.instances.values_mut() {
@@ -726,6 +371,15 @@ impl AttributeMap {
     }
 }
 
+impl<'a> IntoIterator for &'a AttributeMap {
+    type Item = &'a AttributeInstance;
+    type IntoIter = std::collections::btree_map::Values<'a, u32, AttributeInstance>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.instances.values()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -750,7 +404,6 @@ mod tests {
                 AttributeOperation::AddMultipliedTotal,
             ),
         );
-        // (20 + 4) * (1 + 0.5) * (1 + 0.25) = 24 * 1.5 * 1.25 = 45.0
         assert!((map.get_value(Attribute::MAX_HEALTH) - 45.0).abs() < 1e-6);
 
         let dirty = map.take_dirty_wire_properties();
@@ -758,7 +411,6 @@ mod tests {
         assert_eq!(dirty[0].modifiers.len(), 3);
         assert_eq!(map.take_dirty_wire_properties().len(), 0);
 
-        // Clamping: ARMOR max is 30.0
         map.set_base_value(Attribute::ARMOR, 999.0);
         assert!((map.get_value(Attribute::ARMOR) - 30.0).abs() < 1e-6);
     }

@@ -545,6 +545,12 @@ pub static CONFIGURATION_REGISTRIES: &[VanillaDynamicRegistry] = &[
 
 /// Numeric ID of `minecraft:overworld` inside `CONFIGURATION_REGISTRIES` (`0`).
 pub const OVERWORLD_DIMENSION_TYPE_ID: u32 = 0;
+/// Numeric ID of `minecraft:overworld_caves` inside `CONFIGURATION_REGISTRIES` (`1`).
+pub const OVERWORLD_CAVES_DIMENSION_TYPE_ID: u32 = 1;
+/// Numeric ID of `minecraft:the_nether` inside `CONFIGURATION_REGISTRIES` (`3`).
+pub const THE_NETHER_DIMENSION_TYPE_ID: u32 = 3;
+/// Numeric ID of `minecraft:the_end` inside `CONFIGURATION_REGISTRIES` (`2`).
+pub const THE_END_DIMENSION_TYPE_ID: u32 = 2;
 /// Numeric ID of `minecraft:plains` inside `CONFIGURATION_REGISTRIES` (`40`).
 pub const PLAINS_BIOME_ID: u32 = 40;
 /// Total number of vanilla biomes (`66`).

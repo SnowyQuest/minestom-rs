@@ -10,6 +10,8 @@ use minestom_macros::PacketMeta;
 use minestom_text::Component;
 use uuid::Uuid;
 
+use crate::login::ProfileProperty;
+use crate::ui_media::ParticleEntry;
 use crate::{
     ConnectionState, DEFAULT_MAX_STRING_CHARS, Decode, Encode, OptionalVarInt, PacketPayload,
     ProtocolError, read_prefixed_vec, read_string, read_var_int, read_var_long, write_prefixed_vec,
@@ -191,7 +193,279 @@ impl EntityPose {
     }
 }
 
-/// Typed MC 26.2 entity metadata value (`Metadata.Entry<?>` in Minestom, serializer IDs `0..=42`).
+/// Villager biome, profession, and trade tier (`VillagerMeta.VillagerData` in Minestom, serializer `18`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct VillagerData {
+    /// Villager biome type ID (`0..=6`, `2` = Plains).
+    pub villager_type: i32,
+    /// Villager profession ID (`0..15`, `minestom_data::generated::villager_professions`).
+    pub profession: i32,
+    /// Trade level (`1..=5`).
+    pub level: i32,
+}
+
+impl Default for VillagerData {
+    fn default() -> Self {
+        Self {
+            villager_type: 2,
+            profession: 0,
+            level: 1,
+        }
+    }
+}
+
+/// Dimension-qualified block position (`WorldPos` in Minestom, serializer `33`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WorldPos {
+    /// Dimension registry key (e.g. `"minecraft:overworld"`).
+    pub dimension: String,
+    /// Block coordinate.
+    pub position: BlockVec,
+}
+
+/// Sniffer animation state (`SnifferMeta.State`, serializer `35`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[repr(i32)]
+pub enum SnifferState {
+    /// `0` — Idling.
+    #[default]
+    Idling = 0,
+    /// `1` — Feeling happy.
+    FeelingHappy = 1,
+    /// `2` — Scenting.
+    Scenting = 2,
+    /// `3` — Sniffing.
+    Sniffing = 3,
+    /// `4` — Searching.
+    Searching = 4,
+    /// `5` — Digging.
+    Digging = 5,
+    /// `6` — Rising.
+    Rising = 6,
+}
+
+impl SnifferState {
+    const fn from_id(id: i32) -> Result<Self, ProtocolError> {
+        match id {
+            0 => Ok(Self::Idling),
+            1 => Ok(Self::FeelingHappy),
+            2 => Ok(Self::Scenting),
+            3 => Ok(Self::Sniffing),
+            4 => Ok(Self::Searching),
+            5 => Ok(Self::Digging),
+            6 => Ok(Self::Rising),
+            other => Err(ProtocolError::InvalidDiscriminant {
+                type_name: "SnifferState",
+                value: other,
+            }),
+        }
+    }
+}
+
+/// Armadillo shell state (`ArmadilloMeta.State`, serializer `36`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[repr(i32)]
+pub enum ArmadilloState {
+    /// `0` — Idle.
+    #[default]
+    Idle = 0,
+    /// `1` — Rolling into shell.
+    Rolling = 1,
+    /// `2` — Scared inside shell.
+    Scared = 2,
+    /// `3` — Unrolling.
+    Unrolling = 3,
+}
+
+impl ArmadilloState {
+    const fn from_id(id: i32) -> Result<Self, ProtocolError> {
+        match id {
+            0 => Ok(Self::Idle),
+            1 => Ok(Self::Rolling),
+            2 => Ok(Self::Scared),
+            3 => Ok(Self::Unrolling),
+            other => Err(ProtocolError::InvalidDiscriminant {
+                type_name: "ArmadilloState",
+                value: other,
+            }),
+        }
+    }
+}
+
+/// Copper Golem item-carrying state (`CopperGolemMeta.State`, serializer `37`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[repr(i32)]
+pub enum CopperGolemState {
+    /// `0` — Idle.
+    #[default]
+    Idle = 0,
+    /// `1` — Getting item.
+    GettingItem = 1,
+    /// `2` — Getting no item.
+    GettingNoItem = 2,
+    /// `3` — Dropping item.
+    DroppingItem = 3,
+    /// `4` — Dropping no item.
+    DroppingNoItem = 4,
+}
+
+impl CopperGolemState {
+    const fn from_id(id: i32) -> Result<Self, ProtocolError> {
+        match id {
+            0 => Ok(Self::Idle),
+            1 => Ok(Self::GettingItem),
+            2 => Ok(Self::GettingNoItem),
+            3 => Ok(Self::DroppingItem),
+            4 => Ok(Self::DroppingNoItem),
+            other => Err(ProtocolError::InvalidDiscriminant {
+                type_name: "CopperGolemState",
+                value: other,
+            }),
+        }
+    }
+}
+
+/// Copper Golem oxidation state (`CopperGolemMeta.WeatherState`, serializer `38`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[repr(i32)]
+pub enum WeatherState {
+    /// `0` — Unaffected.
+    #[default]
+    Unaffected = 0,
+    /// `1` — Exposed.
+    Exposed = 1,
+    /// `2` — Weathered.
+    Weathered = 2,
+    /// `3` — Oxidized.
+    Oxidized = 3,
+}
+
+impl WeatherState {
+    const fn from_id(id: i32) -> Result<Self, ProtocolError> {
+        match id {
+            0 => Ok(Self::Unaffected),
+            1 => Ok(Self::Exposed),
+            2 => Ok(Self::Weathered),
+            3 => Ok(Self::Oxidized),
+            other => Err(ProtocolError::InvalidDiscriminant {
+                type_name: "WeatherState",
+                value: other,
+            }),
+        }
+    }
+}
+
+/// Optional skin asset overrides (`PlayerSkin.Patch` in Minestom).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SkinPatch {
+    /// Body texture asset key.
+    pub body: Option<String>,
+    /// Cape texture asset key.
+    pub cape: Option<String>,
+    /// Elytra texture asset key.
+    pub elytra: Option<String>,
+    /// Slim arm model override (`Some(true)` = slim, `Some(false)` = wide).
+    pub slim: Option<bool>,
+}
+
+/// Complete or partial player/mannequin skin profile (`ResolvableProfile` in Minestom, serializer `41`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ResolvableProfile {
+    /// If `true`, encodes a complete `(uuid.unwrap_or_nil(), name.unwrap_or_default(), properties)` `Left(GameProfile)`;
+    /// otherwise encodes `Right(Partial { name, uuid, properties })`.
+    pub complete: bool,
+    /// Optional profile username.
+    pub name: Option<String>,
+    /// Optional profile UUID.
+    pub uuid: Option<Uuid>,
+    /// Signed texture properties.
+    pub properties: Vec<ProfileProperty>,
+    /// Asset skin patch overrides.
+    pub patch: SkinPatch,
+}
+
+impl Encode for ResolvableProfile {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        if self.complete {
+            true.encode(buf)?;
+            self.uuid.unwrap_or(Uuid::nil()).encode(buf)?;
+            write_string(buf, self.name.as_deref().unwrap_or(""), 16)?;
+            write_prefixed_vec(buf, &self.properties, 16)?;
+        } else {
+            false.encode(buf)?;
+            match &self.name {
+                Some(n) => {
+                    true.encode(buf)?;
+                    write_string(buf, n, 16)?;
+                }
+                None => false.encode(buf)?,
+            }
+            self.uuid.encode(buf)?;
+            write_prefixed_vec(buf, &self.properties, 16)?;
+        }
+        for opt_key in [&self.patch.body, &self.patch.cape, &self.patch.elytra] {
+            match opt_key {
+                Some(k) => {
+                    true.encode(buf)?;
+                    write_string(buf, k, DEFAULT_MAX_STRING_CHARS)?;
+                }
+                None => false.encode(buf)?,
+            }
+        }
+        self.patch.slim.encode(buf)
+    }
+}
+
+impl Decode for ResolvableProfile {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let complete = bool::decode(buf)?;
+        let (name, uuid, properties) = if complete {
+            let u = Uuid::decode(buf)?;
+            let n = read_string(buf, 16)?;
+            let props = read_prefixed_vec(buf, 16)?;
+            (Some(n), Some(u), props)
+        } else {
+            let n = if bool::decode(buf)? {
+                Some(read_string(buf, 16)?)
+            } else {
+                None
+            };
+            let u = Option::<Uuid>::decode(buf)?;
+            let props = read_prefixed_vec(buf, 16)?;
+            (n, u, props)
+        };
+        let body = if bool::decode(buf)? {
+            Some(read_string(buf, DEFAULT_MAX_STRING_CHARS)?)
+        } else {
+            None
+        };
+        let cape = if bool::decode(buf)? {
+            Some(read_string(buf, DEFAULT_MAX_STRING_CHARS)?)
+        } else {
+            None
+        };
+        let elytra = if bool::decode(buf)? {
+            Some(read_string(buf, DEFAULT_MAX_STRING_CHARS)?)
+        } else {
+            None
+        };
+        let slim = Option::<bool>::decode(buf)?;
+        Ok(Self {
+            complete,
+            name,
+            uuid,
+            properties,
+            patch: SkinPatch {
+                body,
+                cape,
+                elytra,
+                slim,
+            },
+        })
+    }
+}
+
+/// Complete MC 26.2 entity metadata value (`Metadata.Entry<?>` in Minestom, all 43 serializer IDs `0..=42`).
 #[derive(Debug, Clone, PartialEq)]
 pub enum MetadataValue {
     /// `0` — `BYTE` (`i8`).
@@ -208,7 +482,7 @@ pub enum MetadataValue {
     Component(Component),
     /// `6` — `OPT_CHAT` (`Option<Component>`).
     OptComponent(Option<Component>),
-    /// `7` — `ITEM_STACK` (`ItemStack`, used by `ItemEntity`, `ItemDisplay`, `ItemFrame`!).
+    /// `7` — `ITEM_STACK` (`ItemStack`).
     ItemStack(ItemStack),
     /// `8` — `BOOLEAN`.
     Boolean(bool),
@@ -226,19 +500,64 @@ pub enum MetadataValue {
     BlockState(u32),
     /// `15` — `OPT_BLOCK_STATE` (`0 = None`, else `Some(state_id)`).
     OptBlockState(Option<u32>),
-    /// `19` — `OPT_VAR_INT` (`OptionalVarInt`).
+    /// `16` — `PARTICLE` (`ParticleEntry`).
+    Particle(ParticleEntry),
+    /// `17` — `PARTICLE_LIST` (`Vec<ParticleEntry>`).
+    ParticleList(Vec<ParticleEntry>),
+    /// `18` — `VILLAGER_DATA` (`VillagerData`).
+    VillagerData(VillagerData),
+    /// `19` — `OPT_VAR_INT` (`Option<i32>`).
     OptVarInt(Option<i32>),
     /// `20` — `POSE` (`EntityPose`).
     Pose(EntityPose),
+    /// `21` — `CAT_VARIANT` (dynamic registry ID).
+    CatVariant(u32),
+    /// `22` — `CAT_SOUND_VARIANT` (dynamic registry ID).
+    CatSoundVariant(u32),
+    /// `23` — `COW_VARIANT` (dynamic registry ID).
+    CowVariant(u32),
+    /// `24` — `COW_SOUND_VARIANT` (dynamic registry ID).
+    CowSoundVariant(u32),
+    /// `25` — `WOLF_VARIANT` (dynamic registry ID).
+    WolfVariant(u32),
+    /// `26` — `WOLF_SOUND_VARIANT` (dynamic registry ID).
+    WolfSoundVariant(u32),
+    /// `27` — `FROG_VARIANT` (dynamic registry ID).
+    FrogVariant(u32),
+    /// `28` — `PIG_VARIANT` (dynamic registry ID).
+    PigVariant(u32),
+    /// `29` — `PIG_SOUND_VARIANT` (dynamic registry ID).
+    PigSoundVariant(u32),
+    /// `30` — `CHICKEN_VARIANT` (dynamic registry ID).
+    ChickenVariant(u32),
+    /// `31` — `CHICKEN_SOUND_VARIANT` (dynamic registry ID).
+    ChickenSoundVariant(u32),
+    /// `32` — `ZOMBIE_NAUTILUS_VARIANT` (dynamic registry ID).
+    ZombieNautilusVariant(u32),
+    /// `33` — `OPT_GLOBAL_POSITION` (`Option<WorldPos>`).
+    OptGlobalPosition(Option<WorldPos>),
+    /// `34` — `PAINTING_VARIANT` (`Holder<PaintingVariant>` registry ID, encoded as `id + 1`).
+    PaintingVariant(u32),
+    /// `35` — `SNIFFER_STATE` (`SnifferState`).
+    SnifferState(SnifferState),
+    /// `36` — `ARMADILLO_STATE` (`ArmadilloState`).
+    ArmadilloState(ArmadilloState),
+    /// `37` — `COPPER_GOLEM_STATE` (`CopperGolemState`).
+    CopperGolemState(CopperGolemState),
+    /// `38` — `WEATHER_STATE` (`WeatherState`).
+    WeatherState(WeatherState),
     /// `39` — `VECTOR3` (`[f32; 3]`).
     Vector3([f32; 3]),
     /// `40` — `QUATERNION` (`[f32; 4]`).
     Quaternion([f32; 4]),
+    /// `41` — `RESOLVABLE_PROFILE` (`ResolvableProfile`).
+    ResolvableProfile(ResolvableProfile),
     /// `42` — `MAIN_HAND` (`MainHand`).
     MainHand(MainHand),
 }
 
 impl Encode for MetadataValue {
+    #[allow(clippy::too_many_lines)]
     fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
         match self {
             Self::Byte(v) => {
@@ -312,6 +631,21 @@ impl Encode for MetadataValue {
                 write_var_int(buf, opt.unwrap_or(0) as i32);
                 Ok(())
             }
+            Self::Particle(p) => {
+                write_var_int(buf, 16);
+                p.encode(buf)
+            }
+            Self::ParticleList(list) => {
+                write_var_int(buf, 17);
+                write_prefixed_vec(buf, list, 32_767)
+            }
+            Self::VillagerData(vd) => {
+                write_var_int(buf, 18);
+                write_var_int(buf, vd.villager_type);
+                write_var_int(buf, vd.profession);
+                write_var_int(buf, vd.level);
+                Ok(())
+            }
             Self::OptVarInt(opt) => {
                 write_var_int(buf, 19);
                 OptionalVarInt(*opt).encode(buf)
@@ -319,6 +653,102 @@ impl Encode for MetadataValue {
             Self::Pose(pose) => {
                 write_var_int(buf, 20);
                 write_var_int(buf, *pose as i32);
+                Ok(())
+            }
+            Self::CatVariant(id) => {
+                write_var_int(buf, 21);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::CatSoundVariant(id) => {
+                write_var_int(buf, 22);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::CowVariant(id) => {
+                write_var_int(buf, 23);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::CowSoundVariant(id) => {
+                write_var_int(buf, 24);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::WolfVariant(id) => {
+                write_var_int(buf, 25);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::WolfSoundVariant(id) => {
+                write_var_int(buf, 26);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::FrogVariant(id) => {
+                write_var_int(buf, 27);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::PigVariant(id) => {
+                write_var_int(buf, 28);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::PigSoundVariant(id) => {
+                write_var_int(buf, 29);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::ChickenVariant(id) => {
+                write_var_int(buf, 30);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::ChickenSoundVariant(id) => {
+                write_var_int(buf, 31);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::ZombieNautilusVariant(id) => {
+                write_var_int(buf, 32);
+                write_var_int(buf, *id as i32);
+                Ok(())
+            }
+            Self::OptGlobalPosition(opt) => {
+                write_var_int(buf, 33);
+                match opt {
+                    Some(wp) => {
+                        true.encode(buf)?;
+                        write_string(buf, &wp.dimension, DEFAULT_MAX_STRING_CHARS)?;
+                        wp.position.encode(buf)
+                    }
+                    None => false.encode(buf),
+                }
+            }
+            Self::PaintingVariant(id) => {
+                write_var_int(buf, 34);
+                write_var_int(buf, (*id as i32).saturating_add(1));
+                Ok(())
+            }
+            Self::SnifferState(st) => {
+                write_var_int(buf, 35);
+                write_var_int(buf, *st as i32);
+                Ok(())
+            }
+            Self::ArmadilloState(st) => {
+                write_var_int(buf, 36);
+                write_var_int(buf, *st as i32);
+                Ok(())
+            }
+            Self::CopperGolemState(st) => {
+                write_var_int(buf, 37);
+                write_var_int(buf, *st as i32);
+                Ok(())
+            }
+            Self::WeatherState(st) => {
+                write_var_int(buf, 38);
+                write_var_int(buf, *st as i32);
                 Ok(())
             }
             Self::Vector3(v) => {
@@ -334,6 +764,10 @@ impl Encode for MetadataValue {
                 q[2].encode(buf)?;
                 q[3].encode(buf)
             }
+            Self::ResolvableProfile(prof) => {
+                write_var_int(buf, 41);
+                prof.encode(buf)
+            }
             Self::MainHand(mh) => {
                 write_var_int(buf, 42);
                 write_var_int(buf, *mh as i32);
@@ -344,6 +778,7 @@ impl Encode for MetadataValue {
 }
 
 impl Decode for MetadataValue {
+    #[allow(clippy::too_many_lines)]
     fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
         let type_id = read_var_int(buf)?;
         match type_id {
@@ -365,20 +800,11 @@ impl Decode for MetadataValue {
             11 => Ok(Self::OptBlockPosition(Option::<BlockVec>::decode(buf)?)),
             12 => {
                 let raw = read_var_int(buf)?;
-                let dir = match raw {
-                    0 => Direction::Down,
-                    1 => Direction::Up,
-                    2 => Direction::North,
-                    3 => Direction::South,
-                    4 => Direction::West,
-                    5 => Direction::East,
-                    other => {
-                        return Err(ProtocolError::InvalidDiscriminant {
-                            type_name: "Direction",
-                            value: other,
-                        });
-                    }
-                };
+                let dir =
+                    Direction::from_id(raw).map_err(|_| ProtocolError::InvalidDiscriminant {
+                        type_name: "Direction",
+                        value: raw,
+                    })?;
                 Ok(Self::Direction(dir))
             }
             13 => Ok(Self::OptUuid(Option::<Uuid>::decode(buf)?)),
@@ -391,8 +817,64 @@ impl Decode for MetadataValue {
                     Some(raw as u32)
                 }))
             }
+            16 => Ok(Self::Particle(ParticleEntry::decode(buf)?)),
+            17 => Ok(Self::ParticleList(read_prefixed_vec(buf, 32_767)?)),
+            18 => Ok(Self::VillagerData(VillagerData {
+                villager_type: read_var_int(buf)?,
+                profession: read_var_int(buf)?,
+                level: read_var_int(buf)?,
+            })),
             19 => Ok(Self::OptVarInt(OptionalVarInt::decode(buf)?.0)),
             20 => Ok(Self::Pose(EntityPose::from_id(read_var_int(buf)?)?)),
+            21 => Ok(Self::CatVariant(read_var_int(buf)?.max(0) as u32)),
+            22 => Ok(Self::CatSoundVariant(read_var_int(buf)?.max(0) as u32)),
+            23 => Ok(Self::CowVariant(read_var_int(buf)?.max(0) as u32)),
+            24 => Ok(Self::CowSoundVariant(read_var_int(buf)?.max(0) as u32)),
+            25 => Ok(Self::WolfVariant(read_var_int(buf)?.max(0) as u32)),
+            26 => Ok(Self::WolfSoundVariant(read_var_int(buf)?.max(0) as u32)),
+            27 => Ok(Self::FrogVariant(read_var_int(buf)?.max(0) as u32)),
+            28 => Ok(Self::PigVariant(read_var_int(buf)?.max(0) as u32)),
+            29 => Ok(Self::PigSoundVariant(read_var_int(buf)?.max(0) as u32)),
+            30 => Ok(Self::ChickenVariant(read_var_int(buf)?.max(0) as u32)),
+            31 => Ok(Self::ChickenSoundVariant(read_var_int(buf)?.max(0) as u32)),
+            32 => Ok(Self::ZombieNautilusVariant(read_var_int(buf)?.max(0) as u32)),
+            33 => {
+                let opt = if bool::decode(buf)? {
+                    Some(WorldPos {
+                        dimension: read_string(buf, DEFAULT_MAX_STRING_CHARS)?,
+                        position: BlockVec::decode(buf)?,
+                    })
+                } else {
+                    None
+                };
+                Ok(Self::OptGlobalPosition(opt))
+            }
+            34 => {
+                let raw = read_var_int(buf)?;
+                if raw <= 0 {
+                    // Inline PaintingVariant fallback: width(VarInt), height(VarInt), assetId(String), title(OptChat), author(OptChat)
+                    let _w = read_var_int(buf)?;
+                    let _h = read_var_int(buf)?;
+                    let _asset = read_string(buf, DEFAULT_MAX_STRING_CHARS)?;
+                    let _title = Option::<Component>::decode(buf)?;
+                    let _author = Option::<Component>::decode(buf)?;
+                    Ok(Self::PaintingVariant(0))
+                } else {
+                    Ok(Self::PaintingVariant((raw - 1) as u32))
+                }
+            }
+            35 => Ok(Self::SnifferState(SnifferState::from_id(read_var_int(
+                buf,
+            )?)?)),
+            36 => Ok(Self::ArmadilloState(ArmadilloState::from_id(
+                read_var_int(buf)?,
+            )?)),
+            37 => Ok(Self::CopperGolemState(CopperGolemState::from_id(
+                read_var_int(buf)?,
+            )?)),
+            38 => Ok(Self::WeatherState(WeatherState::from_id(read_var_int(
+                buf,
+            )?)?)),
             39 => Ok(Self::Vector3([
                 f32::decode(buf)?,
                 f32::decode(buf)?,
@@ -404,6 +886,7 @@ impl Decode for MetadataValue {
                 f32::decode(buf)?,
                 f32::decode(buf)?,
             ])),
+            41 => Ok(Self::ResolvableProfile(ResolvableProfile::decode(buf)?)),
             42 => {
                 let mh = match read_var_int(buf)? {
                     0 => MainHand::Left,

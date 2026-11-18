@@ -1,9 +1,10 @@
-//! `MinecraftServer` runtime, explicit cloneable handle, `ServerConfig`,
-//! dedicated 20 TPS tick loop (`Ms-TickScheduler`), and TCP listener lifecycle.
+//! `MinecraftServer` runtime, explicit cloneable handle, [`PlayerRef`] & [`EntityRef`] handles,
+//! `ServerConfig`, dedicated 20 TPS tick loop (`Ms-TickScheduler`), and TCP listener lifecycle.
 
 pub mod config;
 pub mod event;
 pub mod features;
+pub mod handle;
 mod session;
 pub mod snapshot;
 mod tick;
@@ -16,13 +17,15 @@ use arc_swap::ArcSwap;
 use bytes::Bytes;
 use minestom_block::{Block, BlockManager};
 use minestom_command::CommandManager;
-use minestom_core::{BlockVec, PlayerId, Pos, Vec3};
+use minestom_core::{BlockVec, GameMode, PlayerId, Pos, Vec3};
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
+use minestom_entity::metadata_def::{BitMaskKey, MetadataKey};
 use minestom_entity::{Attribute, AttributeModifier, Damage, Entity, Potion, PotionEffect};
 use minestom_event::GlobalEventHandler;
 use minestom_item::{Inventory, ItemStack};
 use minestom_nbt::NbtCompound;
 use minestom_network::{MojangSessionClient, ServerEncryptionKeys};
+use minestom_protocol::chat_command::SystemChatPacket;
 use minestom_protocol::encode_packet_payload;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
 use minestom_protocol::ui_media::{
@@ -49,18 +52,22 @@ pub use event::{
 };
 pub use features::{
     AdvancementTab, BossBar, Dialog, Particle, PlayerResourcePackStatusEvent, RecipeManager,
-    ResourcePackRequest, Sidebar, SidebarLine, Sound, TeamManager, Title, TitleTimes,
-    ToastNotification,
+    RecipePropertySet, ResourcePackRequest, Sidebar, SidebarLine, Sound, SoundEvent, TeamManager,
+    Title, TitleTimes, ToastNotification,
 };
+pub use handle::{EntityRef, PlayerRef};
 pub use snapshot::{
     ChunkSnapshot, EntitySnapshot, InstanceSnapshot, PlayerSnapshot, ServerSnapshot,
 };
 
 use session::{build_cached_vanilla_config_packets, run_client_session};
 use tick::{
-    EntityCommand, PlayerInvCommand, TickMessage, UiCommand, WorldBlockCommand, WorldEnvCommand,
-    spawn_tick_thread,
+    EntityCommand, PlayerControlCommand, PlayerInvCommand, ServerCommand, TickMessage, UiCommand,
+    WorldBlockCommand, WorldEnvCommand, spawn_tick_thread,
 };
+
+/// Bounded capacity of the unified FIFO server-to-tick command channel (`65,536`).
+const SERVER_CMD_CHANNEL_CAP: usize = 65_536;
 
 /// Errors returned while configuring, starting, or running [`MinecraftServer`].
 #[derive(Debug, thiserror::Error)]
@@ -105,16 +112,8 @@ pub(crate) struct ServerShared {
     pub(crate) events: GlobalEventHandler,
     pub(crate) online_count: Arc<AtomicU32>,
     pub(crate) next_entity_id: Arc<AtomicI32>,
-    pub(crate) entity_cmd_tx: flume::Sender<EntityCommand>,
-    pub(crate) entity_cmd_rx: flume::Receiver<EntityCommand>,
-    pub(crate) block_cmd_tx: flume::Sender<WorldBlockCommand>,
-    pub(crate) block_cmd_rx: flume::Receiver<WorldBlockCommand>,
-    pub(crate) inv_cmd_tx: flume::Sender<PlayerInvCommand>,
-    pub(crate) inv_cmd_rx: flume::Receiver<PlayerInvCommand>,
-    pub(crate) env_cmd_tx: flume::Sender<WorldEnvCommand>,
-    pub(crate) env_cmd_rx: flume::Receiver<WorldEnvCommand>,
-    pub(crate) ui_cmd_tx: flume::Sender<UiCommand>,
-    pub(crate) ui_cmd_rx: flume::Receiver<UiCommand>,
+    pub(crate) cmd_tx: flume::Sender<ServerCommand>,
+    pub(crate) cmd_rx: flume::Receiver<ServerCommand>,
     live_status: ArcSwap<LiveStatusState>,
     pub(crate) cached_registry_packets: Vec<Bytes>,
     pub(crate) cached_tags_packet: Bytes,
@@ -143,9 +142,19 @@ impl ServerShared {
 }
 
 /// Fluent builder for constructing a [`MinecraftServer`].
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct MinecraftServerBuilder {
     config: ServerConfig,
+    vanilla_block_rules: bool,
+}
+
+impl Default for MinecraftServerBuilder {
+    fn default() -> Self {
+        Self {
+            config: ServerConfig::default(),
+            vanilla_block_rules: true,
+        }
+    }
 }
 
 impl MinecraftServerBuilder {
@@ -153,6 +162,15 @@ impl MinecraftServerBuilder {
     #[must_use]
     pub fn config(mut self, config: ServerConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Enables or disables pre-registration of all vanilla [`minestom_block::BlockPlacementRule`]s
+    /// (slabs, stairs, logs, doors, trapdoors, fences, walls, signs, torches, lanterns, waterlogging;
+    /// enabled by default).
+    #[must_use]
+    pub const fn vanilla_block_rules(mut self, enabled: bool) -> Self {
+        self.vanilla_block_rules = enabled;
         self
     }
 
@@ -247,12 +265,13 @@ impl MinecraftServerBuilder {
             enforces_secure_chat: self.config.enforces_secure_chat,
         };
         let (shutdown_tx, _) = watch::channel(false);
-        let (entity_cmd_tx, entity_cmd_rx) = flume::unbounded();
-        let (block_cmd_tx, block_cmd_rx) = flume::unbounded();
-        let (inv_cmd_tx, inv_cmd_rx) = flume::unbounded();
-        let (env_cmd_tx, env_cmd_rx) = flume::unbounded();
-        let (ui_cmd_tx, ui_cmd_rx) = flume::unbounded();
+        let (cmd_tx, cmd_rx) = flume::bounded(SERVER_CMD_CHANNEL_CAP);
         let tps = self.config.ticks_per_second;
+        let block_manager = if self.vanilla_block_rules {
+            BlockManager::with_vanilla_rules()
+        } else {
+            BlockManager::empty()
+        };
         Ok(MinecraftServer {
             shared: Arc::new(ServerShared {
                 config: self.config,
@@ -260,7 +279,7 @@ impl MinecraftServerBuilder {
                 session_client,
                 registries,
                 instance_manager: InstanceManager::new(),
-                block_manager: BlockManager::new(),
+                block_manager,
                 command_manager: CommandManager::new(),
                 scheduler_manager: SchedulerManager::with_tps(tps),
                 team_manager: TeamManager::new(),
@@ -269,16 +288,8 @@ impl MinecraftServerBuilder {
                 events: GlobalEventHandler::all("global"),
                 online_count: Arc::new(AtomicU32::new(0)),
                 next_entity_id: Arc::new(AtomicI32::new(1)),
-                entity_cmd_tx,
-                entity_cmd_rx,
-                block_cmd_tx,
-                block_cmd_rx,
-                inv_cmd_tx,
-                inv_cmd_rx,
-                env_cmd_tx,
-                env_cmd_rx,
-                ui_cmd_tx,
-                ui_cmd_rx,
+                cmd_tx,
+                cmd_rx,
                 live_status: ArcSwap::from_pointee(live),
                 cached_registry_packets,
                 cached_tags_packet,
@@ -304,43 +315,55 @@ impl std::fmt::Debug for MinecraftServer {
 }
 
 impl MinecraftServer {
-    /// Creates a new [`MinecraftServerBuilder`] with default settings.
+    /// Creates a new [`MinecraftServerBuilder`] with default settings (including vanilla block placement rules).
     #[must_use]
     pub fn builder() -> MinecraftServerBuilder {
         MinecraftServerBuilder::default()
     }
 
+    #[inline]
+    fn enqueue_cmd(&self, cmd: ServerCommand) {
+        let _ = self.shared.cmd_tx.try_send(cmd);
+    }
+
     /// Borrows the [`ServerConfig`].
+    #[must_use]
     pub fn config(&self) -> &ServerConfig {
         &self.shared.config
     }
 
     /// Borrows the [`InstanceManager`] (`server.instance_manager()`).
+    #[must_use]
     pub fn instance_manager(&self) -> &InstanceManager {
         &self.shared.instance_manager
     }
 
     /// Borrows the [`BlockManager`] (`server.block_manager()`).
+    #[must_use]
     pub fn block_manager(&self) -> &BlockManager {
         &self.shared.block_manager
     }
 
     /// Borrows the [`CommandManager`] (`server.command_manager()`).
+    #[must_use]
     pub fn command_manager(&self) -> &CommandManager {
         &self.shared.command_manager
     }
 
     /// Borrows the deterministic 20 TPS [`SchedulerManager`] (`server.scheduler_manager()`).
+    #[must_use]
     pub fn scheduler_manager(&self) -> &SchedulerManager {
         &self.shared.scheduler_manager
     }
 
     /// Borrows the scoreboard [`TeamManager`] (`server.team_manager()`).
+    #[must_use]
     pub fn team_manager(&self) -> &TeamManager {
         &self.shared.team_manager
     }
 
     /// Borrows the [`RecipeManager`] (`server.recipe_manager()`).
+    #[must_use]
     pub fn recipe_manager(&self) -> &RecipeManager {
         &self.shared.recipe_manager
     }
@@ -353,16 +376,61 @@ impl MinecraftServer {
     }
 
     /// Borrows the root [`GlobalEventHandler`] (`server.global_event_handler()`).
+    #[must_use]
     pub fn global_event_handler(&self) -> &GlobalEventHandler {
         &self.shared.events
     }
 
     /// Borrows the server [`Registries`].
+    #[must_use]
     pub fn registries(&self) -> &Registries {
         &self.shared.registries
     }
 
+    /// Returns an ergonomic [`PlayerRef`] handle for `player_id`.
+    #[must_use]
+    pub fn player(&self, player_id: PlayerId) -> PlayerRef {
+        PlayerRef::new(player_id, self.clone())
+    }
+
+    /// Looks up an online player by username in the latest tick snapshot.
+    #[must_use]
+    pub fn player_by_name(&self, username: &str) -> Option<PlayerRef> {
+        self.snapshot()
+            .player_by_name(username)
+            .map(|p| PlayerRef::new(p.player_id, self.clone()))
+    }
+
+    /// Looks up an online player by [`Uuid`] in the latest tick snapshot.
+    #[must_use]
+    pub fn player_by_uuid(&self, uuid: Uuid) -> Option<PlayerRef> {
+        self.snapshot()
+            .players
+            .iter()
+            .find(|p| p.uuid == uuid)
+            .map(|p| PlayerRef::new(p.player_id, self.clone()))
+    }
+
+    /// Returns [`PlayerRef`] handles for all online players in the latest tick snapshot.
+    #[must_use]
+    pub fn online_players(&self) -> Vec<PlayerRef> {
+        self.snapshot()
+            .players
+            .iter()
+            .map(|p| PlayerRef::new(p.player_id, self.clone()))
+            .collect()
+    }
+
+    /// Looks up a spawned world [`EntityRef`] by `network_id` in the latest tick snapshot.
+    #[must_use]
+    pub fn entity(&self, network_id: i32) -> Option<EntityRef> {
+        self.snapshot()
+            .entity(network_id)
+            .map(|e| EntityRef::new(e.entity_id, e.entity_type, e.instance_id, self.clone()))
+    }
+
     /// Returns the number of players currently connected in the `Play` state.
+    #[must_use]
     pub fn online_count(&self) -> u32 {
         self.shared.online_count.load(Ordering::Relaxed)
     }
@@ -395,168 +463,254 @@ impl MinecraftServer {
         self.shared.online_count.store(count, Ordering::Relaxed);
     }
 
-    /// Spawns a non-player [`Entity`] into `instance` at `position`, returning its assigned
-    /// runtime network `entity_id`. Can be called before or after [`Self::start`]!
-    pub fn spawn_entity(&self, instance: &InstanceContainer, entity: Entity, position: Pos) -> i32 {
+    /// Spawns a non-player [`Entity`] into `instance` at `position`, returning an [`EntityRef`]
+    /// handle immediately. Can be called before or after [`Self::start`]!
+    pub fn spawn_entity(
+        &self,
+        instance: &InstanceContainer,
+        entity: Entity,
+        position: Pos,
+    ) -> EntityRef {
         let network_id = self.shared.next_entity_id.fetch_add(1, Ordering::Relaxed);
-        let _ = self.shared.entity_cmd_tx.send(EntityCommand::Spawn {
+        let etype = entity.entity_type();
+        let inst_id = instance.id();
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::Spawn {
             network_id,
             instance: instance.clone(),
             entity: Box::new(entity),
             position,
-        });
-        network_id
+        }));
+        EntityRef::new(network_id, etype, inst_id, self.clone())
     }
 
-    /// Schedules removal/despawn of a spawned world entity by its `network_id`.
-    pub fn remove_entity(&self, network_id: i32) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::Remove { network_id });
+    /// Schedules removal/despawn of a spawned world entity by `network_id` or [`EntityRef`].
+    pub fn remove_entity(&self, entity: impl Into<i32>) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::Remove {
+            network_id: entity.into(),
+        }));
     }
 
     /// Teleports a spawned world entity to `position` and syncs all viewers.
-    pub fn teleport_entity(&self, network_id: i32, position: Pos) {
-        let _ = self.shared.entity_cmd_tx.send(EntityCommand::Teleport {
-            network_id,
+    pub fn teleport_entity(&self, entity: impl Into<i32>, position: Pos) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::Teleport {
+            network_id: entity.into(),
             position,
-        });
+        }));
     }
 
     /// Sets the velocity of a spawned world entity and broadcasts `EntityVelocityPacket`.
-    pub fn set_entity_velocity(&self, network_id: i32, velocity: Vec3) {
-        let _ = self.shared.entity_cmd_tx.send(EntityCommand::SetVelocity {
-            network_id,
+    pub fn set_entity_velocity(&self, entity: impl Into<i32>, velocity: Vec3) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::SetVelocity {
+            network_id: entity.into(),
             velocity,
-        });
+        }));
+    }
+
+    /// Updates a typed [`MetadataKey`] on a spawned world entity and broadcasts `EntityMetaDataPacket`.
+    pub fn set_entity_metadata_key<T>(
+        &self,
+        entity: impl Into<i32>,
+        key: MetadataKey<T>,
+        value: T,
+    ) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::UpdateMetadata {
+            network_id: entity.into(),
+            index: key.index(),
+            value: key.encode_value(value),
+        }));
+    }
+
+    /// Updates a [`BitMaskKey`] flag on a spawned world entity and broadcasts `EntityMetaDataPacket`.
+    pub fn set_entity_metadata_flag(
+        &self,
+        entity: impl Into<i32>,
+        mask: BitMaskKey,
+        enabled: bool,
+    ) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::UpdateBitMask {
+            network_id: entity.into(),
+            index: mask.index(),
+            bit: mask.mask(),
+            enabled,
+        }));
     }
 
     /// Applies [`Damage`] to any living world entity or online player identified by `target_network_id`
     /// (firing [`minestom_entity::EntityDamageEvent`], knockback, hit animation, and death handling).
-    pub fn damage_entity(&self, target_network_id: i32, damage: Damage) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::DamageByNetworkId {
-                target_id: target_network_id,
-                damage,
-            });
+    pub fn damage_entity(&self, target_network_id: impl Into<i32>, damage: Damage) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::DamageByNetworkId {
+            target_id: target_network_id.into(),
+            damage,
+        }));
     }
 
     /// Applies [`Damage`] to `player_id`.
-    pub fn damage_player(&self, player_id: PlayerId, damage: Damage) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::DamagePlayer { player_id, damage });
+    pub fn damage_player(&self, player_id: impl Into<PlayerId>, damage: Damage) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::DamagePlayer {
+            player_id: player_id.into(),
+            damage,
+        }));
     }
 
     /// Restores `player_id` to full maximum health and standing pose.
-    pub fn heal_player(&self, player_id: PlayerId) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::HealPlayer { player_id });
+    pub fn heal_player(&self, player_id: impl Into<PlayerId>) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::HealPlayer {
+            player_id: player_id.into(),
+        }));
+    }
+
+    /// Teleports `player_id` to `position` and syncs chunk streaming + entity viewers.
+    pub fn teleport_player(&self, player_id: impl Into<PlayerId>, position: Pos) {
+        self.enqueue_cmd(ServerCommand::Player(PlayerControlCommand::Teleport {
+            player_id: player_id.into(),
+            position,
+        }));
+    }
+
+    /// Sets velocity on `player_id` and broadcasts `EntityVelocityPacket`.
+    pub fn set_player_velocity(&self, player_id: impl Into<PlayerId>, velocity: Vec3) {
+        self.enqueue_cmd(ServerCommand::Player(PlayerControlCommand::SetVelocity {
+            player_id: player_id.into(),
+            velocity,
+        }));
+    }
+
+    /// Changes `player_id`'s [`GameMode`] and syncs abilities + tab list across all players.
+    pub fn set_player_game_mode(&self, player_id: impl Into<PlayerId>, mode: GameMode) {
+        self.enqueue_cmd(ServerCommand::Player(PlayerControlCommand::SetGameMode {
+            player_id: player_id.into(),
+            mode,
+        }));
+    }
+
+    /// Sets `player_id`'s respawn [`Pos`].
+    pub fn set_player_respawn_point(&self, player_id: impl Into<PlayerId>, position: Pos) {
+        self.enqueue_cmd(ServerCommand::Player(
+            PlayerControlCommand::SetRespawnPoint {
+                player_id: player_id.into(),
+                position,
+            },
+        ));
+    }
+
+    /// Sends a system chat [`Component`] to `player_id`.
+    pub fn send_message(&self, player_id: impl Into<PlayerId>, message: impl Into<Component>) {
+        self.enqueue_cmd(ServerCommand::Player(PlayerControlCommand::SendMessage {
+            player_id: player_id.into(),
+            message: message.into(),
+        }));
+    }
+
+    /// Broadcasts a system chat [`Component`] to all online players.
+    pub fn broadcast_message(&self, message: impl Into<Component>) {
+        self.send_play_packet_to_all(&SystemChatPacket {
+            message: message.into(),
+            overlay: false,
+        });
+    }
+
+    /// Disconnects `player_id` with `reason`.
+    pub fn kick_player(&self, player_id: impl Into<PlayerId>, reason: impl Into<Component>) {
+        self.enqueue_cmd(ServerCommand::Player(PlayerControlCommand::Kick {
+            player_id: player_id.into(),
+            reason: reason.into(),
+        }));
     }
 
     /// Sets the base value of `attribute` on `target_network_id` and syncs `EntityAttributesPacket`.
     pub fn set_entity_attribute(
         &self,
-        target_network_id: i32,
+        target_network_id: impl Into<i32>,
         attribute: Attribute,
         base_value: f64,
     ) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::SetAttributeBase {
-                target_id: target_network_id,
-                attribute,
-                base_value,
-            });
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::SetAttributeBase {
+            target_id: target_network_id.into(),
+            attribute,
+            base_value,
+        }));
     }
 
     /// Adds or replaces an [`AttributeModifier`] on `target_network_id` and syncs `EntityAttributesPacket`.
     pub fn add_entity_attribute_modifier(
         &self,
-        target_network_id: i32,
+        target_network_id: impl Into<i32>,
         attribute: Attribute,
         modifier: AttributeModifier,
     ) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::AddAttributeModifier {
-                target_id: target_network_id,
-                attribute,
-                modifier,
-            });
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::AddAttributeModifier {
+            target_id: target_network_id.into(),
+            attribute,
+            modifier,
+        }));
     }
 
     /// Sets the base value of `attribute` on `player_id` and syncs `EntityAttributesPacket`.
-    pub fn set_player_attribute(&self, player_id: PlayerId, attribute: Attribute, base_value: f64) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::SetPlayerAttributeBase {
-                player_id,
+    pub fn set_player_attribute(
+        &self,
+        player_id: impl Into<PlayerId>,
+        attribute: Attribute,
+        base_value: f64,
+    ) {
+        self.enqueue_cmd(ServerCommand::Entity(
+            EntityCommand::SetPlayerAttributeBase {
+                player_id: player_id.into(),
                 attribute,
                 base_value,
-            });
+            },
+        ));
     }
 
     /// Adds or replaces an [`AttributeModifier`] on `player_id` and syncs `EntityAttributesPacket`.
     pub fn add_player_attribute_modifier(
         &self,
-        player_id: PlayerId,
+        player_id: impl Into<PlayerId>,
         attribute: Attribute,
         modifier: AttributeModifier,
     ) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::AddPlayerAttributeModifier {
-                player_id,
+        self.enqueue_cmd(ServerCommand::Entity(
+            EntityCommand::AddPlayerAttributeModifier {
+                player_id: player_id.into(),
                 attribute,
                 modifier,
-            });
+            },
+        ));
     }
 
     /// Applies `potion` to `target_network_id` and broadcasts `EntityEffectPacket`.
-    pub fn add_entity_effect(&self, target_network_id: i32, potion: Potion) {
-        let _ = self.shared.entity_cmd_tx.send(EntityCommand::AddEffect {
-            target_id: target_network_id,
+    pub fn add_entity_effect(&self, target_network_id: impl Into<i32>, potion: Potion) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::AddEffect {
+            target_id: target_network_id.into(),
             potion,
-        });
+        }));
     }
 
     /// Removes `effect` from `target_network_id` and broadcasts `RemoveEntityEffectPacket`.
-    pub fn remove_entity_effect(&self, target_network_id: i32, effect: PotionEffect) {
-        let _ = self.shared.entity_cmd_tx.send(EntityCommand::RemoveEffect {
-            target_id: target_network_id,
+    pub fn remove_entity_effect(&self, target_network_id: impl Into<i32>, effect: PotionEffect) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::RemoveEffect {
+            target_id: target_network_id.into(),
             effect,
-        });
+        }));
     }
 
     /// Applies `potion` to `player_id` and broadcasts `EntityEffectPacket` to self & viewers.
-    pub fn add_player_effect(&self, player_id: PlayerId, potion: Potion) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::AddPlayerEffect { player_id, potion });
+    pub fn add_player_effect(&self, player_id: impl Into<PlayerId>, potion: Potion) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::AddPlayerEffect {
+            player_id: player_id.into(),
+            potion,
+        }));
     }
 
     /// Removes `effect` from `player_id` and broadcasts `RemoveEntityEffectPacket`.
-    pub fn remove_player_effect(&self, player_id: PlayerId, effect: PotionEffect) {
-        let _ = self
-            .shared
-            .entity_cmd_tx
-            .send(EntityCommand::RemovePlayerEffect { player_id, effect });
+    pub fn remove_player_effect(&self, player_id: impl Into<PlayerId>, effect: PotionEffect) {
+        self.enqueue_cmd(ServerCommand::Entity(EntityCommand::RemovePlayerEffect {
+            player_id: player_id.into(),
+            effect,
+        }));
     }
 
     /// Spawns a dropped world `ItemEntity` into `instance` at `position` with `velocity` and
-    /// `pickup_delay_ticks`, returning its assigned runtime network `entity_id`.
+    /// `pickup_delay_ticks`, returning an [`EntityRef`] handle.
     pub fn spawn_item(
         &self,
         instance: &InstanceContainer,
@@ -564,43 +718,42 @@ impl MinecraftServer {
         position: Pos,
         velocity: Vec3,
         pickup_delay_ticks: u32,
-    ) -> i32 {
+    ) -> EntityRef {
         let entity = Entity::item(item_stack, pickup_delay_ticks).with_velocity(velocity);
         self.spawn_entity(instance, entity, position)
     }
 
     /// Adds `item` into an online player's [`minestom_item::PlayerInventory`] and synchronizes
     /// window `0` (and visible equipment if main/off-hand changed).
-    pub fn give_player_item(&self, player_id: PlayerId, item: ItemStack) {
-        let _ = self
-            .shared
-            .inv_cmd_tx
-            .send(PlayerInvCommand::GiveItem { player_id, item });
+    pub fn give_player_item(&self, player_id: impl Into<PlayerId>, item: ItemStack) {
+        self.enqueue_cmd(ServerCommand::Inv(PlayerInvCommand::GiveItem {
+            player_id: player_id.into(),
+            item,
+        }));
     }
 
     /// Writes `item` directly into protocol window-0 `slot` (`0..46`) of `player_id` and syncs viewers.
-    pub fn set_player_slot(&self, player_id: PlayerId, slot: usize, item: ItemStack) {
-        let _ = self.shared.inv_cmd_tx.send(PlayerInvCommand::SetSlot {
-            player_id,
+    pub fn set_player_slot(&self, player_id: impl Into<PlayerId>, slot: usize, item: ItemStack) {
+        self.enqueue_cmd(ServerCommand::Inv(PlayerInvCommand::SetSlot {
+            player_id: player_id.into(),
             slot,
             item,
-        });
+        }));
     }
 
     /// Opens a custom container [`Inventory`] window for `player_id` (`OpenWindowPacket` + `WindowItemsPacket`).
-    pub fn open_inventory(&self, player_id: PlayerId, inventory: &Inventory) {
-        let _ = self.shared.inv_cmd_tx.send(PlayerInvCommand::OpenWindow {
-            player_id,
+    pub fn open_inventory(&self, player_id: impl Into<PlayerId>, inventory: &Inventory) {
+        self.enqueue_cmd(ServerCommand::Inv(PlayerInvCommand::OpenWindow {
+            player_id: player_id.into(),
             inventory: inventory.clone(),
-        });
+        }));
     }
 
     /// Closes any currently open container [`Inventory`] window for `player_id`.
-    pub fn close_inventory(&self, player_id: PlayerId) {
-        let _ = self
-            .shared
-            .inv_cmd_tx
-            .send(PlayerInvCommand::CloseWindow { player_id });
+    pub fn close_inventory(&self, player_id: impl Into<PlayerId>) {
+        self.enqueue_cmd(ServerCommand::Inv(PlayerInvCommand::CloseWindow {
+            player_id: player_id.into(),
+        }));
     }
 
     /// Writes `block` (and optional block-entity `nbt`) into `instance` at `position` and
@@ -614,15 +767,12 @@ impl MinecraftServer {
     ) {
         let handler = self.shared.block_manager.get_handler(block.key());
         instance.set_block_with_data(position, block, nbt.clone(), handler);
-        let _ = self
-            .shared
-            .block_cmd_tx
-            .send(WorldBlockCommand::BroadcastSingle {
-                instance: instance.clone(),
-                position,
-                block,
-                nbt,
-            });
+        self.enqueue_cmd(ServerCommand::Block(WorldBlockCommand::BroadcastSingle {
+            instance: instance.clone(),
+            position,
+            block,
+            nbt,
+        }));
     }
 
     /// Applies an [`AbsoluteBlockBatch`] to `instance` and broadcasts compact per-section
@@ -630,13 +780,10 @@ impl MinecraftServer {
     pub fn apply_batch_synced(&self, instance: &InstanceContainer, batch: &AbsoluteBlockBatch) {
         let packets = batch.apply(instance);
         if !packets.is_empty() {
-            let _ = self
-                .shared
-                .block_cmd_tx
-                .send(WorldBlockCommand::BroadcastBatch {
-                    instance: instance.clone(),
-                    packets,
-                });
+            self.enqueue_cmd(ServerCommand::Block(WorldBlockCommand::BroadcastBatch {
+                instance: instance.clone(),
+                packets,
+            }));
         }
     }
 
@@ -649,30 +796,30 @@ impl MinecraftServer {
     ) {
         let old_diameter = instance.world_border().diameter;
         instance.set_world_border(border);
-        let _ = self.shared.env_cmd_tx.send(WorldEnvCommand::Border {
+        self.enqueue_cmd(ServerCommand::Env(WorldEnvCommand::Border {
             instance_id: instance.id(),
             old_diameter,
             border,
             lerp_ms,
-        });
+        }));
     }
 
     /// Updates `instance`'s [`WorldTime`] and immediately broadcasts MC 26.2 `SetTimePacket`.
     pub fn set_world_time(&self, instance: &InstanceContainer, time: WorldTime) {
         instance.set_world_time(time);
-        let _ = self.shared.env_cmd_tx.send(WorldEnvCommand::Time {
+        self.enqueue_cmd(ServerCommand::Env(WorldEnvCommand::Time {
             instance_id: instance.id(),
             time,
-        });
+        }));
     }
 
     /// Updates `instance`'s [`Weather`] and broadcasts rain/thunder `ChangeGameStatePacket`s.
     pub fn set_weather(&self, instance: &InstanceContainer, weather: Weather) {
         instance.set_weather(weather);
-        let _ = self.shared.env_cmd_tx.send(WorldEnvCommand::Weather {
+        self.enqueue_cmd(ServerCommand::Env(WorldEnvCommand::Weather {
             instance_id: instance.id(),
             weather,
-        });
+        }));
     }
 
     fn send_play_packet_to_player<P: minestom_protocol::PacketPayload>(
@@ -681,10 +828,10 @@ impl MinecraftServer {
         pkt: &P,
     ) {
         if let Ok(payload) = encode_packet_payload(pkt) {
-            let _ = self
-                .shared
-                .ui_cmd_tx
-                .send(UiCommand::ToPlayer { player_id, payload });
+            self.enqueue_cmd(ServerCommand::Ui(UiCommand::ToPlayer {
+                player_id,
+                payload,
+            }));
         }
     }
 
@@ -697,33 +844,35 @@ impl MinecraftServer {
             return;
         }
         if let Ok(payload) = encode_packet_payload(pkt) {
-            let _ = self.shared.ui_cmd_tx.send(UiCommand::ToPlayers {
+            self.enqueue_cmd(ServerCommand::Ui(UiCommand::ToPlayers {
                 player_ids,
                 payload,
-            });
+            }));
         }
     }
 
     fn send_play_packet_to_all<P: minestom_protocol::PacketPayload>(&self, pkt: &P) {
         if let Ok(payload) = encode_packet_payload(pkt) {
-            let _ = self.shared.ui_cmd_tx.send(UiCommand::ToAll { payload });
+            self.enqueue_cmd(ServerCommand::Ui(UiCommand::ToAll { payload }));
         }
     }
 
     /// Shows `sidebar` to `player_id` and subscribes them to live line/title updates.
-    pub fn add_sidebar_viewer(&self, sidebar: &Sidebar, player_id: PlayerId) {
-        let (create, display, scores) = sidebar.register_viewer(player_id);
-        self.send_play_packet_to_player(player_id, &create);
-        self.send_play_packet_to_player(player_id, &display);
+    pub fn add_sidebar_viewer(&self, sidebar: &Sidebar, player_id: impl Into<PlayerId>) {
+        let pid = player_id.into();
+        let (create, display, scores) = sidebar.register_viewer(pid);
+        self.send_play_packet_to_player(pid, &create);
+        self.send_play_packet_to_player(pid, &display);
         for s in scores {
-            self.send_play_packet_to_player(player_id, &s);
+            self.send_play_packet_to_player(pid, &s);
         }
     }
 
     /// Removes `sidebar` from `player_id`.
-    pub fn remove_sidebar_viewer(&self, sidebar: &Sidebar, player_id: PlayerId) {
-        if let Some(pkt) = sidebar.unregister_viewer(player_id) {
-            self.send_play_packet_to_player(player_id, &pkt);
+    pub fn remove_sidebar_viewer(&self, sidebar: &Sidebar, player_id: impl Into<PlayerId>) {
+        let pid = player_id.into();
+        if let Some(pkt) = sidebar.unregister_viewer(pid) {
+            self.send_play_packet_to_player(pid, &pkt);
         }
     }
 
@@ -761,15 +910,17 @@ impl MinecraftServer {
     }
 
     /// Shows `boss_bar` to `player_id`.
-    pub fn add_boss_bar_viewer(&self, boss_bar: &BossBar, player_id: PlayerId) {
-        let pkt = boss_bar.register_viewer(player_id);
-        self.send_play_packet_to_player(player_id, &pkt);
+    pub fn add_boss_bar_viewer(&self, boss_bar: &BossBar, player_id: impl Into<PlayerId>) {
+        let pid = player_id.into();
+        let pkt = boss_bar.register_viewer(pid);
+        self.send_play_packet_to_player(pid, &pkt);
     }
 
     /// Hides `boss_bar` from `player_id`.
-    pub fn remove_boss_bar_viewer(&self, boss_bar: &BossBar, player_id: PlayerId) {
-        if let Some(pkt) = boss_bar.unregister_viewer(player_id) {
-            self.send_play_packet_to_player(player_id, &pkt);
+    pub fn remove_boss_bar_viewer(&self, boss_bar: &BossBar, player_id: impl Into<PlayerId>) {
+        let pid = player_id.into();
+        if let Some(pkt) = boss_bar.unregister_viewer(pid) {
+            self.send_play_packet_to_player(pid, &pkt);
         }
     }
 
@@ -786,34 +937,38 @@ impl MinecraftServer {
     }
 
     /// Sends a full-screen [`Title`] (`SetTitleTimePacket` + `SetTitleSubTitlePacket` + `SetTitleTextPacket`) to `player_id`.
-    pub fn send_title(&self, player_id: PlayerId, title: &Title) {
+    pub fn send_title(&self, player_id: impl Into<PlayerId>, title: &Title) {
+        let pid = player_id.into();
         let (times, sub, main) = title.to_packets();
         if let Some(t) = times {
-            self.send_play_packet_to_player(player_id, &t);
+            self.send_play_packet_to_player(pid, &t);
         }
-        self.send_play_packet_to_player(player_id, &sub);
-        self.send_play_packet_to_player(player_id, &main);
+        self.send_play_packet_to_player(pid, &sub);
+        self.send_play_packet_to_player(pid, &main);
     }
 
     /// Clears active titles on `player_id`.
-    pub fn clear_titles(&self, player_id: PlayerId, reset_times: bool) {
-        self.send_play_packet_to_player(player_id, &ClearTitlesPacket { reset: reset_times });
+    pub fn clear_titles(&self, player_id: impl Into<PlayerId>, reset_times: bool) {
+        self.send_play_packet_to_player(
+            player_id.into(),
+            &ClearTitlesPacket { reset: reset_times },
+        );
     }
 
     /// Sends an above-hotbar action bar message (`ActionBarPacket` `0x57`) to `player_id`.
-    pub fn send_action_bar(&self, player_id: PlayerId, text: impl Into<Component>) {
-        self.send_play_packet_to_player(player_id, &ActionBarPacket { text: text.into() });
+    pub fn send_action_bar(&self, player_id: impl Into<PlayerId>, text: impl Into<Component>) {
+        self.send_play_packet_to_player(player_id.into(), &ActionBarPacket { text: text.into() });
     }
 
     /// Sets the Tab-list header and footer (`PlayerListHeaderAndFooterPacket` `0x7A`) for `player_id`.
     pub fn set_player_list_header_footer(
         &self,
-        player_id: PlayerId,
+        player_id: impl Into<PlayerId>,
         header: impl Into<Component>,
         footer: impl Into<Component>,
     ) {
         self.send_play_packet_to_player(
-            player_id,
+            player_id.into(),
             &PlayerListHeaderAndFooterPacket {
                 header: header.into(),
                 footer: footer.into(),
@@ -824,10 +979,10 @@ impl MinecraftServer {
     /// Broadcasts a [`ParticlePacket`] (`0x2F`) to all players in `instance`.
     pub fn spawn_particle(&self, instance: &InstanceContainer, packet: &ParticlePacket) {
         if let Ok(payload) = encode_packet_payload(packet) {
-            let _ = self.shared.ui_cmd_tx.send(UiCommand::ToInstance {
+            self.enqueue_cmd(ServerCommand::Ui(UiCommand::ToInstance {
                 instance_id: instance.id(),
                 payload,
-            });
+            }));
         }
     }
 
@@ -840,27 +995,32 @@ impl MinecraftServer {
     ) {
         let pkt = sound.to_packet_at(origin);
         if let Ok(payload) = encode_packet_payload(&pkt) {
-            let _ = self.shared.ui_cmd_tx.send(UiCommand::ToInstance {
+            self.enqueue_cmd(ServerCommand::Ui(UiCommand::ToInstance {
                 instance_id: instance.id(),
                 payload,
-            });
+            }));
         }
     }
 
     /// Plays `sound` at `origin` exclusively to `player_id`.
-    pub fn play_sound_to_player(&self, player_id: PlayerId, sound: &Sound, origin: Vec3) {
-        self.send_play_packet_to_player(player_id, &sound.to_packet_at(origin));
+    pub fn play_sound_to_player(
+        &self,
+        player_id: impl Into<PlayerId>,
+        sound: &Sound,
+        origin: Vec3,
+    ) {
+        self.send_play_packet_to_player(player_id.into(), &sound.to_packet_at(origin));
     }
 
     /// Stops matching sounds on `player_id` (`StopSoundPacket` `0x77`).
     pub fn stop_sound(
         &self,
-        player_id: PlayerId,
+        player_id: impl Into<PlayerId>,
         source: Option<SoundSource>,
         sound_key: Option<String>,
     ) {
         self.send_play_packet_to_player(
-            player_id,
+            player_id.into(),
             &StopSoundPacket {
                 source,
                 sound: sound_key,
@@ -869,15 +1029,21 @@ impl MinecraftServer {
     }
 
     /// Sends a transient pop-up [`ToastNotification`] (`AdvancementsPacket` add + immediate remove) to `player_id`.
-    pub fn send_toast(&self, player_id: PlayerId, toast: &ToastNotification) {
+    pub fn send_toast(&self, player_id: impl Into<PlayerId>, toast: &ToastNotification) {
+        let pid = player_id.into();
         let (add, remove) = toast.to_add_and_remove_packets();
-        self.send_play_packet_to_player(player_id, &add);
-        self.send_play_packet_to_player(player_id, &remove);
+        self.send_play_packet_to_player(pid, &add);
+        self.send_play_packet_to_player(pid, &remove);
     }
 
     /// Synchronizes an [`AdvancementTab`] to `player_id`.
-    pub fn send_advancement_tab(&self, player_id: PlayerId, tab: &AdvancementTab, reset: bool) {
-        self.send_play_packet_to_player(player_id, &tab.to_packet(reset));
+    pub fn send_advancement_tab(
+        &self,
+        player_id: impl Into<PlayerId>,
+        tab: &AdvancementTab,
+        reset: bool,
+    ) {
+        self.send_play_packet_to_player(player_id.into(), &tab.to_packet(reset));
     }
 
     /// Broadcasts the current [`RecipeManager`] state (`DeclareRecipesPacket` `0x85`) to all online players.
@@ -887,30 +1053,34 @@ impl MinecraftServer {
 
     /// Pushes a [`ResourcePackRequest`] (`ResourcePackPushPacket` `0x51`) to `player_id` and tracks
     /// `forced` enforcement against `ClientResourcePackStatusPacket`.
-    pub fn push_resource_pack(&self, player_id: PlayerId, request: &ResourcePackRequest) {
+    pub fn push_resource_pack(
+        &self,
+        player_id: impl Into<PlayerId>,
+        request: &ResourcePackRequest,
+    ) {
         if let Ok(push_payload) = encode_packet_payload(&request.to_packet()) {
-            let _ = self.shared.ui_cmd_tx.send(UiCommand::TrackResourcePack {
-                player_id,
+            self.enqueue_cmd(ServerCommand::Ui(UiCommand::TrackResourcePack {
+                player_id: player_id.into(),
                 pack_id: request.id,
                 forced: request.forced,
                 push_payload,
-            });
+            }));
         }
     }
 
     /// Pops one (`Some(id)`) or all (`None`) server resource packs from `player_id` (`ResourcePackPopPacket` `0x50`).
-    pub fn pop_resource_pack(&self, player_id: PlayerId, id: Option<Uuid>) {
-        self.send_play_packet_to_player(player_id, &ResourcePackPopPacket { id });
+    pub fn pop_resource_pack(&self, player_id: impl Into<PlayerId>, id: Option<Uuid>) {
+        self.send_play_packet_to_player(player_id.into(), &ResourcePackPopPacket { id });
     }
 
     /// Opens an MC 26.2 modal [`Dialog`] (`ShowDialogPacket` `0x8C`) on `player_id`.
-    pub fn show_dialog(&self, player_id: PlayerId, dialog: &Dialog) {
-        self.send_play_packet_to_player(player_id, &dialog.to_packet());
+    pub fn show_dialog(&self, player_id: impl Into<PlayerId>, dialog: &Dialog) {
+        self.send_play_packet_to_player(player_id.into(), &dialog.to_packet());
     }
 
     /// Closes any active modal dialog (`ClearDialogPacket` `0x8B`) on `player_id`.
-    pub fn clear_dialog(&self, player_id: PlayerId) {
-        self.send_play_packet_to_player(player_id, &ClearDialogPacket);
+    pub fn clear_dialog(&self, player_id: impl Into<PlayerId>) {
+        self.send_play_packet_to_player(player_id.into(), &ClearDialogPacket);
     }
 
     /// Saves all loaded chunks of `instance` via its [`minestom_world::ChunkLoader`] on Tokio's
@@ -985,6 +1155,7 @@ impl BoundServer {
         let (tick_tx, tick_rx) = flume::bounded::<TickMessage>(4096);
         let stop_flag = Arc::new(AtomicBool::new(false));
         let tick_handle = spawn_tick_thread(
+            self.server.clone(),
             self.server.shared.config.clone(),
             self.server.shared.events.clone(),
             self.server.shared.instance_manager.clone(),
@@ -997,11 +1168,7 @@ impl BoundServer {
             Arc::clone(&self.server.shared.online_count),
             Arc::clone(&self.server.shared.next_entity_id),
             tick_rx,
-            self.server.shared.entity_cmd_rx.clone(),
-            self.server.shared.block_cmd_rx.clone(),
-            self.server.shared.inv_cmd_rx.clone(),
-            self.server.shared.env_cmd_rx.clone(),
-            self.server.shared.ui_cmd_rx.clone(),
+            self.server.shared.cmd_rx.clone(),
             Arc::clone(&stop_flag),
         )?;
 

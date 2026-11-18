@@ -205,6 +205,14 @@ impl fmt::Display for Component {
     }
 }
 
+impl FromIterator<Self> for Component {
+    fn from_iter<I: IntoIterator<Item = Self>>(iter: I) -> Self {
+        let mut root = Self::empty();
+        root.children.extend(iter);
+        root
+    }
+}
+
 impl Serialize for Component {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.to_json_value().serialize(serializer)

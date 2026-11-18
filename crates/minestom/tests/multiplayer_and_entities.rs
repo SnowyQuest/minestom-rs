@@ -188,7 +188,9 @@ async fn two_players_and_custom_entity_sync_spawn_movement_sneak_animation_and_d
     let zombie = Entity::creature(EntityType::ZOMBIE)
         .with_custom_name(Component::text("GuardBot"))
         .with_behavior(DriftEastBehavior);
-    let zombie_eid = server.spawn_entity(&instance, zombie, Pos::new(2.0, 41.5, 2.0));
+    let zombie_eid = server
+        .spawn_entity(&instance, zombie, Pos::new(2.0, 41.5, 2.0))
+        .network_id();
 
     let attacked_target = Arc::new(AtomicI32::new(0));
     let attacked_clone = Arc::clone(&attacked_target);

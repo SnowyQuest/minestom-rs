@@ -1,73 +1,21 @@
 //! `PotionEffect`, `Potion`, and active `EffectMap` ticking
-//! (`net.minestom.server.potion` equivalent for MC 26.2).
+//! (`net.minestom.server.potion` equivalent for MC 26.2, `40` generated effects).
 
 use std::collections::BTreeMap;
+use std::fmt;
 
-use minestom_data::generated::potion_effects;
+use minestom_data::generated::potion_effects::{self, POTION_EFFECT_INFOS, PotionEffectInfo};
 use minestom_protocol::entity::{EntityEffectPacket, RemoveEntityEffectPacket};
 
 use crate::EntityError;
 
-/// Strongly typed `Copy` handle for a Minecraft 26.2 `PotionEffect` (`minecraft:mob_effect`).
+/// Strongly typed `Copy` handle for all **40** Minecraft 26.2 `PotionEffect`s (`minecraft:mob_effect`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PotionEffect(u32);
 
-impl PotionEffect {
-    /// `minecraft:speed` (`0`).
-    pub const SPEED: Self = Self(potion_effects::SPEED);
-    /// `minecraft:slowness` (`1`).
-    pub const SLOWNESS: Self = Self(potion_effects::SLOWNESS);
-    /// `minecraft:haste` (`2`).
-    pub const HASTE: Self = Self(potion_effects::HASTE);
-    /// `minecraft:mining_fatigue` (`3`).
-    pub const MINING_FATIGUE: Self = Self(potion_effects::MINING_FATIGUE);
-    /// `minecraft:strength` (`4`).
-    pub const STRENGTH: Self = Self(potion_effects::STRENGTH);
-    /// `minecraft:instant_health` (`5`).
-    pub const INSTANT_HEALTH: Self = Self(potion_effects::INSTANT_HEALTH);
-    /// `minecraft:instant_damage` (`6`).
-    pub const INSTANT_DAMAGE: Self = Self(potion_effects::INSTANT_DAMAGE);
-    /// `minecraft:jump_boost` (`7`).
-    pub const JUMP_BOOST: Self = Self(potion_effects::JUMP_BOOST);
-    /// `minecraft:nausea` (`8`).
-    pub const NAUSEA: Self = Self(potion_effects::NAUSEA);
-    /// `minecraft:regeneration` (`9`).
-    pub const REGENERATION: Self = Self(potion_effects::REGENERATION);
-    /// `minecraft:resistance` (`10`).
-    pub const RESISTANCE: Self = Self(potion_effects::RESISTANCE);
-    /// `minecraft:fire_resistance` (`11`).
-    pub const FIRE_RESISTANCE: Self = Self(potion_effects::FIRE_RESISTANCE);
-    /// `minecraft:water_breathing` (`12`).
-    pub const WATER_BREATHING: Self = Self(potion_effects::WATER_BREATHING);
-    /// `minecraft:invisibility` (`13`).
-    pub const INVISIBILITY: Self = Self(potion_effects::INVISIBILITY);
-    /// `minecraft:blindness` (`14`).
-    pub const BLINDNESS: Self = Self(potion_effects::BLINDNESS);
-    /// `minecraft:night_vision` (`15`).
-    pub const NIGHT_VISION: Self = Self(potion_effects::NIGHT_VISION);
-    /// `minecraft:hunger` (`16`).
-    pub const HUNGER: Self = Self(potion_effects::HUNGER);
-    /// `minecraft:weakness` (`17`).
-    pub const WEAKNESS: Self = Self(potion_effects::WEAKNESS);
-    /// `minecraft:poison` (`18`).
-    pub const POISON: Self = Self(potion_effects::POISON);
-    /// `minecraft:wither` (`19`).
-    pub const WITHER: Self = Self(potion_effects::WITHER);
-    /// `minecraft:health_boost` (`20`).
-    pub const HEALTH_BOOST: Self = Self(potion_effects::HEALTH_BOOST);
-    /// `minecraft:absorption` (`21`).
-    pub const ABSORPTION: Self = Self(potion_effects::ABSORPTION);
-    /// `minecraft:saturation` (`22`).
-    pub const SATURATION: Self = Self(potion_effects::SATURATION);
-    /// `minecraft:glowing` (`23`).
-    pub const GLOWING: Self = Self(potion_effects::GLOWING);
-    /// `minecraft:levitation` (`24`).
-    pub const LEVITATION: Self = Self(potion_effects::LEVITATION);
-    /// `minecraft:slow_falling` (`27`).
-    pub const SLOW_FALLING: Self = Self(potion_effects::SLOW_FALLING);
-    /// `minecraft:darkness` (`32`).
-    pub const DARKNESS: Self = Self(potion_effects::DARKNESS);
+minestom_data::impl_potion_effect_constants!(PotionEffect);
 
+impl PotionEffect {
     /// Constructs a [`PotionEffect`] from a validated protocol ID (`0..40`).
     pub const fn from_id(id: u32) -> Result<Self, EntityError> {
         if (id as usize) < potion_effects::POTION_EFFECT_COUNT {
@@ -77,25 +25,46 @@ impl PotionEffect {
         }
     }
 
-    /// Looks up a [`PotionEffect`] by its `minecraft:...` resource key.
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        potion_effects::ENTRIES
-            .iter()
-            .find(|(_, k)| *k == key)
-            .map(|(id, _)| Self(*id))
+        potion_effects::lookup_key(key).map(Self)
     }
 
-    /// Numeric protocol ID.
+    /// Numeric protocol ID (`0..40`).
     #[must_use]
     pub const fn id(self) -> u32 {
         self.0
     }
 
-    /// Canonical `minecraft:...` key.
+    /// Static generated [`PotionEffectInfo`] entry.
+    #[must_use]
+    pub const fn info(self) -> &'static PotionEffectInfo {
+        &POTION_EFFECT_INFOS[self.0 as usize]
+    }
+
+    /// Canonical `"minecraft:..."` key.
     #[must_use]
     pub const fn key(self) -> &'static str {
-        potion_effects::ENTRIES[self.0 as usize].1
+        self.info().key
+    }
+
+    /// Particle RGB color (`0xRRGGBB`).
+    #[must_use]
+    pub const fn color(self) -> u32 {
+        self.info().color
+    }
+
+    /// Returns `true` if this effect applies instantaneously (`instant_health`, `instant_damage`, `saturation`).
+    #[must_use]
+    pub const fn is_instantaneous(self) -> bool {
+        self.info().instantaneous
+    }
+}
+
+impl fmt::Display for PotionEffect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.key())
     }
 }
 
@@ -236,6 +205,15 @@ impl EffectMap {
     }
 }
 
+impl<'a> IntoIterator for &'a EffectMap {
+    type Item = &'a Potion;
+    type IntoIter = std::collections::btree_map::Values<'a, u32, Potion>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.active.values()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,12 +227,10 @@ mod tests {
             0,
             Potion::INFINITE_DURATION,
         ));
-
+        assert!(PotionEffect::INSTANT_HEALTH.is_instantaneous());
         assert_eq!(effects.tick().len(), 0);
         assert_eq!(effects.get(PotionEffect::SPEED).unwrap().duration, 1);
-
-        let expired = effects.tick();
-        assert_eq!(expired, vec![PotionEffect::SPEED]);
+        assert_eq!(effects.tick(), vec![PotionEffect::SPEED]);
         assert!(!effects.has(PotionEffect::SPEED));
         assert!(effects.has(PotionEffect::NIGHT_VISION));
     }

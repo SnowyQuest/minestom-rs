@@ -1,8 +1,11 @@
 //! 3D spatial coordinates (`Point`, `Vec3`, `Pos`, `BlockVec`, `ChunkPos`) and chunk/packed conversions.
 
-use std::ops::{Add, Mul, Neg, Sub};
+use std::fmt;
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use serde::{Deserialize, Serialize};
+
+use crate::Direction;
 
 /// Common coordinate accessors shared by [`Vec3`], [`Pos`], and [`BlockVec`].
 pub trait Point: Copy {
@@ -163,10 +166,67 @@ impl Mul<f64> for Vec3 {
     }
 }
 
+impl Div<f64> for Vec3 {
+    type Output = Self;
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::new(self.x / rhs, self.y / rhs, self.z / rhs)
+    }
+}
+
+impl AddAssign for Vec3 {
+    fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self.z += rhs.z;
+    }
+}
+
+impl SubAssign for Vec3 {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+        self.z -= rhs.z;
+    }
+}
+
+impl MulAssign<f64> for Vec3 {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.x *= rhs;
+        self.y *= rhs;
+        self.z *= rhs;
+    }
+}
+
+impl DivAssign<f64> for Vec3 {
+    fn div_assign(&mut self, rhs: f64) {
+        self.x /= rhs;
+        self.y /= rhs;
+        self.z /= rhs;
+    }
+}
+
 impl Neg for Vec3 {
     type Output = Self;
     fn neg(self) -> Self::Output {
         Self::new(-self.x, -self.y, -self.z)
+    }
+}
+
+impl From<(f64, f64, f64)> for Vec3 {
+    fn from((x, y, z): (f64, f64, f64)) -> Self {
+        Self::new(x, y, z)
+    }
+}
+
+impl From<[f64; 3]> for Vec3 {
+    fn from([x, y, z]: [f64; 3]) -> Self {
+        Self::new(x, y, z)
+    }
+}
+
+impl fmt::Display for Vec3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({:.3}, {:.3}, {:.3})", self.x, self.y, self.z)
     }
 }
 
@@ -308,11 +368,46 @@ impl Add<Vec3> for Pos {
     }
 }
 
+impl Sub<Vec3> for Pos {
+    type Output = Self;
+    fn sub(self, rhs: Vec3) -> Self::Output {
+        self.add_xyz(-rhs.x, -rhs.y, -rhs.z)
+    }
+}
+
+impl AddAssign<Vec3> for Pos {
+    fn add_assign(&mut self, rhs: Vec3) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self.z += rhs.z;
+    }
+}
+
+impl SubAssign<Vec3> for Pos {
+    fn sub_assign(&mut self, rhs: Vec3) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+        self.z -= rhs.z;
+    }
+}
+
+impl fmt::Display for Pos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "({:.3}, {:.3}, {:.3}, yaw={:.1}, pitch={:.1})",
+            self.x, self.y, self.z, self.yaw, self.pitch
+        )
+    }
+}
+
 /// Integer 3D block coordinate (`x`, `y`, `z`), corresponding to Minestom's `BlockVec`.
 ///
 /// Supports lossless conversion to/from Minecraft's packed 64-bit network `Position`
 /// (`26-bit signed X | 26-bit signed Z | 12-bit signed Y`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 pub struct BlockVec {
     /// Block X coordinate.
     pub x: i32,
@@ -336,6 +431,13 @@ impl BlockVec {
     #[must_use]
     pub const fn offset(self, dx: i32, dy: i32, dz: i32) -> Self {
         Self::new(self.x + dx, self.y + dy, self.z + dz)
+    }
+
+    /// Returns the adjacent block coordinate in `face` (`BlockVec.relative(BlockFace)` in Minestom).
+    #[must_use]
+    pub const fn relative(self, face: Direction) -> Self {
+        let (dx, dy, dz) = face.block_offset();
+        self.offset(dx, dy, dz)
     }
 
     /// Encodes `(x, y, z)` into Minecraft's packed 64-bit `BLOCK_POSITION` integer:
@@ -379,8 +481,59 @@ impl Point for BlockVec {
     }
 }
 
+impl Add for BlockVec {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
+}
+
+impl Sub for BlockVec {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+    }
+}
+
+impl AddAssign for BlockVec {
+    fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self.z += rhs.z;
+    }
+}
+
+impl SubAssign for BlockVec {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+        self.z -= rhs.z;
+    }
+}
+
+impl Neg for BlockVec {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        Self::new(-self.x, -self.y, -self.z)
+    }
+}
+
+impl From<(i32, i32, i32)> for BlockVec {
+    fn from((x, y, z): (i32, i32, i32)) -> Self {
+        Self::new(x, y, z)
+    }
+}
+
+impl fmt::Display for BlockVec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {}, {})", self.x, self.y, self.z)
+    }
+}
+
 /// 2D chunk column coordinate `(chunk_x, chunk_z)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 pub struct ChunkPos {
     /// Chunk X coordinate (`block_x >> 4`).
     pub x: i32,
@@ -420,6 +573,18 @@ impl ChunkPos {
             }
         }
         out
+    }
+}
+
+impl From<(i32, i32)> for ChunkPos {
+    fn from((x, z): (i32, i32)) -> Self {
+        Self::new(x, z)
+    }
+}
+
+impl fmt::Display for ChunkPos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.z)
     }
 }
 

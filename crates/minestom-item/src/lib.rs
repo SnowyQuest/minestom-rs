@@ -16,13 +16,19 @@
 pub mod inventory;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+use std::str::FromStr;
 
 use minestom_block::Block;
-use minestom_core::{InstanceId, PlayerId, Tag, TagMap, tag::TagSerializable};
-use minestom_data::generated::materials::{self, MATERIAL_INFOS, MaterialInfo};
+use minestom_core::{InstanceId, PlayerId, Tag, tag::TagSerializable};
+use minestom_data::generated::{
+    enchantments::{self, ENCHANTMENT_INFOS, EnchantmentInfo},
+    materials::{self, MATERIAL_INFOS, MaterialInfo},
+};
 use minestom_event::{CancellableEvent, Event, InstanceEvent, PlayerEvent};
 use minestom_nbt::NbtCompound;
 use minestom_text::Component;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub use inventory::{
     ClickOutcome, Inventory, InventoryType, PlayerInventory, WindowClickMode,
@@ -43,79 +49,22 @@ pub enum ItemError {
     /// Unknown vanilla item material protocol ID.
     #[error("unknown item material ID: {0}")]
     UnknownMaterialId(u32),
+    /// Unknown vanilla item material key.
+    #[error("unknown item material key: `{0}`")]
+    UnknownMaterialKey(String),
+    /// Unknown vanilla enchantment ID.
+    #[error("unknown enchantment ID: {0}")]
+    UnknownEnchantmentId(u32),
 }
 
-/// Strongly typed `Copy` handle for a Minecraft 26.2 `Material` (`minecraft:item`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// Strongly typed `Copy` handle for a Minecraft 26.2 `Material` (`minecraft:item`, `1,537` entries).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Material(u32);
 
-impl Material {
-    /// `minecraft:air` (`id = 0`).
-    pub const AIR: Self = Self(materials::AIR);
-    /// `minecraft:stone`.
-    pub const STONE: Self = Self(materials::STONE);
-    /// `minecraft:grass_block`.
-    pub const GRASS_BLOCK: Self = Self(materials::GRASS_BLOCK);
-    /// `minecraft:dirt`.
-    pub const DIRT: Self = Self(materials::DIRT);
-    /// `minecraft:cobblestone`.
-    pub const COBBLESTONE: Self = Self(materials::COBBLESTONE);
-    /// `minecraft:oak_planks`.
-    pub const OAK_PLANKS: Self = Self(materials::OAK_PLANKS);
-    /// `minecraft:oak_log`.
-    pub const OAK_LOG: Self = Self(materials::OAK_LOG);
-    /// `minecraft:glass`.
-    pub const GLASS: Self = Self(materials::GLASS);
-    /// `minecraft:chest`.
-    pub const CHEST: Self = Self(materials::CHEST);
-    /// `minecraft:crafting_table`.
-    pub const CRAFTING_TABLE: Self = Self(materials::CRAFTING_TABLE);
-    /// `minecraft:furnace`.
-    pub const FURNACE: Self = Self(materials::FURNACE);
-    /// `minecraft:torch`.
-    pub const TORCH: Self = Self(materials::TORCH);
-    /// `minecraft:diamond`.
-    pub const DIAMOND: Self = Self(materials::DIAMOND);
-    /// `minecraft:iron_ingot`.
-    pub const IRON_INGOT: Self = Self(materials::IRON_INGOT);
-    /// `minecraft:gold_ingot`.
-    pub const GOLD_INGOT: Self = Self(materials::GOLD_INGOT);
-    /// `minecraft:emerald`.
-    pub const EMERALD: Self = Self(materials::EMERALD);
-    /// `minecraft:stick`.
-    pub const STICK: Self = Self(materials::STICK);
-    /// `minecraft:apple`.
-    pub const APPLE: Self = Self(materials::APPLE);
-    /// `minecraft:golden_apple`.
-    pub const GOLDEN_APPLE: Self = Self(materials::GOLDEN_APPLE);
-    /// `minecraft:bread`.
-    pub const BREAD: Self = Self(materials::BREAD);
-    /// `minecraft:cooked_beef`.
-    pub const COOKED_BEEF: Self = Self(materials::COOKED_BEEF);
-    /// `minecraft:diamond_sword`.
-    pub const DIAMOND_SWORD: Self = Self(materials::DIAMOND_SWORD);
-    /// `minecraft:iron_sword`.
-    pub const IRON_SWORD: Self = Self(materials::IRON_SWORD);
-    /// `minecraft:diamond_pickaxe`.
-    pub const DIAMOND_PICKAXE: Self = Self(materials::DIAMOND_PICKAXE);
-    /// `minecraft:bow`.
-    pub const BOW: Self = Self(materials::BOW);
-    /// `minecraft:arrow`.
-    pub const ARROW: Self = Self(materials::ARROW);
-    /// `minecraft:shield`.
-    pub const SHIELD: Self = Self(materials::SHIELD);
-    /// `minecraft:ender_pearl`.
-    pub const ENDER_PEARL: Self = Self(materials::ENDER_PEARL);
-    /// `minecraft:diamond_helmet`.
-    pub const DIAMOND_HELMET: Self = Self(materials::DIAMOND_HELMET);
-    /// `minecraft:diamond_chestplate`.
-    pub const DIAMOND_CHESTPLATE: Self = Self(materials::DIAMOND_CHESTPLATE);
-    /// `minecraft:diamond_leggings`.
-    pub const DIAMOND_LEGGINGS: Self = Self(materials::DIAMOND_LEGGINGS);
-    /// `minecraft:diamond_boots`.
-    pub const DIAMOND_BOOTS: Self = Self(materials::DIAMOND_BOOTS);
+minestom_data::impl_material_constants!(Material);
 
-    /// Constructs a `Material` from a validated protocol ID.
+impl Material {
+    /// Constructs a `Material` from a validated protocol ID (`0..1537`).
     pub const fn from_id(id: u32) -> Result<Self, ItemError> {
         if (id as usize) < MATERIAL_INFOS.len() {
             Ok(Self(id))
@@ -124,27 +73,19 @@ impl Material {
         }
     }
 
-    /// Looks up a `Material` by its `"minecraft:..."` key.
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        let full = if key.contains(':') {
-            key.to_owned()
-        } else {
-            format!("minecraft:{key}")
-        };
-        MATERIAL_INFOS
-            .iter()
-            .find(|info| info.key == full)
-            .map(|info| Self(info.id))
+        materials::lookup_key(key).map(Self)
     }
 
-    /// Numeric protocol ID.
+    /// Numeric protocol ID (`0..1537`).
     #[must_use]
     pub const fn id(self) -> u32 {
         self.0
     }
 
-    /// Generated [`MaterialInfo`] metadata.
+    /// Generated [`MaterialInfo`] metadata in `O(1)`.
     #[must_use]
     pub const fn info(self) -> &'static MaterialInfo {
         &MATERIAL_INFOS[self.0 as usize]
@@ -154,6 +95,12 @@ impl Material {
     #[must_use]
     pub const fn key(self) -> &'static str {
         self.info().key
+    }
+
+    /// Vanilla client translation key.
+    #[must_use]
+    pub const fn translation_key(self) -> &'static str {
+        self.info().translation_key
     }
 
     /// Default max stack size (`1`, `16`, or `64`).
@@ -168,16 +115,165 @@ impl Material {
         self.info().max_damage as u32
     }
 
-    /// Corresponding [`Block`] placed by this item, if any.
+    /// Corresponding [`Block`] placed by this item in `O(1)`, if any.
     #[must_use]
-    pub fn corresponding_block(self) -> Option<Block> {
-        self.info().corresponding_block.and_then(Block::from_key)
+    pub const fn corresponding_block(self) -> Option<Block> {
+        match self.info().corresponding_block_state_id {
+            Some(sid) => Block::from_state_id_opt(sid),
+            None => None,
+        }
+    }
+
+    /// Default [`EquipmentSlot`] if this material carries `minecraft:equippable` (`helmet`, `chestplate`, etc.).
+    #[must_use]
+    pub fn equippable_slot(self) -> Option<EquipmentSlot> {
+        match self.info().equippable_slot {
+            Some("head") => Some(EquipmentSlot::Helmet),
+            Some("chest") => Some(EquipmentSlot::Chestplate),
+            Some("legs") => Some(EquipmentSlot::Leggings),
+            Some("feet") => Some(EquipmentSlot::Boots),
+            Some("body") => Some(EquipmentSlot::Body),
+            Some("offhand") => Some(EquipmentSlot::OffHand),
+            Some("saddle") => Some(EquipmentSlot::Saddle),
+            _ => None,
+        }
+    }
+
+    /// Additive main-hand `minecraft:attack_damage` bonus from `item.json` (`7.0` for netherite sword, `6.0` for diamond sword, etc.).
+    #[must_use]
+    pub const fn attack_damage_bonus(self) -> f32 {
+        self.info().attack_damage_bonus
+    }
+
+    /// Additive main-hand `minecraft:attack_speed` bonus from `item.json`.
+    #[must_use]
+    pub const fn attack_speed_bonus(self) -> f32 {
+        self.info().attack_speed_bonus
+    }
+
+    /// Additive `minecraft:armor` defense points from `item.json`.
+    #[must_use]
+    pub const fn armor(self) -> f32 {
+        self.info().armor
+    }
+
+    /// Additive `minecraft:armor_toughness` from `item.json`.
+    #[must_use]
+    pub const fn armor_toughness(self) -> f32 {
+        self.info().armor_toughness
+    }
+
+    /// Additive `minecraft:knockback_resistance` from `item.json`.
+    #[must_use]
+    pub const fn knockback_resistance(self) -> f32 {
+        self.info().knockback_resistance
     }
 
     /// Returns `true` if this material is `minecraft:air` (`0`).
     #[must_use]
     pub const fn is_air(self) -> bool {
         self.0 == 0
+    }
+}
+
+impl TryFrom<u32> for Material {
+    type Error = ItemError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::from_id(value)
+    }
+}
+
+impl From<Material> for u32 {
+    fn from(value: Material) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for Material {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.key())
+    }
+}
+
+impl FromStr for Material {
+    type Err = ItemError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_key(s).ok_or_else(|| ItemError::UnknownMaterialKey(s.to_owned()))
+    }
+}
+
+impl Serialize for Material {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.key())
+    }
+}
+
+impl<'de> Deserialize<'de> for Material {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Self::from_key(&s)
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown material `{s}`")))
+    }
+}
+
+/// Strongly typed `Copy` handle for a vanilla `minecraft:enchantment` (`43` entries).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Enchantment(u32);
+
+minestom_data::impl_enchantment_constants!(Enchantment);
+
+impl Enchantment {
+    /// Constructs an [`Enchantment`] from a validated dynamic-registry ID (`0..43`).
+    pub const fn from_id(id: u32) -> Result<Self, ItemError> {
+        if (id as usize) < ENCHANTMENT_INFOS.len() {
+            Ok(Self(id))
+        } else {
+            Err(ItemError::UnknownEnchantmentId(id))
+        }
+    }
+
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<Self> {
+        enchantments::lookup_key(key).map(Self)
+    }
+
+    /// Numeric dynamic-registry ID (`0..43`).
+    #[must_use]
+    pub const fn id(self) -> u32 {
+        self.0
+    }
+
+    /// Static [`EnchantmentInfo`] metadata.
+    #[must_use]
+    pub const fn info(self) -> &'static EnchantmentInfo {
+        &ENCHANTMENT_INFOS[self.0 as usize]
+    }
+
+    /// Canonical `"minecraft:..."` key.
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        self.info().key
+    }
+}
+
+impl From<u32> for Enchantment {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<i32> for Enchantment {
+    fn from(value: i32) -> Self {
+        Self(value.max(0) as u32)
+    }
+}
+
+impl fmt::Display for Enchantment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.key())
     }
 }
 
@@ -555,17 +651,18 @@ impl ItemStack {
         self.with_component(DataComponentValue::EnchantmentGlintOverride(glowing))
     }
 
-    /// Adds or updates an enchantment (`enchantment_id`, `level`) in `minecraft:enchantments` (`13`).
+    /// Adds or updates an [`Enchantment`] (e.g. `Enchantment::SHARPNESS`) in `minecraft:enchantments` (`13`).
     #[must_use]
-    pub fn with_enchantment(mut self, enchantment_id: i32, level: i32) -> Self {
+    pub fn with_enchantment(mut self, enchantment: impl Into<Enchantment>, level: i32) -> Self {
         if self.is_air() {
             return Self::AIR;
         }
+        let ench = enchantment.into();
         let mut map = match self.added_components.remove(&component_ids::ENCHANTMENTS) {
             Some(DataComponentValue::Enchantments(m)) => m,
             _ => BTreeMap::new(),
         };
-        map.insert(enchantment_id, level);
+        map.insert(ench.id() as i32, level);
         self.with_component(DataComponentValue::Enchantments(map))
     }
 
@@ -575,28 +672,26 @@ impl ItemStack {
         self.with_component(DataComponentValue::CustomData(compound))
     }
 
-    /// Writes a typed [`Tag<T>`] inside `minecraft:custom_data` (`ItemStack::withTag` in Minestom).
+    /// Writes a typed [`Tag<T>`] inside `minecraft:custom_data` (`ItemStack::withTag` in Minestom)
+    /// without cloning intermediate compounds.
     #[must_use]
     pub fn with_tag<T: TagSerializable>(mut self, tag: &Tag<T>, value: T) -> Self {
         if self.is_air() {
             return Self::AIR;
         }
-        let existing = match self.added_components.remove(&component_ids::CUSTOM_DATA) {
+        let mut compound = match self.added_components.remove(&component_ids::CUSTOM_DATA) {
             Some(DataComponentValue::CustomData(c)) => c,
             _ => NbtCompound::new(),
         };
-        let mut tmap = TagMap::from_compound(existing);
-        tmap.set_tag(tag, value);
-        self.with_custom_data(tmap.as_compound().clone())
+        tag.write_to(&mut compound, value);
+        self.with_custom_data(compound)
     }
 
-    /// Reads a typed [`Tag<T>`] from `minecraft:custom_data`.
+    /// Reads a typed [`Tag<T>`] directly from a borrowed `minecraft:custom_data` compound without cloning.
     #[must_use]
     pub fn get_tag<T: TagSerializable>(&self, tag: &Tag<T>) -> Option<T> {
         match self.added_components.get(&component_ids::CUSTOM_DATA) {
-            Some(DataComponentValue::CustomData(c)) => {
-                TagMap::from_compound(c.clone()).get_tag(tag)
-            }
+            Some(DataComponentValue::CustomData(c)) => tag.read_from(c),
             _ => None,
         }
     }

@@ -1,8 +1,8 @@
-//! `minestom` — A production-quality Minecraft: Java Edition **26.2** (protocol **776**)
-//! server library written from scratch in safe, idiomatic Rust with zero vanilla code.
+//! `minestom` — A Minecraft: Java Edition **26.2** (protocol **776**, data version **4903**)
+//! server framework written from scratch in safe Rust (`#![forbid(unsafe_code)]`) with zero
+//! vanilla server code.
 //!
-//! Re-exports all workspace crates under ergonomic module names alongside [`prelude`]
-//! and the unified [`Error`] type.
+//! Re-exports all workspace crates under module names alongside [`prelude`] and [`Error`].
 
 pub use minestom_block as block;
 pub use minestom_command as command;
@@ -69,13 +69,16 @@ pub enum Error {
 pub mod prelude {
     pub use crate::Error;
     pub use crate::block::{
-        AxisPlacementRule, Block, BlockDestroyContext, BlockGetter, BlockHandler,
-        BlockInteractContext, BlockManager, BlockPlacementContext, BlockPlacementRule, BlockSetter,
-        HorizontalFacingPlacementRule, PlacementState, UpdateState,
+        AxisPlacementRule, Block, BlockAabb, BlockDestroyContext, BlockEntityType, BlockGetter,
+        BlockHandler, BlockInteractContext, BlockManager, BlockPlacementContext,
+        BlockPlacementRule, BlockSetter, DoorPlacementRule, FenceConnectPlacementRule, Fluid,
+        GameEvent, HorizontalFacingPlacementRule, PlacementState, PushReaction, ReplacementContext,
+        SlabPlacementRule, StairsPlacementRule, TrapdoorPlacementRule, UpdateState,
+        WallConnectPlacementRule,
     };
     pub use crate::command::{
-        Argument, Command, CommandContext, CommandError, CommandManager, CommandSender, Suggestion,
-        SuggestionEntry,
+        Argument, Command, CommandContext, CommandError, CommandManager, CommandSender,
+        EntitySelector, Suggestion, SuggestionEntry,
     };
     pub use crate::core::{
         BlockFace, BlockVec, ChunkPos, Color, Difficulty, Direction, EntityId, GameMode, Hand,
@@ -84,30 +87,33 @@ pub mod prelude {
     pub use crate::data::{DATA_VERSION, PROTOCOL_VERSION, VERSION_NAME};
     pub use crate::entity::{
         Attribute, AttributeInstance, AttributeMap, AttributeModifier, AttributeOperation,
-        BoundingBox, ClosestEntityTarget, ConfiguringPlayer, Damage, DamageType, EffectMap, Entity,
-        EntityAIGroup, EntityBehavior, EntityCore, EntityDamageEvent, EntityDeathEvent,
-        EntityDespawnEvent, EntityMetadata, EntityRole, EntitySpawnEvent, EntityTracker,
-        EntityType, FollowTargetGoal, GoalContext, GoalSelector, LastEntityDamagerTarget,
-        LivingState, MeleeAttackGoal, Navigator, PathSearchConfig, PlayerAttackEntityEvent,
+        BitMaskKey, BoundingBox, ByteMaskKey, ClosestEntityTarget, ConfiguringPlayer, Damage,
+        DamageType, EffectMap, Entity, EntityAIGroup, EntityBehavior, EntityCore,
+        EntityDamageEvent, EntityDeathEvent, EntityDespawnEvent, EntityMetadata, EntityPacketType,
+        EntityRole, EntitySpawnEvent, EntityTracker, EntityType, FollowTargetGoal, GoalContext,
+        GoalSelector, LastEntityDamagerTarget, LivingState, MeleeAttackGoal, MetadataKey,
+        Navigator, PaintingVariant, PathSearchConfig, PlayerAttackEntityEvent,
         PlayerEntityInteractEvent, PlayerHandAnimationEvent, PlayerRespawnEvent, Potion,
         PotionEffect, RandomLookAroundGoal, RandomStrollGoal, TargetCandidate, TargetSelector,
-        find_path, find_path_with_config,
+        VillagerProfession, find_path, find_path_with_config, metadata_def,
     };
     pub use crate::event::{
         BlockEvent, CancellableEvent, EntityEvent, Event, EventListener, EventNode,
         GlobalEventHandler, InstanceEvent, ListenerHandle, PlayerEvent,
     };
     pub use crate::item::{
-        ClickOutcome, DataComponentValue, EquipmentSlot, Inventory, InventoryCloseEvent,
-        InventoryPreClickEvent, InventoryType, ItemDropEvent, ItemError, ItemRarity, ItemStack,
-        Material, PickupItemEvent, PlayerInventory, WindowClickMode, process_inventory_click,
+        ClickOutcome, DataComponentValue, Enchantment, EquipmentSlot, Inventory,
+        InventoryCloseEvent, InventoryPreClickEvent, InventoryType, ItemDropEvent, ItemError,
+        ItemRarity, ItemStack, Material, PickupItemEvent, PlayerInventory, WindowClickMode,
+        process_inventory_click,
     };
     pub use crate::nbt::{NbtCompound, NbtTag};
     pub use crate::protocol::ConnectionState;
     pub use crate::protocol::ui_media::{
         AdvancementDisplayData, AdvancementEntry, AdvancementFrameType, BossBarColor,
-        BossBarOverlay, CollisionRule, NameTagVisibility, ParticleData, ParticlePacket,
-        ResourcePackStatus, SidebarNumberFormat, SoundSource, TeamColor, TeamSettings,
+        BossBarOverlay, CollisionRule, NameTagVisibility, ParticleData, ParticleEntry,
+        ParticlePacket, RecipePropertySet, ResourcePackStatus, SidebarNumberFormat, SoundEvent,
+        SoundSource, TeamColor, TeamSettings,
     };
     pub use crate::registry::{DimensionType, Registries};
     pub use crate::scheduler::{
@@ -115,12 +121,12 @@ pub mod prelude {
     };
     pub use crate::server::{
         AdvancementTab, AsyncPlayerConfigurationEvent, AuthMode, BossBar, BoundServer,
-        ChunkSnapshot, ClientPingServerEvent, Dialog, EntitySnapshot, InstanceSnapshot,
+        ChunkSnapshot, ClientPingServerEvent, Dialog, EntityRef, EntitySnapshot, InstanceSnapshot,
         MinecraftServer, Particle, PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent,
-        PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent, PlayerResourcePackStatusEvent,
-        PlayerSnapshot, PlayerSpawnEvent, RecipeManager, ResourcePackRequest, ServerConfig,
-        ServerListPingEvent, ServerSnapshot, Sidebar, SidebarLine, Sound, TeamManager, Title,
-        TitleTimes, ToastNotification,
+        PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent, PlayerRef,
+        PlayerResourcePackStatusEvent, PlayerSnapshot, PlayerSpawnEvent, RecipeManager,
+        ResourcePackRequest, ServerConfig, ServerListPingEvent, ServerSnapshot, Sidebar,
+        SidebarLine, Sound, TeamManager, Title, TitleTimes, ToastNotification,
     };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};
     pub use crate::world::{

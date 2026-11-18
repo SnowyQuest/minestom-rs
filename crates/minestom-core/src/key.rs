@@ -1,5 +1,6 @@
 //! Validated Minecraft resource identifier (`Key` / `NamespaceId`, e.g. `minecraft:grass_block`).
 
+use std::borrow::Borrow;
 use std::fmt;
 use std::str::FromStr;
 
@@ -90,6 +91,18 @@ impl Key {
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.full)
+    }
+}
+
+impl AsRef<str> for Key {
+    fn as_ref(&self) -> &str {
+        &self.full
+    }
+}
+
+impl Borrow<str> for Key {
+    fn borrow(&self) -> &str {
+        &self.full
     }
 }
 

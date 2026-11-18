@@ -1,11 +1,14 @@
-//! Dirty-tracked `EntityMetadata` container matching MC 26.2 `MetadataDef` indices
-//! (`Entity` `0..=7`, `LivingEntity` `8..=14`, `Avatar` `15..=16`, `Player` `17..=20`, `Mob` `15`).
+//! Dirty-tracked `EntityMetadata` container supporting both raw `(index, MetadataValue)` access
+//! and zero-cost compile-time typed [`MetadataKey`], [`BitMaskKey`], and [`ByteMaskKey`] entries
+//! from [`crate::metadata_def`].
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use minestom_core::MainHand;
 use minestom_protocol::entity::{EntityPose, MetadataValue};
 use minestom_text::Component;
+
+use crate::metadata_def::{self, BitMaskKey, ByteMaskKey, MetadataKey};
 
 /// Dirty-tracked map of entity metadata indices (`0..255`) for `EntityMetaDataPacket`.
 #[derive(Debug, Clone, Default)]
@@ -32,120 +35,168 @@ impl EntityMetadata {
         }
     }
 
-    /// Reads the current value at `index`, if set.
+    /// Reads the current raw value at `index`, if set.
     #[must_use]
     pub fn get(&self, index: u8) -> Option<&MetadataValue> {
         self.entries.get(&index)
     }
 
-    fn set_bit(&mut self, index: u8, mask: i8, enabled: bool) {
-        let current = match self.entries.get(&index) {
-            Some(MetadataValue::Byte(b)) => *b,
-            _ => 0,
-        };
-        let next = if enabled {
-            current | mask
-        } else {
-            current & !mask
-        };
-        self.set(index, MetadataValue::Byte(next));
+    /// Sets a typed [`MetadataKey<T>`] entry (from [`crate::metadata_def`]) and marks its wire index dirty.
+    pub fn set_key<T>(&mut self, key: MetadataKey<T>, value: T) {
+        self.set(key.index(), key.encode_value(value));
     }
 
-    fn get_bit(&self, index: u8, mask: i8) -> bool {
-        matches!(self.entries.get(&index), Some(MetadataValue::Byte(b)) if (*b & mask) != 0)
+    /// Reads a typed [`MetadataKey<T>`] entry, returning `None` if unset.
+    #[must_use]
+    pub fn get_key<T>(&self, key: MetadataKey<T>) -> Option<T> {
+        self.entries
+            .get(&key.index())
+            .and_then(|raw| key.decode_value(raw))
+    }
+
+    /// Sets a boolean [`BitMaskKey`] flag inside a byte metadata entry.
+    pub fn set_flag(&mut self, flag: BitMaskKey, enabled: bool) {
+        let current = match self.entries.get(&flag.index()) {
+            Some(MetadataValue::Byte(b)) => *b as u8,
+            _ => {
+                if flag.default_value() {
+                    flag.mask()
+                } else {
+                    0
+                }
+            }
+        };
+        let next = if enabled {
+            current | flag.mask()
+        } else {
+            current & !flag.mask()
+        };
+        self.set(flag.index(), MetadataValue::Byte(next as i8));
+    }
+
+    /// Reads a boolean [`BitMaskKey`] flag (returning `flag.default_value()` if unset).
+    #[must_use]
+    pub fn get_flag(&self, flag: BitMaskKey) -> bool {
+        match self.entries.get(&flag.index()) {
+            Some(MetadataValue::Byte(b)) => ((*b as u8) & flag.mask()) != 0,
+            _ => flag.default_value(),
+        }
+    }
+
+    /// Sets a multi-bit [`ByteMaskKey`] sub-field (e.g. `Sheep::COLOR_ID`, `TextDisplay::ALIGNMENT`).
+    pub fn set_byte_mask(&mut self, field: ByteMaskKey, value: u8) {
+        let current = match self.entries.get(&field.index()) {
+            Some(MetadataValue::Byte(b)) => *b as u8,
+            _ => (field.default_value() << field.shift()) & field.mask(),
+        };
+        let next = (current & !field.mask()) | ((value << field.shift()) & field.mask());
+        self.set(field.index(), MetadataValue::Byte(next as i8));
+    }
+
+    /// Reads a multi-bit [`ByteMaskKey`] sub-field.
+    #[must_use]
+    pub fn get_byte_mask(&self, field: ByteMaskKey) -> u8 {
+        match self.entries.get(&field.index()) {
+            Some(MetadataValue::Byte(b)) => ((*b as u8) & field.mask()) >> field.shift(),
+            _ => field.default_value(),
+        }
     }
 
     /// Sets `IS_ON_FIRE` (`index 0`, bit `0x01`).
     pub fn set_on_fire(&mut self, on_fire: bool) {
-        self.set_bit(0, 0x01, on_fire);
+        self.set_flag(metadata_def::entity::IS_ON_FIRE, on_fire);
     }
 
     /// Sets `IS_CROUCHING` (`index 0`, bit `0x02`).
     pub fn set_sneaking(&mut self, sneaking: bool) {
-        self.set_bit(0, 0x02, sneaking);
+        self.set_flag(metadata_def::entity::IS_CROUCHING, sneaking);
     }
 
     /// Returns `true` if `IS_CROUCHING` is set.
     #[must_use]
     pub fn is_sneaking(&self) -> bool {
-        self.get_bit(0, 0x02)
+        self.get_flag(metadata_def::entity::IS_CROUCHING)
     }
 
     /// Sets `IS_SPRINTING` (`index 0`, bit `0x08`).
     pub fn set_sprinting(&mut self, sprinting: bool) {
-        self.set_bit(0, 0x08, sprinting);
+        self.set_flag(metadata_def::entity::IS_SPRINTING, sprinting);
     }
 
     /// Returns `true` if `IS_SPRINTING` is set.
     #[must_use]
     pub fn is_sprinting(&self) -> bool {
-        self.get_bit(0, 0x08)
+        self.get_flag(metadata_def::entity::IS_SPRINTING)
     }
 
     /// Sets `IS_INVISIBLE` (`index 0`, bit `0x20`).
     pub fn set_invisible(&mut self, invisible: bool) {
-        self.set_bit(0, 0x20, invisible);
+        self.set_flag(metadata_def::entity::IS_INVISIBLE, invisible);
     }
 
     /// Sets `HAS_GLOWING_EFFECT` (`index 0`, bit `0x40`).
     pub fn set_glowing(&mut self, glowing: bool) {
-        self.set_bit(0, 0x40, glowing);
+        self.set_flag(metadata_def::entity::HAS_GLOWING_EFFECT, glowing);
     }
 
     /// Sets `CUSTOM_NAME` (`index 2`, `OptComponent`).
     pub fn set_custom_name(&mut self, name: Option<Component>) {
-        self.set(2, MetadataValue::OptComponent(name));
+        self.set_key(metadata_def::entity::CUSTOM_NAME, name);
     }
 
     /// Sets `CUSTOM_NAME_VISIBLE` (`index 3`, `Boolean`).
     pub fn set_custom_name_visible(&mut self, visible: bool) {
-        self.set(3, MetadataValue::Boolean(visible));
+        self.set_key(metadata_def::entity::CUSTOM_NAME_VISIBLE, visible);
     }
 
     /// Sets `IS_SILENT` (`index 4`, `Boolean`).
     pub fn set_silent(&mut self, silent: bool) {
-        self.set(4, MetadataValue::Boolean(silent));
+        self.set_key(metadata_def::entity::IS_SILENT, silent);
     }
 
     /// Sets `HAS_NO_GRAVITY` (`index 5`, `Boolean`).
     pub fn set_no_gravity(&mut self, no_gravity: bool) {
-        self.set(5, MetadataValue::Boolean(no_gravity));
+        self.set_key(metadata_def::entity::HAS_NO_GRAVITY, no_gravity);
     }
 
     /// Returns `true` if `HAS_NO_GRAVITY` (`index 5`) is enabled.
     #[must_use]
     pub fn has_no_gravity(&self) -> bool {
-        matches!(self.entries.get(&5), Some(MetadataValue::Boolean(true)))
+        self.get_key(metadata_def::entity::HAS_NO_GRAVITY)
+            .unwrap_or(false)
     }
 
     /// Sets `POSE` (`index 6`, `EntityPose`).
     pub fn set_pose(&mut self, pose: EntityPose) {
-        self.set(6, MetadataValue::Pose(pose));
+        self.set_key(metadata_def::entity::POSE, pose);
     }
 
     /// Sets `LivingEntity::HEALTH` (`index 9`, `Float`).
     pub fn set_health(&mut self, health: f32) {
-        self.set(9, MetadataValue::Float(health));
+        self.set_key(metadata_def::living_entity::HEALTH, health);
     }
 
     /// Sets `Avatar::MAIN_HAND` (`index 15`, `MainHand` in MC 26.2).
     pub fn set_main_hand(&mut self, hand: MainHand) {
-        self.set(15, MetadataValue::MainHand(hand));
+        self.set_key(metadata_def::avatar::MAIN_HAND, hand);
     }
 
     /// Sets `Avatar::DISPLAYED_MODEL_PARTS_FLAGS` (`index 16`, `Byte` in MC 26.2).
     pub fn set_displayed_skin_parts(&mut self, flags: u8) {
-        self.set(16, MetadataValue::Byte(flags as i8));
+        self.set_key(
+            metadata_def::avatar::DISPLAYED_MODEL_PARTS_FLAGS,
+            flags as i8,
+        );
     }
 
     /// Sets `Mob::NO_AI` (`index 15`, bit `0x01`).
     pub fn set_no_ai(&mut self, no_ai: bool) {
-        self.set_bit(15, 0x01, no_ai);
+        self.set_flag(metadata_def::mob::NO_AI, no_ai);
     }
 
     /// Sets `Mob::IS_AGGRESSIVE` (`index 15`, bit `0x04`).
     pub fn set_aggressive(&mut self, aggressive: bool) {
-        self.set_bit(15, 0x04, aggressive);
+        self.set_flag(metadata_def::mob::IS_AGGRESSIVE, aggressive);
     }
 
     /// Returns `true` if at least one entry was modified since the last [`Self::take_dirty`] call.

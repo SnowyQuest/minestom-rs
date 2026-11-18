@@ -56,7 +56,8 @@ ItemStack sword = ItemStack.builder(Material.DIAMOND_SWORD).amount(1).build();
 ```rust
 let spawn = Pos::new(0.0, 42.0, 0.0).with_yaw(90.0);
 let grass = Block::GRASS_BLOCK.with_property("snowy", "true")?;
-let sword = ItemStack::builder(Material::DIAMOND_SWORD).amount(1).build();
+let sword = ItemStack::single(Material::DIAMOND_SWORD)
+    .with_enchantment(Enchantment::SHARPNESS, 5);
 ```
 
 ---
@@ -88,9 +89,18 @@ Custom per-tick or spawn logic implements the `EntityBehavior` trait instead of 
 
 ---
 
-## 5. `Acquirable<T>` → Arena Handles (`EntityId` / `PlayerRef`) & Tick Context
+## 5. `Acquirable<T>` → `PlayerRef`, `EntityRef`, and Unified FIFO Tick Channel
 
-**Why:** Per-entity locks risk deadlocks and cost ~4.2x more per tick than generational arenas (`slotmap`). Inside tick callbacks and sync event listeners, state is mutated directly without locks; from async tasks, handles (`PlayerRef`, `InstanceHandle`) enqueue commands applied cleanly at the start of the next tick (ADR 0002).
+**Why:** Per-entity locks risk deadlocks and add synchronization overhead on every tick. Inside the 20 TPS tick thread, `SlotMap<PlayerId, ActivePlayer>` and world entities are owned and mutated without locks; from event listeners, command executors, or async tasks, `PlayerRef` (`ev.player`) and `EntityRef` (`server.spawn_entity(...)`) enqueue commands onto a single bounded FIFO channel and read consistent point-in-time state via `ArcSwap<ServerSnapshot>` (ADR 0002).
+
+```rust
+server.global_event_handler().add_listener(|ev: &mut PlayerSpawnEvent| {
+    if ev.first_spawn {
+        ev.player.send_message(Component::text("Welcome!"));
+        ev.player.give_item(ItemStack::single(Material::DIAMOND_SWORD));
+    }
+});
+```
 
 ---
 

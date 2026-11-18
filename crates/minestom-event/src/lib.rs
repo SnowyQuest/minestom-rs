@@ -1,5 +1,6 @@
 //! Composable `EventNode` tree, domain filter traits, priorities, expiring listeners
-//! (`expire_count`, `expire_when`), and zero-allocation `ListenerHandle<E>` dispatch (ADR 0003).
+//! (`expire_count`, `expire_when`), async event listeners, and zero-allocation
+//! `ListenerHandle<E>` dispatch (ADR 0003).
 //!
 //! ```
 //! use minestom_event::{Event, EventListener, EventNode};
@@ -22,9 +23,11 @@
 //! ```
 
 use std::any::{Any, TypeId};
+use std::future::Future;
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Weak};
 
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
@@ -69,6 +72,9 @@ pub trait BlockEvent: Event {
 
 /// Returns `true` if this listener has expired and should be pruned from its owning `EventNode`.
 type ErasedCallback = Arc<dyn Fn(&mut dyn Any) -> bool + Send + Sync>;
+type ErasedAsyncCallback = Arc<
+    dyn for<'a> Fn(&'a mut dyn Any) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> + Send + Sync,
+>;
 type NodeCondition = Arc<dyn Fn(&dyn Any) -> bool + Send + Sync>;
 
 /// Configured typed listener built via [`EventListener::builder`].
@@ -130,10 +136,13 @@ where
         self
     }
 
-    /// Runs this listener only when `predicate(event)` returns `true`.
+    /// Runs this listener only when `predicate(event)` returns `true` (composes with prior `.filter(...)` calls).
     #[must_use]
     pub fn filter(mut self, predicate: impl Fn(&E) -> bool + Send + Sync + 'static) -> Self {
-        self.filter = Some(Box::new(predicate));
+        self.filter = Some(match self.filter {
+            None => Box::new(predicate),
+            Some(prev) => Box::new(move |ev| prev(ev) && predicate(ev)),
+        });
         self
     }
 
@@ -213,6 +222,12 @@ struct RegisteredListener {
 }
 
 #[derive(Clone)]
+struct RegisteredAsyncListener {
+    priority: i32,
+    callback: ErasedAsyncCallback,
+}
+
+#[derive(Clone)]
 struct CompiledEntry {
     owner: EventNode,
     id: u64,
@@ -222,16 +237,31 @@ struct CompiledEntry {
     callback: ErasedCallback,
 }
 
+#[derive(Clone)]
+struct CompiledAsyncEntry {
+    node_priority: i32,
+    priority: i32,
+    condition: Option<NodeCondition>,
+    callback: ErasedAsyncCallback,
+}
+
 struct NodeInner {
     name: String,
     priority: i32,
     condition: Option<NodeCondition>,
+    parents: Vec<Weak<RwLock<NodeInner>>>,
+    parent_revisions: Vec<Weak<AtomicU64>>,
     listeners: FxHashMap<TypeId, Vec<RegisteredListener>>,
+    async_listeners: FxHashMap<TypeId, Vec<RegisteredAsyncListener>>,
     children: Vec<EventNode>,
     compiled_cache: FxHashMap<TypeId, (u64, Arc<[CompiledEntry]>)>,
 }
 
 /// Hierarchical, thread-safe event dispatch node corresponding to Minestom's `EventNode`.
+///
+/// Ancestor revision counters are invalidated upward on mutation so hot-path dispatch
+/// (`ListenerHandle::call` / `EventNode::call`) performs a single `Ordering::Acquire` load
+/// with zero recursive lock traversal.
 #[derive(Clone)]
 pub struct EventNode {
     inner: Arc<RwLock<NodeInner>>,
@@ -267,7 +297,10 @@ impl EventNode {
                 name: name.into(),
                 priority: 0,
                 condition: None,
+                parents: Vec::new(),
+                parent_revisions: Vec::new(),
                 listeners: FxHashMap::default(),
+                async_listeners: FxHashMap::default(),
                 children: Vec::new(),
                 compiled_cache: FxHashMap::default(),
             })),
@@ -296,15 +329,21 @@ impl EventNode {
         self
     }
 
-    /// Attaches a node-wide condition predicate for event type `E`.
+    /// Attaches a composable node-wide condition predicate for event type `E`.
     #[must_use]
     pub fn with_condition<E: Event>(
         self,
         predicate: impl Fn(&E) -> bool + Send + Sync + 'static,
     ) -> Self {
-        self.inner.write().condition = Some(Arc::new(move |any: &dyn Any| {
-            any.downcast_ref::<E>().is_none_or(&predicate)
-        }));
+        let next_cond: NodeCondition =
+            Arc::new(move |any: &dyn Any| any.downcast_ref::<E>().is_none_or(&predicate));
+        {
+            let mut guard = self.inner.write();
+            guard.condition = Some(match guard.condition.take() {
+                None => next_cond,
+                Some(prev) => Arc::new(move |any| prev(any) && next_cond(any)),
+            });
+        }
         self.bump_revision();
         self
     }
@@ -322,16 +361,25 @@ impl EventNode {
     }
 
     fn bump_revision(&self) {
-        self.revision.fetch_add(1, Ordering::AcqRel);
+        Self::bump_node_and_ancestors(&self.inner, &self.revision);
     }
 
-    fn tree_revision(&self) -> u64 {
-        let mut rev = self.revision.load(Ordering::Acquire);
-        let guard = self.inner.read();
-        for child in &guard.children {
-            rev = rev.wrapping_add(child.tree_revision().rotate_left(7));
+    fn bump_node_and_ancestors(inner: &Arc<RwLock<NodeInner>>, rev: &Arc<AtomicU64>) {
+        rev.fetch_add(1, Ordering::AcqRel);
+        let (parents, parent_revs) = {
+            let guard = inner.read();
+            (guard.parents.clone(), guard.parent_revisions.clone())
+        };
+        for (p_inner_weak, p_rev_weak) in parents.into_iter().zip(parent_revs) {
+            if let (Some(p_inner), Some(p_rev)) = (p_inner_weak.upgrade(), p_rev_weak.upgrade()) {
+                Self::bump_node_and_ancestors(&p_inner, &p_rev);
+            }
         }
-        rev
+    }
+
+    #[inline]
+    fn tree_revision(&self) -> u64 {
+        self.revision.load(Ordering::Acquire)
     }
 
     /// Registers a typed [`EventListener<E>`] specification on this node.
@@ -370,8 +418,55 @@ impl EventNode {
         self.add_listener_spec(EventListener::builder(handler).priority(priority).build())
     }
 
+    /// Registers an asynchronous listener (`AsyncEvent` equivalent in Minestom, e.g. for database
+    /// profile/rank lookups during `AsyncPlayerConfigurationEvent` without blocking Tokio workers).
+    pub fn add_async_listener<E, F>(&self, handler: F) -> &Self
+    where
+        E: Event,
+        F: for<'a> Fn(&'a mut E) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.add_async_listener_with_priority(0, handler)
+    }
+
+    /// Registers an asynchronous listener with an explicit `priority`.
+    pub fn add_async_listener_with_priority<E, F>(&self, priority: i32, handler: F) -> &Self
+    where
+        E: Event,
+        F: for<'a> Fn(&'a mut E) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        let callback: ErasedAsyncCallback = Arc::new(move |any: &mut dyn Any| {
+            if let Some(ev) = any.downcast_mut::<E>() {
+                handler(ev)
+            } else {
+                Box::pin(async {})
+            }
+        });
+        let mut guard = self.inner.write();
+        guard
+            .async_listeners
+            .entry(TypeId::of::<E>())
+            .or_default()
+            .push(RegisteredAsyncListener { priority, callback });
+        drop(guard);
+        self.bump_revision();
+        self
+    }
+
     /// Attaches a child `EventNode` to this tree.
     pub fn add_child(&self, child: Self) -> &Self {
+        {
+            let mut child_guard = child.inner.write();
+            child_guard.parents.push(Arc::downgrade(&self.inner));
+            child_guard
+                .parent_revisions
+                .push(Arc::downgrade(&self.revision));
+        }
         let mut guard = self.inner.write();
         guard.children.push(child);
         guard.children.sort_by_key(Self::priority);
@@ -435,6 +530,39 @@ impl EventNode {
         }
     }
 
+    fn collect_async_listeners(
+        &self,
+        type_id: TypeId,
+        inherited_cond: Option<&NodeCondition>,
+        out: &mut Vec<CompiledAsyncEntry>,
+    ) {
+        let guard = self.inner.read();
+        let combined_cond: Option<NodeCondition> = match (inherited_cond, &guard.condition) {
+            (None, None) => None,
+            (Some(a), None) => Some(Arc::clone(a)),
+            (None, Some(b)) => Some(Arc::clone(b)),
+            (Some(a), Some(b)) => {
+                let a = Arc::clone(a);
+                let b = Arc::clone(b);
+                Some(Arc::new(move |any| a(any) && b(any)))
+            }
+        };
+
+        if let Some(list) = guard.async_listeners.get(&type_id) {
+            for item in list {
+                out.push(CompiledAsyncEntry {
+                    node_priority: guard.priority,
+                    priority: item.priority,
+                    condition: combined_cond.clone(),
+                    callback: Arc::clone(&item.callback),
+                });
+            }
+        }
+        for child in &guard.children {
+            child.collect_async_listeners(type_id, combined_cond.as_ref(), out);
+        }
+    }
+
     fn compiled_chain_for(&self, type_id: TypeId) -> Arc<[CompiledEntry]> {
         let current_rev = self.tree_revision();
         {
@@ -458,13 +586,34 @@ impl EventNode {
         chain
     }
 
-    /// Dispatches `event` through all matching listeners in this node and its descendants.
+    /// Dispatches `event` through all matching synchronous listeners in this node and its descendants.
     ///
     /// Uses a revision-validated cached listener slice so repeated calls allocate zero heap memory.
     pub fn call<E: Event>(&self, event: &mut E) {
         let type_id = TypeId::of::<E>();
         let chain = self.compiled_chain_for(type_id);
         Self::execute_chain(type_id, &chain, event);
+    }
+
+    /// Dispatches `event` through all synchronous listeners AND awaits all registered async listeners
+    /// in priority order (`AsyncEvent` dispatch for login/configuration phases).
+    pub async fn call_async<E: Event>(&self, event: &mut E) {
+        self.call(event);
+        let type_id = TypeId::of::<E>();
+        let mut async_entries = Vec::new();
+        self.collect_async_listeners(type_id, None, &mut async_entries);
+        if async_entries.is_empty() {
+            return;
+        }
+        async_entries.sort_by_key(|e| (e.node_priority, e.priority));
+        for entry in async_entries {
+            if let Some(cond) = &entry.condition
+                && !cond(event)
+            {
+                continue;
+            }
+            (entry.callback)(event).await;
+        }
     }
 
     /// Dispatches a [`CancellableEvent`] and runs `on_success` only if `!event.is_cancelled()`.
@@ -565,7 +714,6 @@ mod tests {
     fn priorities_conditions_cancellation_and_expiration_work() {
         let root = EventNode::all("root");
 
-        // Priority -10 runs before priority 10
         root.add_listener_with_priority(10, |ev: &mut TestChat| {
             ev.msg.push_str(":late");
         });
@@ -573,11 +721,10 @@ mod tests {
             ev.msg.push_str(":early");
         });
 
-        // Child node filtered to messages starting with "vip"
         let vip_child =
             EventNode::value("vip", |ev: &TestChat| ev.msg.starts_with("vip")).with_priority(20);
         vip_child.add_listener(|ev: &mut TestChat| ev.msg.push_str(":vip"));
-        root.add_child(vip_child);
+        root.add_child(vip_child.clone());
 
         let handle = root.listener_handle::<TestChat>();
         let mut e1 = TestChat {
@@ -587,11 +734,14 @@ mod tests {
         handle.call(&mut e1);
         assert_eq!(e1.msg, "hello:early:late");
 
+        // Adding a listener to child invalidates root's cached revision in O(1)!
+        vip_child.add_listener(|ev: &mut TestChat| ev.msg.push_str(":vip2"));
+
         let mut e2 = TestChat {
             msg: "vip".to_owned(),
             cancelled: false,
         };
         handle.call(&mut e2);
-        assert_eq!(e2.msg, "vip:early:late:vip");
+        assert_eq!(e2.msg, "vip:early:late:vip:vip2");
     }
 }

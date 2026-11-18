@@ -2,8 +2,9 @@
 //! `DamageType`, `Dialog`, `Timeline`, `WorldClock`, entity variants, and tags).
 
 use minestom_data::generated::dynamic_registries::{
-    BIOME_COUNT, CONFIGURATION_REGISTRIES, OVERWORLD_DIMENSION_TYPE_ID, PLAINS_BIOME_ID,
-    VanillaDynamicRegistry,
+    BIOME_COUNT, CONFIGURATION_REGISTRIES, OVERWORLD_CAVES_DIMENSION_TYPE_ID,
+    OVERWORLD_DIMENSION_TYPE_ID, PLAINS_BIOME_ID, THE_END_DIMENSION_TYPE_ID,
+    THE_NETHER_DIMENSION_TYPE_ID, VanillaDynamicRegistry,
 };
 use minestom_data::generated::registry_tags::{CLIENT_TAG_REGISTRIES, TagGroupSlice};
 use minestom_nbt::{NbtTag, json_to_nbt};
@@ -25,7 +26,7 @@ pub enum RegistryError {
 }
 
 /// Dimension height and lighting geometry corresponding to Minestom's `DimensionType`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DimensionType {
     /// Registry identifier (e.g. `"minecraft:overworld"`).
     pub key: String,
@@ -54,6 +55,48 @@ impl DimensionType {
             height: 384,
             logical_height: 384,
             has_skylight: true,
+            has_ceiling: false,
+        }
+    }
+
+    /// Vanilla `minecraft:overworld_caves` (`min_y = -64`, `height = 384`, ceiling enabled).
+    #[must_use]
+    pub fn overworld_caves() -> Self {
+        Self {
+            key: "minecraft:overworld_caves".to_owned(),
+            protocol_id: OVERWORLD_CAVES_DIMENSION_TYPE_ID,
+            min_y: -64,
+            height: 384,
+            logical_height: 384,
+            has_skylight: true,
+            has_ceiling: true,
+        }
+    }
+
+    /// Vanilla `minecraft:the_nether` (`min_y = 0`, `height = 256`, `logical_height = 128`, no skylight).
+    #[must_use]
+    pub fn the_nether() -> Self {
+        Self {
+            key: "minecraft:the_nether".to_owned(),
+            protocol_id: THE_NETHER_DIMENSION_TYPE_ID,
+            min_y: 0,
+            height: 256,
+            logical_height: 128,
+            has_skylight: false,
+            has_ceiling: true,
+        }
+    }
+
+    /// Vanilla `minecraft:the_end` (`min_y = 0`, `height = 256`, `logical_height = 256`, no skylight).
+    #[must_use]
+    pub fn the_end() -> Self {
+        Self {
+            key: "minecraft:the_end".to_owned(),
+            protocol_id: THE_END_DIMENSION_TYPE_ID,
+            min_y: 0,
+            height: 256,
+            logical_height: 256,
+            has_skylight: false,
             has_ceiling: false,
         }
     }
@@ -116,6 +159,33 @@ impl Registries {
     #[must_use]
     pub const fn configuration_registries(&self) -> &'static [VanillaDynamicRegistry] {
         CONFIGURATION_REGISTRIES
+    }
+
+    /// Resolves the numeric protocol ID (`0..len`) of an entry inside one of the 27 dynamic registries
+    /// (`registry_id` e.g. `"minecraft:worldgen/biome"`, `entry_key` e.g. `"minecraft:desert"` or `"desert"`).
+    ///
+    /// Uses binary search over the sorted dynamic registry entry table with zero heap allocation.
+    #[must_use]
+    pub fn lookup_dynamic_id(&self, registry_id: &str, entry_key: &str) -> Option<u32> {
+        let reg = CONFIGURATION_REGISTRIES
+            .iter()
+            .find(|r| r.registry_id == registry_id)?;
+        let bare = entry_key
+            .strip_prefix("minecraft:")
+            .or_else(|| (!entry_key.contains(':')).then_some(entry_key))?;
+        reg.entries
+            .binary_search_by_key(&bare, |(k, _)| k.strip_prefix("minecraft:").unwrap_or(k))
+            .ok()
+            .map(|idx| idx as u32)
+    }
+
+    /// Resolves the canonical `"minecraft:..."` key of a numeric ID inside `registry_id`.
+    #[must_use]
+    pub fn lookup_dynamic_key(&self, registry_id: &str, id: u32) -> Option<&'static str> {
+        let reg = CONFIGURATION_REGISTRIES
+            .iter()
+            .find(|r| r.registry_id == registry_id)?;
+        reg.entries.get(id as usize).map(|(k, _)| *k)
     }
 
     /// Decodes a vanilla dynamic registry JSON entry into an [`NbtTag`] when full NBT sync is needed

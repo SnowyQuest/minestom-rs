@@ -778,6 +778,88 @@ impl Decode for PlayerInfoUpdatePacket {
     }
 }
 
+/// Clientbound `PlayerInfoGameModePacket` (`0x46` in [`ConnectionState::Play`], action mask `0x04` = `UPDATE_GAME_MODE`).
+#[derive(Debug, Clone, PartialEq, Eq, PacketMeta)]
+pub struct PlayerInfoGameModePacket {
+    /// `(player_uuid, new_game_mode)` updates.
+    pub entries: Vec<(Uuid, GameMode)>,
+}
+
+impl PacketPayload for PlayerInfoGameModePacket {
+    const PACKET_ID: i32 = 0x46;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for PlayerInfoGameModePacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        buf.put_u8(0x04);
+        write_var_int(buf, self.entries.len() as i32);
+        for &(uuid, gm) in &self.entries {
+            uuid.encode(buf)?;
+            write_var_int(buf, gm as i32);
+        }
+        Ok(())
+    }
+}
+
+impl Decode for PlayerInfoGameModePacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let mask = u8::decode(buf)?;
+        if mask != 0x04 {
+            return Err(ProtocolError::InvalidDiscriminant {
+                type_name: "PlayerInfoUpdateActions",
+                value: i32::from(mask),
+            });
+        }
+        let count = read_var_int(buf)?;
+        if !(0..=1024).contains(&count) {
+            return Err(ProtocolError::InvalidLength {
+                len: count,
+                max: 1024,
+            });
+        }
+        let mut entries = Vec::with_capacity((count as usize).min(buf.remaining()));
+        for _ in 0..count {
+            let uuid = Uuid::decode(buf)?;
+            let gm = GameMode::from_id(read_var_int(buf)?)?;
+            entries.push((uuid, gm));
+        }
+        Ok(Self { entries })
+    }
+}
+
+/// Clientbound `UnloadChunkPacket` (`0x25` in [`ConnectionState::Play`], `ForgetLevelChunk`).
+///
+/// Per `UnloadChunkPacket.java`, Minecraft writes `chunk_z` (`i32`) BEFORE `chunk_x` (`i32`)
+/// because the client decodes the coordinate pair as a single packed big-endian `i64`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PacketMeta)]
+pub struct UnloadChunkPacket {
+    /// Chunk X coordinate.
+    pub chunk_x: i32,
+    /// Chunk Z coordinate.
+    pub chunk_z: i32,
+}
+
+impl PacketPayload for UnloadChunkPacket {
+    const PACKET_ID: i32 = 0x25;
+    const STATE: ConnectionState = ConnectionState::Play;
+}
+
+impl Encode for UnloadChunkPacket {
+    fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), ProtocolError> {
+        self.chunk_z.encode(buf)?;
+        self.chunk_x.encode(buf)
+    }
+}
+
+impl Decode for UnloadChunkPacket {
+    fn decode<B: Buf>(buf: &mut B) -> Result<Self, ProtocolError> {
+        let chunk_z = i32::decode(buf)?;
+        let chunk_x = i32::decode(buf)?;
+        Ok(Self { chunk_x, chunk_z })
+    }
+}
+
 /// Clientbound `PlayerPositionAndLookPacket` (`0x48` in [`ConnectionState::Play`], Synchronize Player Position).
 #[derive(Debug, Clone, Copy, PartialEq, PacketMeta)]
 pub struct PlayerPositionAndLookPacket {

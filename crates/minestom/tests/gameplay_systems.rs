@@ -314,7 +314,9 @@ async fn attributes_potions_astar_ai_combat_and_respawn_end_to_end() {
         .with_max_health(10.0)
         .with_attribute(Attribute::ATTACK_DAMAGE, 4.0)
         .with_behavior(ai);
-    let zombie_eid = handle.spawn_entity(&instance, zombie, Pos::new(5.5, 40.0, 0.5));
+    let zombie_eid = handle
+        .spawn_entity(&instance, zombie, Pos::new(5.5, 40.0, 0.5))
+        .network_id();
 
     let dmg_on_hero = wait_for_packet::<DamageEventPacket>(&mut hero).await;
     assert_eq!(dmg_on_hero.target_entity_id, hero_eid);

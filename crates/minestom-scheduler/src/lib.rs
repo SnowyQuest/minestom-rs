@@ -2,7 +2,8 @@
 //! for `minestom-rs` (`net.minestom.server.timer` equivalent).
 //!
 //! Tasks execute deterministically on the 20 TPS tick loop during either [`ExecutionType::TickStart`]
-//! or [`ExecutionType::TickEnd`], never blocking Tokio network workers.
+//! or [`ExecutionType::TickEnd`], never blocking Tokio network workers. Backed by per-phase
+//! min-heaps (`BinaryHeap<Reverse<(due_tick, TaskId)>>`) so idle tasks incur `O(1)` overhead.
 //!
 //! ```
 //! use std::sync::Arc;
@@ -30,6 +31,8 @@
 //! assert!(!handle.is_alive());
 //! ```
 
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
@@ -49,7 +52,8 @@ pub enum ExecutionType {
 /// Scheduling interval for task delays and repeats (`TaskSchedule` in Minestom).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TaskSchedule {
-    /// Execute on the current tick pass (`0` tick delay).
+    /// Execute on the current tick pass (`0` tick delay; if scheduled inside a tick phase,
+    /// executes during the active pass).
     Immediate,
     /// Execute on the next tick (`1` tick).
     NextTick,
@@ -136,17 +140,62 @@ type DynamicTaskFn = Box<dyn FnMut() -> TaskSchedule + Send + 'static>;
 
 struct ScheduledEntry {
     id: TaskId,
-    execution_type: ExecutionType,
-    remaining_ticks: u64,
     alive: Arc<AtomicBool>,
     callback: DynamicTaskFn,
 }
 
+#[derive(Default)]
+struct PhaseQueue {
+    current_tick: u64,
+    in_phase: bool,
+    heap: BinaryHeap<Reverse<(u64, TaskId)>>,
+    entries: BTreeMap<TaskId, ScheduledEntry>,
+}
+
+impl PhaseQueue {
+    fn schedule(&mut self, entry: ScheduledEntry, delay_ticks: u64) {
+        let due_tick = if delay_ticks == 0 {
+            if self.in_phase {
+                self.current_tick
+            } else {
+                self.current_tick + 1
+            }
+        } else {
+            self.current_tick + delay_ticks
+        };
+        self.heap.push(Reverse((due_tick, entry.id)));
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn active_count(&self) -> usize {
+        self.entries
+            .values()
+            .filter(|e| e.alive.load(Ordering::Acquire))
+            .count()
+    }
+
+    fn clear_all(&mut self) {
+        self.heap.clear();
+        for (_, entry) in std::mem::take(&mut self.entries) {
+            entry.alive.store(false, Ordering::Release);
+        }
+    }
+}
+
 struct SchedulerInner {
     ticks_per_second: u32,
-    pending: Vec<ScheduledEntry>,
-    active: Vec<ScheduledEntry>,
+    tick_start: PhaseQueue,
+    tick_end: PhaseQueue,
     shutdown_tasks: Vec<Box<dyn FnOnce() + Send + 'static>>,
+}
+
+impl SchedulerInner {
+    fn queue_mut(&mut self, phase: ExecutionType) -> &mut PhaseQueue {
+        match phase {
+            ExecutionType::TickStart => &mut self.tick_start,
+            ExecutionType::TickEnd => &mut self.tick_end,
+        }
+    }
 }
 
 /// Deterministic tick-aligned task scheduler (`Scheduler` in Minestom).
@@ -167,7 +216,10 @@ impl std::fmt::Debug for Scheduler {
         let g = self.inner.lock();
         f.debug_struct("Scheduler")
             .field("tps", &g.ticks_per_second)
-            .field("active_tasks", &(g.active.len() + g.pending.len()))
+            .field(
+                "active_tasks",
+                &(g.tick_start.active_count() + g.tick_end.active_count()),
+            )
             .finish_non_exhaustive()
     }
 }
@@ -186,8 +238,8 @@ impl Scheduler {
             next_id: Arc::new(AtomicU64::new(1)),
             inner: Arc::new(Mutex::new(SchedulerInner {
                 ticks_per_second: ticks_per_second.max(1),
-                pending: Vec::new(),
-                active: Vec::new(),
+                tick_start: PhaseQueue::default(),
+                tick_end: PhaseQueue::default(),
                 shutdown_tasks: Vec::new(),
             })),
         }
@@ -197,11 +249,7 @@ impl Scheduler {
     #[must_use]
     pub fn active_task_count(&self) -> usize {
         let g = self.inner.lock();
-        g.active
-            .iter()
-            .chain(g.pending.iter())
-            .filter(|e| e.alive.load(Ordering::Acquire))
-            .count()
+        g.tick_start.active_count() + g.tick_end.active_count()
     }
 
     /// Starts building a task with fluent `.delay(...)`, `.repeat(...)`, and `.execution_type(...)`.
@@ -237,7 +285,7 @@ impl Scheduler {
         )
     }
 
-    /// Submits a dynamic task whose callback returns the next [`TaskSchedule`] after each run!
+    /// Submits a dynamic task whose callback returns the next [`TaskSchedule`] after each run.
     pub fn submit_task<F>(
         &self,
         execution_type: ExecutionType,
@@ -260,13 +308,14 @@ impl Scheduler {
             id,
             alive: Arc::clone(&alive),
         };
-        g.pending.push(ScheduledEntry {
-            id,
-            execution_type,
-            remaining_ticks: initial_ticks,
-            alive,
-            callback: Box::new(callback),
-        });
+        g.queue_mut(execution_type).schedule(
+            ScheduledEntry {
+                id,
+                alive,
+                callback: Box::new(callback),
+            },
+            initial_ticks,
+        );
         handle
     }
 
@@ -289,67 +338,81 @@ impl Scheduler {
     }
 
     /// Advances and executes all due tasks matching `phase` by 1 tick without holding the scheduler
-    /// mutex while user callbacks run (so tasks can safely schedule new tasks re-entrantly!).
+    /// mutex while user callbacks run (so tasks can safely schedule `Immediate` or `NextTick` tasks re-entrantly).
     pub fn process_phase(&self, phase: ExecutionType) {
-        let (tps, mut batch) = {
+        let (tps, now) = {
             let mut g = self.inner.lock();
-            let pending = std::mem::take(&mut g.pending);
-            g.active.extend(pending);
-            g.active.retain(|e| e.alive.load(Ordering::Acquire));
-
-            let mut due_and_staying = Vec::with_capacity(g.active.len());
-            let mut other_phase = Vec::new();
-            for mut entry in g.active.drain(..) {
-                if entry.execution_type == phase {
-                    entry.remaining_ticks = entry.remaining_ticks.saturating_sub(1);
-                    due_and_staying.push(entry);
-                } else {
-                    other_phase.push(entry);
-                }
-            }
-            g.active = other_phase;
-            (g.ticks_per_second, due_and_staying)
+            let tps = g.ticks_per_second;
+            let q = g.queue_mut(phase);
+            q.current_tick += 1;
+            q.in_phase = true;
+            (tps, q.current_tick)
         };
 
-        let mut keep = Vec::with_capacity(batch.len());
-        for mut entry in batch.drain(..) {
-            if !entry.alive.load(Ordering::Acquire) {
-                continue;
+        // Drain due tasks iteratively so re-entrantly submitted `TaskSchedule::Immediate` tasks
+        // execute in the current phase pass while `TaskSchedule::NextTick` waits for `now + 1`.
+        for _ in 0..1024 {
+            let due_batch: Vec<ScheduledEntry> = {
+                let mut g = self.inner.lock();
+                let q = g.queue_mut(phase);
+                let mut batch = Vec::new();
+                while let Some(&Reverse((due, id))) = q.heap.peek() {
+                    if due > now {
+                        break;
+                    }
+                    q.heap.pop();
+                    if let Some(entry) = q.entries.remove(&id)
+                        && entry.alive.load(Ordering::Acquire)
+                    {
+                        batch.push(entry);
+                    }
+                }
+                batch
+            };
+
+            if due_batch.is_empty() {
+                break;
             }
-            if entry.remaining_ticks == 0 {
+
+            let mut to_reschedule: Vec<(ScheduledEntry, u64)> = Vec::new();
+            for mut entry in due_batch {
+                if !entry.alive.load(Ordering::Acquire) {
+                    continue;
+                }
                 let next_sched = (entry.callback)();
                 if !entry.alive.load(Ordering::Acquire) {
                     continue;
                 }
                 match next_sched.to_ticks(tps) {
                     Some(next_ticks) => {
-                        // A repeat of 0/1 ticks runs on the next tick!
-                        entry.remaining_ticks = next_ticks.max(1);
-                        keep.push(entry);
+                        to_reschedule.push((entry, next_ticks.max(1)));
                     }
                     None => {
                         entry.alive.store(false, Ordering::Release);
                     }
                 }
-            } else {
-                keep.push(entry);
+            }
+
+            if !to_reschedule.is_empty() {
+                let mut g = self.inner.lock();
+                let q = g.queue_mut(phase);
+                for (entry, delta) in to_reschedule {
+                    let due = now + delta;
+                    q.heap.push(Reverse((due, entry.id)));
+                    q.entries.insert(entry.id, entry);
+                }
             }
         }
 
-        let mut g = self.inner.lock();
-        g.active.extend(keep);
-        g.active.sort_by_key(|e| e.id);
+        self.inner.lock().queue_mut(phase).in_phase = false;
     }
 
     /// Cancels all active tasks and runs every registered shutdown task once.
     pub fn shutdown(&self) {
         let shutdown_fns = {
             let mut g = self.inner.lock();
-            let act = std::mem::take(&mut g.active);
-            let pend = std::mem::take(&mut g.pending);
-            for e in act.into_iter().chain(pend) {
-                e.alive.store(false, Ordering::Release);
-            }
+            g.tick_start.clear_all();
+            g.tick_end.clear_all();
             std::mem::take(&mut g.shutdown_tasks)
         };
         for f in shutdown_fns {
@@ -505,6 +568,13 @@ mod tests {
         let mgr_reentrant = mgr.clone();
         mgr.build_task(move || {
             l1.lock().push("start_1");
+            let l_imm = Arc::clone(&l1);
+            mgr_reentrant
+                .build_task(move || {
+                    l_imm.lock().push("nested_immediate");
+                })
+                .delay(TaskSchedule::Immediate)
+                .schedule();
             let l_nested = Arc::clone(&l1);
             mgr_reentrant.schedule_next_tick(move || {
                 l_nested.lock().push("nested_next_tick");
@@ -529,34 +599,39 @@ mod tests {
             sc.fetch_add(1, Ordering::SeqCst);
         });
 
-        // Tick 1
+        // Tick 1: start_1 runs AND nested_immediate runs in the SAME TickStart pass!
         mgr.process_tick_start();
         mgr.process_tick_end();
-        assert_eq!(*log.lock(), vec!["start_1"]);
+        assert_eq!(*log.lock(), vec!["start_1", "nested_immediate"]);
 
         // Tick 2 -> nested_next_tick runs at TickStart; end_repeat fires at TickEnd!
         mgr.process_tick_start();
         mgr.process_tick_end();
         assert_eq!(
             *log.lock(),
-            vec!["start_1", "nested_next_tick", "end_repeat"]
+            vec![
+                "start_1",
+                "nested_immediate",
+                "nested_next_tick",
+                "end_repeat"
+            ]
         );
 
         // Tick 3 -> end_repeat has 1 tick remaining
         mgr.process_tick_start();
         mgr.process_tick_end();
-        assert_eq!(log.lock().len(), 3);
+        assert_eq!(log.lock().len(), 4);
 
         // Tick 4 -> end_repeat fires a second time, then we cancel it!
         mgr.process_tick_start();
         mgr.process_tick_end();
-        assert_eq!(log.lock().len(), 4);
+        assert_eq!(log.lock().len(), 5);
         rep_handle.cancel();
         assert!(!rep_handle.is_alive());
 
         // Tick 5 -> cancelled task does not fire
         mgr.process_tick_end();
-        assert_eq!(log.lock().len(), 4);
+        assert_eq!(log.lock().len(), 5);
 
         mgr.shutdown();
         assert_eq!(shutdown_called.load(Ordering::SeqCst), 1);

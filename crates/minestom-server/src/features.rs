@@ -1,11 +1,12 @@
-//! High-level M10 server subsystems: `Sidebar` scoreboards, `TeamManager`, `BossBar`,
-//! `Title` & `ActionBar`, `Particle` & `Sound`, `ToastNotification` & `AdvancementTab`,
-//! `RecipeManager`, `ResourcePackRequest`, and MC 26.2 `Dialog` builders.
+//! High-level server UI, media, and gameplay subsystems: `Sidebar` scoreboards, `TeamManager`,
+//! `BossBar`, `Title` & `ActionBar`, `Particle` (`125` constants) & `Sound` (`1,968` `SoundEvent`s),
+//! `ToastNotification` & `AdvancementTab`, `RecipeManager`, `ResourcePackRequest`, and MC 26.2 `Dialog` builders.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
 
+use minestom_block::Block;
 use minestom_core::{PlayerId, Vec3};
 use minestom_data::generated::{particles, sounds};
 use minestom_event::{Event, PlayerEvent};
@@ -20,23 +21,13 @@ use minestom_protocol::ui_media::{
     SetTitleTimePacket, ShowDialogPacket, SidebarNumberFormat, SoundEffectPacket, SoundHolder,
     SoundSource, StonecutterRecipeEntry, TeamSettings, TeamsAction, TeamsPacket, UpdateScorePacket,
 };
+pub use minestom_protocol::ui_media::{RecipePropertySet, SoundEvent};
 use minestom_text::Component;
+use parking_lot::RwLock;
 use uuid::Uuid;
 
 static NEXT_SIDEBAR_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_TOAST_ID: AtomicU64 = AtomicU64::new(1);
-
-#[inline]
-fn rlock<T>(lock: &RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
-    lock.read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-#[inline]
-fn wlock<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
-    lock.write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
 
 // ============================================================================
 // Sidebar Scoreboard (`net.minestom.server.scoreboard.Sidebar`)
@@ -117,13 +108,13 @@ impl Sidebar {
     /// Unique protocol objective name (`"sb-<n>"`).
     #[must_use]
     pub fn objective_name(&self) -> String {
-        rlock(&self.inner).objective_name.clone()
+        self.inner.read().objective_name.clone()
     }
 
     /// Current title [`Component`].
     #[must_use]
     pub fn title(&self) -> Component {
-        rlock(&self.inner).title.clone()
+        self.inner.read().title.clone()
     }
 
     /// Updates the sidebar title and returns the `(viewers, ScoreboardObjectivePacket)` to broadcast.
@@ -131,7 +122,7 @@ impl Sidebar {
         &self,
         title: impl Into<Component>,
     ) -> (Vec<PlayerId>, ScoreboardObjectivePacket) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         let title = title.into();
         g.title = title.clone();
         let pkt = ScoreboardObjectivePacket {
@@ -147,7 +138,7 @@ impl Sidebar {
 
     /// Inserts or replaces a [`SidebarLine`] (up to 15 lines) and returns `(viewers, UpdateScorePacket)`.
     pub fn set_line(&self, line: SidebarLine) -> Option<(Vec<PlayerId>, UpdateScorePacket)> {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         if g.lines.len() >= 15 && !g.lines.contains_key(&line.id) {
             return None;
         }
@@ -162,7 +153,7 @@ impl Sidebar {
         id: &str,
         content: impl Into<Component>,
     ) -> Option<(Vec<PlayerId>, UpdateScorePacket)> {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         let obj = g.objective_name.clone();
         let line = g.lines.get_mut(id)?;
         line.content = content.into();
@@ -172,7 +163,7 @@ impl Sidebar {
 
     /// Removes a line by `id` and returns `(viewers, ResetScorePacket)`.
     pub fn remove_line(&self, id: &str) -> Option<(Vec<PlayerId>, ResetScorePacket)> {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.lines.remove(id)?;
         let pkt = ResetScorePacket {
             owner: id.to_owned(),
@@ -189,7 +180,7 @@ impl Sidebar {
         DisplayScoreboardPacket,
         Vec<UpdateScorePacket>,
     ) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.viewers.insert(player_id);
         let create = ScoreboardObjectivePacket {
             objective_name: g.objective_name.clone(),
@@ -215,7 +206,7 @@ impl Sidebar {
         &self,
         player_id: PlayerId,
     ) -> Option<ScoreboardObjectivePacket> {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         if g.viewers.remove(&player_id) {
             Some(ScoreboardObjectivePacket {
                 objective_name: g.objective_name.clone(),
@@ -254,7 +245,7 @@ impl TeamManager {
     /// Creates or replaces a team and returns the [`TeamsPacket`] (`Create`) to broadcast.
     pub fn create_team(&self, name: impl Into<String>, settings: TeamSettings) -> TeamsPacket {
         let name = name.into();
-        let mut g = wlock(&self.teams);
+        let mut g = self.teams.write();
         g.insert(
             name.clone(),
             TeamEntry {
@@ -274,7 +265,7 @@ impl TeamManager {
 
     /// Updates a team's display/collision settings and returns the [`TeamsPacket`] (`Update`).
     pub fn update_team(&self, name: &str, settings: TeamSettings) -> Option<TeamsPacket> {
-        let mut g = wlock(&self.teams);
+        let mut g = self.teams.write();
         let entry = g.get_mut(name)?;
         entry.settings = settings.clone();
         Some(TeamsPacket {
@@ -286,7 +277,7 @@ impl TeamManager {
     /// Adds a member identifier (username or entity UUID string) to `team_name`.
     pub fn add_member(&self, team_name: &str, entity: impl Into<String>) -> Option<TeamsPacket> {
         let entity = entity.into();
-        let mut g = wlock(&self.teams);
+        let mut g = self.teams.write();
         let entry = g.get_mut(team_name)?;
         entry.members.insert(entity.clone());
         Some(TeamsPacket {
@@ -297,7 +288,7 @@ impl TeamManager {
 
     /// Removes a member identifier from `team_name`.
     pub fn remove_member(&self, team_name: &str, entity: &str) -> Option<TeamsPacket> {
-        let mut g = wlock(&self.teams);
+        let mut g = self.teams.write();
         let entry = g.get_mut(team_name)?;
         if !entry.members.remove(entity) {
             return None;
@@ -310,7 +301,7 @@ impl TeamManager {
 
     /// Removes a team completely and returns the [`TeamsPacket`] (`Remove`).
     pub fn remove_team(&self, team_name: &str) -> Option<TeamsPacket> {
-        let mut g = wlock(&self.teams);
+        let mut g = self.teams.write();
         g.remove(team_name)?;
         Some(TeamsPacket {
             team_name: team_name.to_owned(),
@@ -321,7 +312,7 @@ impl TeamManager {
     /// Builds `Create` [`TeamsPacket`]s for all registered teams (sent to newly joining players).
     #[must_use]
     pub fn all_creation_packets(&self) -> Vec<TeamsPacket> {
-        let g = rlock(&self.teams);
+        let g = self.teams.read();
         g.values()
             .map(|t| TeamsPacket {
                 team_name: t.name.clone(),
@@ -380,12 +371,12 @@ impl BossBar {
     /// Unique [`Uuid`] of this boss bar.
     #[must_use]
     pub fn uuid(&self) -> Uuid {
-        rlock(&self.inner).uuid
+        self.inner.read().uuid
     }
 
     /// Updates progress (`0.0..=1.0`) and returns `(viewers, BossBarPacket)`.
     pub fn set_progress(&self, progress: f32) -> (Vec<PlayerId>, BossBarPacket) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         let clamped = progress.clamp(0.0, 1.0);
         g.progress = clamped;
         let pkt = BossBarPacket {
@@ -397,7 +388,7 @@ impl BossBar {
 
     /// Updates title and returns `(viewers, BossBarPacket)`.
     pub fn set_title(&self, title: impl Into<Component>) -> (Vec<PlayerId>, BossBarPacket) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         let title = title.into();
         g.title = title.clone();
         let pkt = BossBarPacket {
@@ -413,7 +404,7 @@ impl BossBar {
         color: BossBarColor,
         overlay: BossBarOverlay,
     ) -> (Vec<PlayerId>, BossBarPacket) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.color = color;
         g.overlay = overlay;
         let pkt = BossBarPacket {
@@ -424,7 +415,7 @@ impl BossBar {
     }
 
     pub(crate) fn register_viewer(&self, player_id: PlayerId) -> BossBarPacket {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.viewers.insert(player_id);
         BossBarPacket {
             uuid: g.uuid,
@@ -439,7 +430,7 @@ impl BossBar {
     }
 
     pub(crate) fn unregister_viewer(&self, player_id: PlayerId) -> Option<BossBarPacket> {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.viewers.remove(&player_id).then_some(BossBarPacket {
             uuid: g.uuid,
             action: BossBarAction::Remove,
@@ -524,43 +515,50 @@ impl Title {
     }
 }
 
-/// Strongly typed `Copy` handle for a Minecraft 26.2 `Particle` (`minecraft:particle_type`).
+/// Strongly typed `Copy` handle for all 125 Minecraft 26.2 `Particle` types (`minecraft:particle_type`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Particle(pub u32);
 
-impl Particle {
-    /// `minecraft:block` (`1`).
-    pub const BLOCK: Self = Self(particles::BLOCK);
-    /// `minecraft:cloud` (`11`).
-    pub const CLOUD: Self = Self(particles::CLOUD);
-    /// `minecraft:crit` (`13`).
-    pub const CRIT: Self = Self(particles::CRIT);
-    /// `minecraft:dust` (`21`).
-    pub const DUST: Self = Self(particles::DUST);
-    /// `minecraft:end_rod` (`27`).
-    pub const END_ROD: Self = Self(particles::END_ROD);
-    /// `minecraft:explosion` (`30`).
-    pub const EXPLOSION: Self = Self(particles::EXPLOSION);
-    /// `minecraft:flame` (`39`).
-    pub const FLAME: Self = Self(particles::FLAME);
-    /// `minecraft:happy_villager` (`50`).
-    pub const HAPPY_VILLAGER: Self = Self(particles::HAPPY_VILLAGER);
-    /// `minecraft:heart` (`52`).
-    pub const HEART: Self = Self(particles::HEART);
-    /// `minecraft:item` (`54`).
-    pub const ITEM: Self = Self(particles::ITEM);
-    /// `minecraft:portal` (`67`).
-    pub const PORTAL: Self = Self(particles::PORTAL);
-    /// `minecraft:totem_of_undying` (`75`).
-    pub const TOTEM_OF_UNDYING: Self = Self(particles::TOTEM_OF_UNDYING);
+minestom_data::impl_particle_constants!(Particle);
 
-    /// Looks up a [`Particle`] by `minecraft:...` key.
+impl Particle {
+    /// Total number of vanilla particle types (`125` in MC 26.2).
+    pub const COUNT: usize = particles::ENTRIES.len();
+
+    /// Returns the protocol registry ID (`0..125`).
+    #[inline]
+    #[must_use]
+    pub const fn id(self) -> u32 {
+        self.0
+    }
+
+    /// Returns the canonical `"minecraft:..."` resource key.
+    #[inline]
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        if (self.0 as usize) < particles::ENTRIES.len() {
+            particles::ENTRIES[self.0 as usize].1
+        } else {
+            "minecraft:poof"
+        }
+    }
+
+    /// Looks up a [`Particle`] by `minecraft:...` or unprefixed key in `O(log N)` with zero allocation.
+    #[inline]
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        particles::ENTRIES
-            .iter()
-            .find(|(_, k)| *k == key)
-            .map(|(id, _)| Self(*id))
+        particles::lookup_key(key).map(Self)
+    }
+
+    /// Looks up a [`Particle`] by protocol ID.
+    #[inline]
+    #[must_use]
+    pub const fn from_id(id: u32) -> Option<Self> {
+        if (id as usize) < Self::COUNT {
+            Some(Self(id))
+        } else {
+            None
+        }
     }
 
     /// Builds a simple [`ParticlePacket`] at `position`.
@@ -573,6 +571,48 @@ impl Particle {
         count: i32,
     ) -> ParticlePacket {
         ParticlePacket::simple(self.0, position, offset, max_speed, count)
+    }
+
+    /// Builds a `minecraft:block` [`ParticlePacket`] using `block`'s protocol state ID.
+    #[must_use]
+    pub const fn block_packet(
+        block: Block,
+        position: Vec3,
+        offset: (f32, f32, f32),
+        max_speed: f32,
+        count: i32,
+    ) -> ParticlePacket {
+        ParticlePacket {
+            particle_id: particles::BLOCK,
+            data: ParticleData::BlockState(block.state_id()),
+            override_limiter: false,
+            long_distance: false,
+            position,
+            offset,
+            max_speed,
+            particle_count: count,
+        }
+    }
+
+    /// Builds a `minecraft:item` [`ParticlePacket`] carrying `item`.
+    #[must_use]
+    pub fn item_packet(
+        item: ItemStack,
+        position: Vec3,
+        offset: (f32, f32, f32),
+        max_speed: f32,
+        count: i32,
+    ) -> ParticlePacket {
+        ParticlePacket {
+            particle_id: particles::ITEM,
+            data: ParticleData::Item(item),
+            override_limiter: false,
+            long_distance: false,
+            position,
+            offset,
+            max_speed,
+            particle_count: count,
+        }
     }
 
     /// Builds a colored redstone `minecraft:dust` [`ParticlePacket`].
@@ -597,7 +637,7 @@ impl Particle {
     }
 }
 
-/// Ergonomic sound descriptor (`Sound` / `SoundEvent` in Minestom).
+/// Ergonomic sound descriptor (`Sound` / [`SoundEvent`] in Minestom).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sound {
     /// Underlying [`SoundHolder`].
@@ -624,11 +664,23 @@ impl Sound {
     /// `minecraft:ui.button.click`.
     pub const UI_BUTTON_CLICK: u32 = sounds::UI_BUTTON_CLICK;
 
-    /// Constructs a builtin vanilla [`Sound`] with volume `1.0` and pitch `1.0`.
+    /// Constructs a builtin vanilla [`Sound`] from any [`SoundEvent`] (all 1,968 constants on
+    /// [`SoundEvent`]) or raw `u32` ID.
     #[must_use]
-    pub const fn builtin(sound_id: u32, source: SoundSource, volume: f32, pitch: f32) -> Self {
+    pub fn builtin(
+        sound: impl Into<SoundEvent>,
+        source: SoundSource,
+        volume: f32,
+        pitch: f32,
+    ) -> Self {
+        Self::event(sound.into(), source, volume, pitch)
+    }
+
+    /// `const` constructor from a typed [`SoundEvent`].
+    #[must_use]
+    pub const fn event(event: SoundEvent, source: SoundSource, volume: f32, pitch: f32) -> Self {
         Self {
-            holder: SoundHolder::Builtin(sound_id),
+            holder: SoundHolder::Builtin(event.0),
             source,
             volume,
             pitch,
@@ -762,7 +814,7 @@ impl AdvancementTab {
         entry: AdvancementEntry,
         completed_criteria: Vec<(String, Option<i64>)>,
     ) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         let key = entry.key.clone();
         g.advancements.push(entry);
         if !completed_criteria.is_empty() {
@@ -776,7 +828,7 @@ impl AdvancementTab {
     /// Builds the [`AdvancementsPacket`] synchronizing this tab to a player.
     #[must_use]
     pub fn to_packet(&self, reset: bool) -> AdvancementsPacket {
-        let g = rlock(&self.inner);
+        let g = self.inner.read();
         AdvancementsPacket {
             reset,
             advancements: g.advancements.clone(),
@@ -806,13 +858,18 @@ impl RecipeManager {
         Self::default()
     }
 
+    /// Registers accepted [`Material`]s for a typed [`RecipePropertySet`].
+    pub fn set_property_set(&self, property_set: RecipePropertySet, materials: &[Material]) {
+        self.set_property_items(property_set.as_str(), materials);
+    }
+
     /// Registers accepted `Material`s for a `RecipeProperty` (e.g. `"furnace_input"`, `"smithing_base"`).
     pub fn set_property_items(
         &self,
         property_minimal_key: impl Into<String>,
         materials: &[Material],
     ) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.item_properties.insert(
             property_minimal_key.into(),
             materials.iter().map(|m| m.id()).collect(),
@@ -821,7 +878,7 @@ impl RecipeManager {
 
     /// Adds a stonecutter recipe converting any of `inputs` into `result`.
     pub fn add_stonecutter_recipe(&self, inputs: &[Material], result: ItemStack) {
-        let mut g = wlock(&self.inner);
+        let mut g = self.inner.write();
         g.stonecutter_recipes.push(StonecutterRecipeEntry {
             input_item_ids: inputs.iter().map(|m| m.id()).collect(),
             result,
@@ -831,14 +888,14 @@ impl RecipeManager {
     /// Returns `true` if any recipes or property sets are registered.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        let g = rlock(&self.inner);
+        let g = self.inner.read();
         g.item_properties.is_empty() && g.stonecutter_recipes.is_empty()
     }
 
     /// Builds the MC 26.2 [`DeclareRecipesPacket`].
     #[must_use]
     pub fn to_declare_packet(&self) -> DeclareRecipesPacket {
-        let g = rlock(&self.inner);
+        let g = self.inner.read();
         DeclareRecipesPacket {
             item_properties: g.item_properties.clone(),
             stonecutter_recipes: g.stonecutter_recipes.clone(),

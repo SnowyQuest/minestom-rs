@@ -25,6 +25,7 @@ minestom-registry.workspace = true
 minestom-scheduler.workspace = true
 minestom-text.workspace = true
 minestom-world.workspace = true
+parking_lot.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 slotmap.workspace = true

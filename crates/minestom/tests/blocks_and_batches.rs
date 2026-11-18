@@ -249,6 +249,17 @@ async fn placing_breaking_block_entities_handlers_tags_and_batches_sync_across_c
     let mut builder = connect_creative_player(addr, "Builder").await;
     let mut observer = connect_creative_player(addr, "Observer").await;
 
+    // Put STONE in Builder's active hotbar slot (`36`) before placing blocks!
+    builder
+        .send_packet(
+            &minestom::protocol::inventory::ClientCreativeInventoryActionPacket {
+                slot: 36,
+                item: ItemStack::single(Material::STONE),
+            },
+        )
+        .await
+        .unwrap();
+
     // 1. Builder places block on East face of (3, 40, 0)? First place on Up face of (3, 39, 0) -> places at (3, 40, 0), then East face -> (4, 40, 0) with axis=x!
     builder
         .send_packet(&ClientPlayerBlockPlacementPacket {

@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 bytes.workspace = true
+minestom-block.workspace = true
 minestom-core.workspace = true
 minestom-item.workspace = true
 minestom-protocol.workspace = true

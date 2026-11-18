@@ -1,63 +1,59 @@
 //! `DamageType`, `Damage`, knockback math, and combat/death/respawn events
-//! (`net.minestom.server.entity.damage` equivalent for MC 26.2).
+//! (`net.minestom.server.entity.damage` equivalent for MC 26.2, `51` generated damage types).
+
+use std::fmt;
 
 use minestom_core::{InstanceId, PlayerId, Pos, Vec3};
-use minestom_data::generated::dynamic_registries::CONFIGURATION_REGISTRIES;
+use minestom_data::generated::damage_types::{self, DAMAGE_TYPE_INFOS, DamageTypeInfo};
 use minestom_event::{CancellableEvent, Event, InstanceEvent, PlayerEvent};
 use minestom_protocol::entity::DamageEventPacket;
 
-use crate::EntityType;
+use crate::{EntityError, EntityType};
 
-/// Strongly typed `Copy` handle for a Minecraft 26.2 `DamageType` (`minecraft:damage_type`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Strongly typed `Copy` handle for all **51** Minecraft 26.2 `DamageType`s (`minecraft:damage_type`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DamageType(u32);
 
-impl DamageType {
-    /// `minecraft:arrow` (`0`).
-    pub const ARROW: Self = Self(0);
-    /// `minecraft:explosion` (`9`).
-    pub const EXPLOSION: Self = Self(9);
-    /// `minecraft:fall` (`10`).
-    pub const FALL: Self = Self(10);
-    /// `minecraft:generic` (`18`).
-    pub const GENERIC: Self = Self(18);
-    /// `minecraft:generic_kill` (`19`).
-    pub const GENERIC_KILL: Self = Self(19);
-    /// `minecraft:in_fire` (`21`).
-    pub const IN_FIRE: Self = Self(21);
-    /// `minecraft:lava` (`24`).
-    pub const LAVA: Self = Self(24);
-    /// `minecraft:magic` (`27`).
-    pub const MAGIC: Self = Self(27);
-    /// `minecraft:mob_attack` (`28`).
-    pub const MOB_ATTACK: Self = Self(28);
-    /// `minecraft:on_fire` (`31`).
-    pub const ON_FIRE: Self = Self(31);
-    /// `minecraft:out_of_world` (`32`).
-    pub const OUT_OF_WORLD: Self = Self(32);
-    /// `minecraft:player_attack` (`34`).
-    pub const PLAYER_ATTACK: Self = Self(34);
-    /// `minecraft:starve` (`40`).
-    pub const STARVE: Self = Self(40);
-    /// `minecraft:wither` (`49`).
-    pub const WITHER: Self = Self(49);
+minestom_data::impl_damage_type_constants!(DamageType);
 
-    /// Looks up a [`DamageType`] by its `minecraft:...` key in `CONFIGURATION_REGISTRIES`.
+impl DamageType {
+    /// Constructs a [`DamageType`] from a validated dynamic-registry ID (`0..51`).
+    pub const fn from_id(id: u32) -> Result<Self, EntityError> {
+        if (id as usize) < damage_types::DAMAGE_TYPE_COUNT {
+            Ok(Self(id))
+        } else {
+            Err(EntityError::UnknownDamageType(id))
+        }
+    }
+
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        let reg = CONFIGURATION_REGISTRIES
-            .iter()
-            .find(|r| r.registry_id == "minecraft:damage_type")?;
-        reg.entries
-            .iter()
-            .position(|(k, _)| *k == key)
-            .map(|idx| Self(idx as u32))
+        damage_types::lookup_key(key).map(Self)
     }
 
     /// Numeric dynamic-registry protocol ID (`0..51`).
     #[must_use]
     pub const fn id(self) -> u32 {
         self.0
+    }
+
+    /// Static generated [`DamageTypeInfo`] entry.
+    #[must_use]
+    pub const fn info(self) -> &'static DamageTypeInfo {
+        &DAMAGE_TYPE_INFOS[self.0 as usize]
+    }
+
+    /// Canonical `"minecraft:..."` key.
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        self.info().key
+    }
+}
+
+impl fmt::Display for DamageType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.key())
     }
 }
 
@@ -77,6 +73,28 @@ pub struct Damage {
 }
 
 impl Damage {
+    /// Constructs damage of `damage_type` with no source entity.
+    #[must_use]
+    pub const fn of(damage_type: DamageType, amount: f32) -> Self {
+        Self {
+            damage_type,
+            amount,
+            source_entity_id: None,
+            source_direct_id: None,
+            source_pos: None,
+        }
+    }
+
+    /// Computes vanilla Minecraft armor + armor toughness damage mitigation:
+    /// `damage * (1.0 - clamp(max(armor / 5.0, armor - 4.0 * damage / (toughness + 8.0)), 0.0, 20.0) / 25.0)`.
+    #[must_use]
+    pub fn apply_armor_reduction(raw_damage: f32, armor: f32, toughness: f32) -> f32 {
+        let min_def = armor * 0.2;
+        let reduced_def = armor - (4.0 * raw_damage) / (toughness + 8.0);
+        let defense = min_def.max(reduced_def).clamp(0.0, 20.0);
+        raw_damage * (1.0 - defense / 25.0)
+    }
+
     /// Constructs generic environmental/command damage with no source entity.
     #[must_use]
     pub const fn generic(amount: f32) -> Self {
@@ -254,7 +272,7 @@ impl InstanceEvent for EntityDeathEvent {
     }
 }
 
-/// Fired when a dead player clicks Respawn (`ClientStatusAction::PerformRespawn`, `PlayerRespawnEvent` in Minestom).
+/// Fired when a dead player clicks "Respawn" (`ClientStatusPacket::PerformRespawn` `0x0C`, `PlayerRespawnEvent` in Minestom).
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerRespawnEvent {
     /// Respawning [`PlayerId`].
@@ -284,26 +302,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn damage_type_constants_match_dynamic_registry() {
-        assert_eq!(
-            DamageType::from_key("minecraft:generic"),
-            Some(DamageType::GENERIC)
-        );
+    fn damage_type_lookup_and_knockback() {
         assert_eq!(
             DamageType::from_key("minecraft:player_attack"),
             Some(DamageType::PLAYER_ATTACK)
         );
-        assert_eq!(
-            DamageType::from_key("minecraft:mob_attack"),
-            Some(DamageType::MOB_ATTACK)
+        assert_eq!(DamageType::from_key("fall"), Some(DamageType::FALL));
+        let v = compute_knockback_velocity(
+            Vec3::ZERO,
+            Pos::new(0.0, 40.0, 0.0),
+            Pos::new(2.0, 40.0, 0.0),
+            0.4,
+            0.0,
+            true,
         );
-        assert_eq!(
-            DamageType::from_key("minecraft:fall"),
-            Some(DamageType::FALL)
-        );
-        assert_eq!(
-            DamageType::from_key("minecraft:out_of_world"),
-            Some(DamageType::OUT_OF_WORLD)
-        );
+        assert!(v.x > 0.39);
+        assert!((v.y - 0.4).abs() < 1e-6);
     }
 }

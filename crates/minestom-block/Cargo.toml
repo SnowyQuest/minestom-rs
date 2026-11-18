@@ -12,6 +12,7 @@ minestom-core.workspace = true
 minestom-data.workspace = true
 parking_lot.workspace = true
 rustc-hash.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 
 [lints]

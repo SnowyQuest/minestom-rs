@@ -164,6 +164,23 @@ impl<T> Tag<T> {
     pub const fn key(&self) -> &'static str {
         self.key
     }
+
+    /// Reads the typed value directly from a borrowed [`NbtCompound`] without cloning.
+    #[must_use]
+    pub fn read_from(&self, compound: &NbtCompound) -> Option<T>
+    where
+        T: TagSerializable,
+    {
+        compound.get(self.key).and_then(T::from_nbt_tag)
+    }
+
+    /// Writes `value` directly into `compound`.
+    pub fn write_to(&self, compound: &mut NbtCompound, value: T)
+    where
+        T: TagSerializable,
+    {
+        compound.insert(self.key, value.into_nbt_tag());
+    }
 }
 
 /// NBT-backed container implementing Minestom's `TagHandler` semantics.

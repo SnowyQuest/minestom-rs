@@ -1,9 +1,13 @@
 //! Core `NbtTag`, `NbtCompound`, and `TagType` definitions.
 
+use std::fmt;
+use std::ops::Index;
+use std::str::FromStr;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::NbtError;
+use crate::{NbtError, from_snbt, to_snbt};
 
 /// Discriminant byte IDs for the 13 Minecraft NBT tag types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -213,6 +217,31 @@ impl IntoIterator for NbtCompound {
     }
 }
 
+impl Index<&str> for NbtCompound {
+    type Output = NbtTag;
+
+    fn index(&self, key: &str) -> &Self::Output {
+        &self.entries[key]
+    }
+}
+
+impl fmt::Display for NbtCompound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&to_snbt(&NbtTag::Compound(self.clone())))
+    }
+}
+
+impl FromStr for NbtCompound {
+    type Err = NbtError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match from_snbt(s)? {
+            NbtTag::Compound(c) => Ok(c),
+            other => Err(NbtError::ExpectedCompound(other.tag_type())),
+        }
+    }
+}
+
 /// Owned value representation of any Minecraft NBT tag.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum NbtTag {
@@ -409,5 +438,19 @@ impl From<NbtCompound> for NbtTag {
 impl From<Vec<NbtTag>> for NbtTag {
     fn from(v: Vec<NbtTag>) -> Self {
         Self::List(v)
+    }
+}
+
+impl fmt::Display for NbtTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&to_snbt(self))
+    }
+}
+
+impl FromStr for NbtTag {
+    type Err = NbtError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        from_snbt(s)
     }
 }

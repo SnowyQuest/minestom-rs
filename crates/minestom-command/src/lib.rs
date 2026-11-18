@@ -28,8 +28,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use bytes::{BufMut, BytesMut};
-use minestom_core::{BlockVec, GameMode, PlayerId, Point, Pos, Vec3};
-use minestom_item::{Inventory, ItemStack};
+use minestom_block::Block;
+use minestom_core::{BlockVec, GameMode, Key, PlayerId, Point, Pos, Vec3};
+use minestom_item::{Inventory, ItemStack, Material};
 use minestom_protocol::chat_command::{
     CommandGraphNode, DeclareCommandsPacket, TabCompleteMatch, node_flags, parser_ids,
 };
@@ -313,6 +314,62 @@ impl Suggestion {
 pub type SuggestionCallback =
     Arc<dyn Fn(&CommandSender, &CommandContext, &mut Suggestion) + Send + Sync>;
 
+/// Parsed Minecraft target selector (`@p`, `@a`, `@r`, `@s`, `@e`, UUID, or username).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntitySelector {
+    /// `@p` — Nearest player.
+    NearestPlayer,
+    /// `@a` — All online players.
+    AllPlayers,
+    /// `@r` — Random online player.
+    RandomPlayer,
+    /// `@s` — Executing sender entity.
+    SelfEntity,
+    /// `@e` — All entities (with optional raw `[type=...]` filter expression).
+    AllEntities {
+        /// Optional raw bracket filter substring (`"type=minecraft:zombie,distance=..10"`).
+        filter: Option<String>,
+    },
+    /// Explicit UUID target.
+    Uuid(Uuid),
+    /// Explicit player username target.
+    PlayerName(String),
+}
+
+impl EntitySelector {
+    /// Parses a selector token (`@p`, `@a`, `@r`, `@s`, `@e[...]`, UUID, or username).
+    pub fn parse(raw: &str) -> Result<Self, CommandError> {
+        if let Some(rest) = raw.strip_prefix('@') {
+            let (code, bracket) = if let Some((c, f)) = rest.split_once('[') {
+                let inner = f
+                    .strip_suffix(']')
+                    .ok_or_else(|| CommandError::SyntaxError {
+                        input: raw.to_owned(),
+                        reason: "unclosed entity selector `[...]`".to_owned(),
+                    })?;
+                (c, Some(inner.to_owned()))
+            } else {
+                (rest, None)
+            };
+            match code {
+                "p" => Ok(Self::NearestPlayer),
+                "a" => Ok(Self::AllPlayers),
+                "r" => Ok(Self::RandomPlayer),
+                "s" => Ok(Self::SelfEntity),
+                "e" => Ok(Self::AllEntities { filter: bracket }),
+                _ => Err(CommandError::SyntaxError {
+                    input: raw.to_owned(),
+                    reason: "expected @p, @a, @r, @s, or @e".to_owned(),
+                }),
+            }
+        } else if let Ok(uuid) = Uuid::parse_str(raw) {
+            Ok(Self::Uuid(uuid))
+        } else {
+            Ok(Self::PlayerName(raw.to_owned()))
+        }
+    }
+}
+
 /// Parsed runtime value stored inside [`CommandContext`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArgumentValue {
@@ -320,7 +377,7 @@ pub enum ArgumentValue {
     Text(String),
     /// Parsed `bool`.
     Bool(bool),
-    /// Parsed `i32`.
+    /// Parsed `i32` (including `minecraft:time` tick durations).
     Int(i32),
     /// Parsed `i64`.
     Long(i64),
@@ -334,6 +391,16 @@ pub enum ArgumentValue {
     BlockPos(BlockVec),
     /// Parsed [`Vec3`] floating-point position.
     Vec3(Vec3),
+    /// Parsed [`Key`] (`minecraft:resource_location`).
+    ResourceKey(Key),
+    /// Parsed [`Uuid`] (`minecraft:uuid`).
+    Uuid(Uuid),
+    /// Parsed [`Block`] state (`minecraft:block_state`).
+    BlockState(Block),
+    /// Parsed [`Material`] (`minecraft:item_stack`).
+    Material(Material),
+    /// Parsed [`EntitySelector`] (`minecraft:entity`).
+    EntitySelector(EntitySelector),
 }
 
 /// Trait implemented by Rust types extractable from [`CommandContext::get`].
@@ -423,6 +490,51 @@ impl FromArgumentValue for Vec3 {
     }
 }
 
+impl FromArgumentValue for Key {
+    fn from_arg_value(val: &ArgumentValue) -> Option<&Self> {
+        match val {
+            ArgumentValue::ResourceKey(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl FromArgumentValue for Uuid {
+    fn from_arg_value(val: &ArgumentValue) -> Option<&Self> {
+        match val {
+            ArgumentValue::Uuid(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl FromArgumentValue for Block {
+    fn from_arg_value(val: &ArgumentValue) -> Option<&Self> {
+        match val {
+            ArgumentValue::BlockState(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl FromArgumentValue for Material {
+    fn from_arg_value(val: &ArgumentValue) -> Option<&Self> {
+        match val {
+            ArgumentValue::Material(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+impl FromArgumentValue for EntitySelector {
+    fn from_arg_value(val: &ArgumentValue) -> Option<&Self> {
+        match val {
+            ArgumentValue::EntitySelector(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
 /// Wire & parser specification of a Brigadier command argument.
 #[derive(Clone)]
 pub enum ArgumentKind {
@@ -475,6 +587,26 @@ pub enum ArgumentKind {
     BlockPos,
     /// 3-token floating-point coordinate supporting `~` relative offsets (`minecraft:vec3`).
     Vec3,
+    /// Resource identifier (`minecraft:resource_location`).
+    ResourceKey,
+    /// UUID (`minecraft:uuid`).
+    Uuid,
+    /// Block state string (`minecraft:block_state`).
+    BlockState,
+    /// Item material (`minecraft:item_stack`).
+    Material,
+    /// Tick duration (`20`, `20t`, `5s`, `1d`; `minecraft:time`).
+    Time {
+        /// Minimum allowed ticks.
+        min: i32,
+    },
+    /// Target entity/player selector (`minecraft:entity`).
+    Entity {
+        /// Restrict to a single target (`0x01`).
+        single: bool,
+        /// Restrict to players only (`0x02`).
+        players_only: bool,
+    },
 }
 
 impl std::fmt::Debug for ArgumentKind {
@@ -511,6 +643,19 @@ impl std::fmt::Debug for ArgumentKind {
             Self::GameMode => write!(f, "GameMode"),
             Self::BlockPos => write!(f, "BlockPos"),
             Self::Vec3 => write!(f, "Vec3"),
+            Self::ResourceKey => write!(f, "ResourceKey"),
+            Self::Uuid => write!(f, "Uuid"),
+            Self::BlockState => write!(f, "BlockState"),
+            Self::Material => write!(f, "Material"),
+            Self::Time { min } => f.debug_struct("Time").field("min", min).finish(),
+            Self::Entity {
+                single,
+                players_only,
+            } => f
+                .debug_struct("Entity")
+                .field("single", single)
+                .field("players_only", players_only)
+                .finish(),
         }
     }
 }
@@ -614,6 +759,22 @@ impl UntypedArgument {
             ArgumentKind::GameMode => (Some(parser_ids::GAMEMODE), Vec::new()),
             ArgumentKind::BlockPos => (Some(parser_ids::BLOCK_POS), Vec::new()),
             ArgumentKind::Vec3 => (Some(parser_ids::VEC3), Vec::new()),
+            ArgumentKind::ResourceKey => (Some(parser_ids::RESOURCE_LOCATION), Vec::new()),
+            ArgumentKind::Uuid => (Some(parser_ids::UUID), Vec::new()),
+            ArgumentKind::BlockState => (Some(parser_ids::BLOCK_STATE), Vec::new()),
+            ArgumentKind::Material => (Some(parser_ids::ITEM_STACK), Vec::new()),
+            ArgumentKind::Time { min } => {
+                props.put_i32(*min);
+                (Some(parser_ids::TIME), props.to_vec())
+            }
+            ArgumentKind::Entity {
+                single,
+                players_only,
+            } => {
+                let flags = u8::from(*single) | (u8::from(*players_only) << 1);
+                props.put_u8(flags);
+                (Some(parser_ids::ENTITY), props.to_vec())
+            }
         }
     }
 
@@ -819,6 +980,82 @@ impl UntypedArgument {
                 let z = parse_rel_f64(cursor.next_word()?, origin.z)?;
                 let raw = &cursor.src[start_idx..cursor.pos];
                 Ok((ArgumentValue::Vec3(Vec3::new(x, y, z)), raw.trim()))
+            }
+            ArgumentKind::ResourceKey => {
+                let tok = cursor.next_word()?;
+                let key = Key::parse(tok).map_err(|e| CommandError::SyntaxError {
+                    input: tok.to_owned(),
+                    reason: e.to_string(),
+                })?;
+                Ok((ArgumentValue::ResourceKey(key), tok))
+            }
+            ArgumentKind::Uuid => {
+                let tok = cursor.next_word()?;
+                let uuid = Uuid::parse_str(tok).map_err(|_| CommandError::SyntaxError {
+                    input: tok.to_owned(),
+                    reason: "expected valid UUID".to_owned(),
+                })?;
+                Ok((ArgumentValue::Uuid(uuid), tok))
+            }
+            ArgumentKind::BlockState => {
+                let tok = cursor.next_word()?;
+                let blk = Block::from_state_str(tok).map_err(|e| CommandError::SyntaxError {
+                    input: tok.to_owned(),
+                    reason: e.to_string(),
+                })?;
+                Ok((ArgumentValue::BlockState(blk), tok))
+            }
+            ArgumentKind::Material => {
+                let tok = cursor.next_word()?;
+                let bare = tok.split('[').next().unwrap_or(tok);
+                let mat = Material::from_key(bare).ok_or_else(|| CommandError::SyntaxError {
+                    input: tok.to_owned(),
+                    reason: "unknown item material".to_owned(),
+                })?;
+                Ok((ArgumentValue::Material(mat), tok))
+            }
+            ArgumentKind::Time { min } => {
+                let tok = cursor.next_word()?;
+                let (num_part, mul) = if let Some(s) = tok.strip_suffix('d') {
+                    (s, 24_000.0_f64)
+                } else if let Some(s) = tok.strip_suffix('s') {
+                    (s, 20.0_f64)
+                } else if let Some(s) = tok.strip_suffix('t') {
+                    (s, 1.0_f64)
+                } else {
+                    (tok, 1.0_f64)
+                };
+                let raw_val = num_part
+                    .parse::<f64>()
+                    .map_err(|_| CommandError::SyntaxError {
+                        input: tok.to_owned(),
+                        reason: "expected tick duration (e.g. `20t`, `5s`, `1d`)".to_owned(),
+                    })?;
+                if !raw_val.is_finite() {
+                    return Err(CommandError::SyntaxError {
+                        input: tok.to_owned(),
+                        reason: "duration must be finite".to_owned(),
+                    });
+                }
+                let ticks = (raw_val * mul).round() as i32;
+                if ticks < *min {
+                    return Err(CommandError::SyntaxError {
+                        input: tok.to_owned(),
+                        reason: format!("duration must be at least {min} ticks"),
+                    });
+                }
+                Ok((ArgumentValue::Int(ticks), tok))
+            }
+            ArgumentKind::Entity { players_only, .. } => {
+                let tok = cursor.next_word()?;
+                let sel = EntitySelector::parse(tok)?;
+                if *players_only && matches!(sel, EntitySelector::AllEntities { .. }) {
+                    return Err(CommandError::SyntaxError {
+                        input: tok.to_owned(),
+                        reason: "only player targets are allowed here".to_owned(),
+                    });
+                }
+                Ok((ArgumentValue::EntitySelector(sel), tok))
             }
         }
     }
@@ -1177,6 +1414,94 @@ impl Argument<Vec3> {
     }
 }
 
+impl Argument<Key> {
+    /// Validated `namespace:value` resource location argument (`ArgumentType.ResourceLocation`).
+    #[must_use]
+    pub fn resource_key(id: impl Into<String>) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::ResourceKey,
+            suggestion_callback: None,
+        })
+    }
+}
+
+impl Argument<Uuid> {
+    /// UUID argument (`ArgumentType.UUID`).
+    #[must_use]
+    pub fn uuid(id: impl Into<String>) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::Uuid,
+            suggestion_callback: None,
+        })
+    }
+}
+
+impl Argument<Block> {
+    /// Block or block-state string argument (`ArgumentType.BlockState`, e.g. `oak_stairs[half=top]`).
+    #[must_use]
+    pub fn block_state(id: impl Into<String>) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::BlockState,
+            suggestion_callback: None,
+        })
+    }
+}
+
+impl Argument<Material> {
+    /// Item material argument (`ArgumentType.ItemStack`, e.g. `minecraft:diamond_sword` or `diamond_sword`).
+    #[must_use]
+    pub fn material(id: impl Into<String>) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::Material,
+            suggestion_callback: None,
+        })
+    }
+}
+
+impl Argument<i32> {
+    /// Tick duration argument (`ArgumentType.Time`, accepting `20`, `20t`, `5s`, `1d`).
+    #[must_use]
+    pub fn time_ticks(id: impl Into<String>, min_ticks: i32) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::Time { min: min_ticks },
+            suggestion_callback: None,
+        })
+    }
+}
+
+impl Argument<EntitySelector> {
+    /// General entity target selector (`@p`, `@a`, `@r`, `@s`, `@e`, UUID, or username).
+    #[must_use]
+    pub fn entity_selector(id: impl Into<String>) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::Entity {
+                single: false,
+                players_only: false,
+            },
+            suggestion_callback: None,
+        })
+    }
+
+    /// Single-player target selector (`@p`, `@r`, `@s`, UUID, or username).
+    #[must_use]
+    pub fn player_selector(id: impl Into<String>) -> Self {
+        Self::from_untyped(UntypedArgument {
+            id: id.into(),
+            kind: ArgumentKind::Entity {
+                single: true,
+                players_only: true,
+            },
+            suggestion_callback: None,
+        })
+    }
+}
+
 /// Parsed argument container passed into command executors and [`SuggestionCallback`]s.
 #[derive(Debug, Clone)]
 pub struct CommandContext {
@@ -1469,7 +1794,7 @@ impl<'a> InputCursor<'a> {
                     let next = self.src[self.pos..].chars().next().unwrap_or('\0');
                     self.pos += next.len_utf8();
                     unescaped.push(next);
-                } else if ch as u8 == quote {
+                } else if ch == char::from(quote) {
                     closed = true;
                     break;
                 } else {

@@ -1,82 +1,131 @@
-# `minestom-rs`
+# minestom-rs
 
-A production-quality, modular **Minecraft: Java Edition 26.2** (protocol **776**, data version **4903**) server library written from scratch in **100% safe, idiomatic Rust** (`#![forbid(unsafe_code)]`) with zero vanilla code—inspired by [Minestom](https://github.com/Minestom/Minestom).
+A modular **Minecraft: Java Edition 26.2** server framework written from scratch in safe Rust (`#![forbid(unsafe_code)]`), modeled after [Minestom](https://github.com/Minestom/Minestom).
 
-| Target Property | Value |
+Like upstream Minestom, `minestom-rs` contains zero Mojang server code and zero hidden global singletons. It provides the network protocol, world/chunk engine, `.mca` Anvil persistence, lighting, block placement rules, entity tracker, sub-voxel physics, inventory click processor, Brigadier command tree, hierarchical event graph, and deterministic 20 TPS scheduler as composable Rust crates so you can embed a custom server or spin up isolated instances in parallel tests.
+
+| Specification | Value |
 |---|---|
 | **Minecraft Version** | `26.2` |
 | **Protocol Version** | `776` |
 | **World Data Version** | `4903` |
 | **Resource / Data Pack Format** | `88.0` / `107.1` |
-| **Pinned Data Artifact** | `net.minestom:data:26.2-rv3` (offline deterministic codegen) |
-| **Rust Edition / Toolchain** | Edition `2024`, Rust `1.100.0`, `#![forbid(unsafe_code)]` |
+| **Static Data Source** | `net.minestom:data:26.2-rv3` (offline `cargo xtask codegen`) |
+| **Rust Edition / Safety** | Edition `2024`, `#![forbid(unsafe_code)]` across all crates |
+| **License** | Apache-2.0 |
 
 ---
 
-## Key Features
+## Architecture & Threading Model
 
-- **Zero Global Mutable State:** `MinecraftServer::builder().build()?` produces a cheaply cloneable handle—spin up multiple isolated servers in parallel integration tests on `127.0.0.1:0`.
-- **Deterministic 20 TPS Architecture:** Async Tokio TCP sessions (`PacketReader` / `PacketWriter` with Zlib framing and streaming AES-128-CFB8 encryption) bridge via bounded `flume` channels into a dedicated `Ms-TickScheduler` thread with `SlotMap` generational arenas and lock-free `ArcSwap<ServerSnapshot>` publishing.
-- **Full World & Persistence Stack:** Paletted `Chunk`/`Section`s (`Single`, `Indirect`, `Direct` MC 26.2 `RAW_LONGS` format) with zero-copy `Bytes` packet caching (`13.9 ns` clone), parallel `rayon` `Generator`, `SharedInstance`, `.mca` `AnvilLoader` (MC 26.2 `dimensions/<ns>/<val>/region` + classic fallback), 3D BFS sky/block `LightingChunk`, `WorldBorder`, multi-clock `WorldTime`, and `Weather`.
-- **Production Authentication & Proxies:** Offline mode, Online mode (RSA-1024 PKCS#1 v1.5, AES-128-CFB8, Mojang SHA-1 two's-complement session verification), Velocity modern forwarding (`velocity:player_info` HMAC-SHA256), BungeeCord/BungeeGuard forwarding, and O(1) token-bucket packet rate limiting.
-- **Rich Gameplay, UI & Media Parity:**
-  - Hierarchical `EventNode` tree, domain filters, expiring listeners, and cached `ListenerHandle<E>` (`47 ns` dispatch).
-  - Brigadier-compatible `CommandManager`, typed `Argument<T>`, conditions, `DeclareCommandsPacket`, and live `TabCompletePacket`.
-  - Compositional `Entity` (`158` generated `EntityType`s, dirty-tracked MC 26.2 `MetadataValue` `0..=42`, `LpVec3`, AABB gravity/collision, chunk-bucketed `EntityTracker`).
-  - `EntityAIGroup` (`GoalSelector` & `TargetSelector`), bounded 3D grid A* `Navigator` (`58.5 µs` obstacle routing), 40 `Attribute`s with 3-stage modifiers, 40 `PotionEffect`s, melee combat/knockback, and death/respawn.
-  - All `1,458` `Material`s, MC 26.2 `ItemStack` Data Components, `HashedStack` (`ItemStack.Hash`), 46-slot `PlayerInventory`, 25-type shared `Inventory` windows, full `process_inventory_click`, and `ItemEntity` drop/pickup.
-  - `Sidebar` scoreboards, `TeamManager`, `BossBar`, `Title` & `ActionBar`, `TabList` header/footer, all `125` `Particle`s, `1,968` `Sound`s, `ToastNotification` & `AdvancementTab`, `RecipeManager`, `ResourcePack` push/pop, MC 26.2 modal `Dialog`s, and `ServerSnapshot`.
-
----
-
-## Crate Architecture (17-Crate Acyclic Workspace)
+`minestom-rs` separates asynchronous network I/O from deterministic game simulation without per-entity mutexes:
 
 ```text
-minestom (umbrella facade & prelude)
- └─► minestom-server (MinecraftServer, 20 TPS tick loop, AuthMode, Sidebar, BossBar, Snapshot)
-      ├─► minestom-network (Tokio PacketStream, RSA/AES-128-CFB8, Velocity HMAC, BungeeGuard, RateLimiter)
-      ├─► minestom-world (InstanceContainer, SharedInstance, Chunk/Palette, AnvilLoader, BFS Lighting, Batch)
-      ├─► minestom-entity (Entity, EntityTracker, BoundingBox, Attributes, Potions, Damage, A* Navigator, AI)
-      ├─► minestom-command (CommandManager, Brigadier tree, typed Arguments, TabComplete)
-      ├─► minestom-scheduler (20 TPS SchedulerManager, TickStart/TickEnd, TaskHandle)
-      └─► minestom-protocol (MC 26.2 / Proto 776 codecs, Zlib FrameCodec, all Handshake..Play packets)
-           ├─► minestom-item (Material, ItemStack Data Components, HashedStack, InventoryClickProcessor)
-           ├─► minestom-block (Mixed-radix Block states, BlockHandler, BlockPlacementRule, BlockManager)
-           ├─► minestom-registry (27 Dynamic Registries, 32 Tag Registries, DimensionType)
-           ├─► minestom-event (EventNode, EventListener, ListenerHandle, CancellableEvent)
-           ├─► minestom-text (Component, Style, JSON / MC 26.2 NBT / Legacy / MiniMessage)
-           ├─► minestom-nbt (Named & nameless network NBT, GZip/Zlib, SNBT, ReadLimiter)
-           ├─► minestom-data (Offline xtask-generated MC 26.2 tables)
-           ├─► minestom-core (Pos, Vec3, BlockVec, ChunkPos, Key, Tag<T>, GameMode)
-           └─► minestom-macros (#[derive(PacketMeta)])
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Tokio Async Runtime (per-connection tasks)                                │
+│  • Handshake -> Status | Login (Offline / Online RSA+AES / Velocity /     │
+│    BungeeGuard) -> Configuration (cached KnownPacks) -> Play              │
+│  • Split PacketReader / PacketWriter, thread-local Zlib, token-bucket PPS │
+└───────────────┬───────────────────────────────────────────▲───────────────┘
+                │ bounded flume (TickMessage)               │ per-player
+                │ + unified FIFO flume (ServerCommand)      │ OutboundCommand
+                ▼                                           │ (Bytes)
+┌───────────────────────────────────────────────────────────┴───────────────┐
+│ Dedicated 20 TPS Tick Thread ("Ms-TickScheduler")                         │
+│  • SlotMap<PlayerId, ActivePlayer> + world entity map (single-owner,      │
+│    lock-free mutation during tick)                                        │
+│  • Chunk-bucketed spatial EntityTracker (delta/sync movement, metadata,   │
+│    attributes, equipment, effects, UnloadChunkPacket streaming)           │
+│  • BinaryHeap SchedulerManager (TickStart / TickEnd, Immediate/NextTick)  │
+│  • Publishes immutable Arc<ServerSnapshot> via ArcSwap at end of tick     │
+└───────────────┬───────────────────────────────────────────┬───────────────┘
+                │                                           │
+                ▼                                           ▼
+┌───────────────────────────────────┐   ┌───────────────────────────────────┐
+│ World & Chunk Engine              │   │ Lock-Free Readers                 │
+│  • Paletted Sections (RAW_LONGS)  │   │  • server.snapshot() (O(1) load)  │
+│  • Cached Bytes ChunkDataPacket   │   │  • PlayerRef / EntityRef queries  │
+│  • Rayon parallel GenerationUnit  │   │  • Async tasks, metrics, commands │
+│  • Per-region RwLock AnvilLoader  │   └───────────────────────────────────┘
+│  • 3D BFS sky & block lighting    │
+└───────────────────────────────────┘
 ```
+
+### Design Highlights
+
+- **Explicit Server Handle:** `MinecraftServer::builder().build()?` returns a cheaply cloneable `MinecraftServer` (`Arc`-backed). Multiple independent servers can bind to `127.0.0.1:0` concurrently in integration tests.
+- **Ergonomic `PlayerRef` & `EntityRef` Handles:** Event structs (`PlayerSpawnEvent`, `PlayerMoveEvent`, `PlayerChatEvent`, `PlayerBlockPlaceEvent`, etc.) carry `ev.player: PlayerRef`, and `server.spawn_entity(...)` returns an `EntityRef`. Sequential calls on these handles (`player.set_slot(...)` then `player.open_inventory(...)`, or `player.send_message(...)` then `player.kick(...)`) travel over a single bounded FIFO command channel to preserve causal ordering.
+- **Zero-Allocation Registry Lookups:** Static registries generated by `xtask` emit sorted key tables with zero-allocation `O(log N)` binary search accepting both `"minecraft:stone"` and `"stone"`.
 
 ---
 
-## Quickstart
+## Generated MC 26.2 Data Coverage
+
+All vanilla constants and property tables are generated offline from `net.minestom:data:26.2-rv3` into `minestom-data`:
+
+| Registry / Domain | Count | Included Data |
+|---|---:|---|
+| **`Block`** | **1,196** (`32,366` states) | Mixed-radix property codecs, per-state `is_solid`, `blocks_motion`, `is_liquid`, `has_fluid`, `is_replaceable`, `light_emission`, `light_opacity`, `hardness`, `friction`, and **915** deduplicated sub-voxel `BlockAabb` collision/outline shapes |
+| **`EntityType`** | **158** | Dimensions, eye height, packet category, tracking range, `fire_immune`, aerodynamics (`drag`/`acceleration`), and per-type default `Attribute`s (`Warden` 500 HP, `IronGolem` 100 HP, etc.) |
+| **`metadata_def`** | **110** modules (`298` keys) | Compile-time typed `MetadataKey<T>`, `BitMaskKey`, and `ByteMaskKey` definitions matching Minestom's `MetadataDef` hierarchy across all **43** wire serializers (`0..=42`) |
+| **`Material`** | **1,537** | Stack size, durability, `corresponding_block()`, armor slot, and weapon/armor attribute bonuses (`attack_damage_bonus`, `armor`, `armor_toughness`, `knockback_resistance`) |
+| **`SoundEvent`** | **1,968** | All builtin sound event constants + custom resource-pack `SoundHolder` |
+| **`Particle`** | **125** | All particle constants + typed wire payloads (`BlockState`, `Item`, `RgbScale`, `DustColorTransition`, `Vibration`, etc.) |
+| **`DamageType` / `PaintingVariant` / `GameEvent`** | **51 / 51 / 61** | Protocol IDs, scaling/exhaustion metadata, dimensions, and resource keys |
+| **`BlockEntityType` / `Enchantment` / `Attribute` / `PotionEffect`** | **49 / 43 / 40 / 40** | Block entity IDs, enchantment constants, clamped 3-stage attributes, and timed + instantaneous potion effects |
+| **Dynamic & Tag Registries** | **27 / 32** | Pre-cached `RegistryDataPacket`s (`DimensionType`: Overworld, Caves, Nether, End; biomes, trims, wolf/cat/frog/chicken/cow/pig variants, dialogs) and `ConfigTagsPacket` |
+
+---
+
+## Quick Start
+
+Add the umbrella crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+minestom = { path = "crates/minestom" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+```
+
+### 1. Minimal Playable Server
 
 ```rust
 use minestom::prelude::*;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), minestom::Error> {
     let server = MinecraftServer::builder()
-        .motd(Component::text("Hello from minestom-rs 26.2!").color(NamedTextColor::Gold))
+        .motd(Component::text("minestom-rs 26.2").color(NamedTextColor::Gold))
         .build()?;
 
     let instance = server.instance_manager().create_instance_container();
+    instance.set_lighting_enabled(true);
     instance.set_generator(|unit: &mut GenerationUnit| {
-        unit.modifier().fill_height(0, 40, Block::STONE);
-        unit.modifier().fill_height(40, 41, Block::GRASS_BLOCK);
+        unit.modifier().fill_height(0, 39, Block::STONE);
+        unit.modifier().fill_height(39, 40, Block::GRASS_BLOCK);
     });
 
-    let inst_cfg = instance.clone();
+    let spawn_instance = instance.clone();
     server
         .global_event_handler()
         .add_listener(move |ev: &mut AsyncPlayerConfigurationEvent| {
-            ev.set_spawning_instance(&inst_cfg);
-            ev.player().set_respawn_point(Pos::new(0.5, 42.0, 0.5));
+            ev.set_spawning_instance(&spawn_instance);
+            ev.player().set_respawn_point(Pos::new(0.5, 40.0, 0.5));
             ev.player().set_game_mode(GameMode::Creative);
+        });
+
+    server
+        .global_event_handler()
+        .add_listener(|ev: &mut PlayerSpawnEvent| {
+            if ev.first_spawn {
+                ev.player.send_message(
+                    Component::text(format!("Welcome, {}!", ev.username))
+                        .color(NamedTextColor::Green),
+                );
+                let sword = ItemStack::single(Material::DIAMOND_SWORD)
+                    .with_enchantment(Enchantment::SHARPNESS, 5);
+                ev.player.give_item(sword);
+            }
         });
 
     server.start("0.0.0.0:25565").await?;
@@ -84,61 +133,136 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### 2. Blocks, Vanilla Placement Rules & Batches
+
+`MinecraftServer::builder()` registers vanilla placement and neighbor-update rules by default (slabs merging into `type=double`, stair inner/outer corners, 2-block doors, trapdoors, fences, walls, glass panes, logs, signs, torches, lanterns, snow layers, and `waterlogged` states). You can also attach custom `BlockHandler`s, `Tag<T>` data, and `AbsoluteBlockBatch` edits:
+
+```rust
+use minestom::prelude::*;
+
+struct CrateHandler;
+
+impl BlockHandler for CrateHandler {
+    fn key(&self) -> &'static str {
+        "minecraft:barrel"
+    }
+
+    fn on_interact(&self, ctx: &BlockInteractContext) -> bool {
+        // Returning `false` consumes the right-click and suppresses block placement.
+        false
+    }
+}
+
+fn setup_blocks(server: &MinecraftServer, instance: &InstanceContainer) -> Result<(), minestom::Error> {
+    server.block_manager().register_handler(CrateHandler);
+
+    let stairs = Block::OAK_STAIRS
+        .with_property("facing", "north")?
+        .with_property("half", "bottom")?;
+
+    let mut batch = AbsoluteBlockBatch::new();
+    batch.set_block(BlockVec::new(2, 40, 2), stairs);
+    batch.set_block(BlockVec::new(2, 40, 3), Block::BARREL);
+    server.apply_batch_synced(instance, &batch);
+    Ok(())
+}
+```
+
+### 3. Compositional Entities, Typed `metadata_def`, and A* AI
+
+Entities combine `EntityCore`, optional `LivingState` (automatically initialized with vanilla attributes from `entity_type.json`), `EntityRole`, and `EntityBehavior` instead of deep inheritance hierarchies:
+
+```rust
+use minestom::prelude::*;
+
+fn spawn_arena_entities(server: &MinecraftServer, instance: &InstanceContainer) {
+    // Floating TextDisplay hologram updated live via EntityRef + metadata_def
+    let hologram: EntityRef = server.spawn_entity(
+        instance,
+        Entity::text_display(Component::text("Arena Wave 1").color(NamedTextColor::Gold))
+            .with_meta(metadata_def::display::BILLBOARD_CONSTRAINTS, 3),
+        Pos::new(0.5, 43.0, 0.5),
+    );
+    hologram.set_meta(
+        metadata_def::text_display::TEXT,
+        Component::text("Wave 1 — Fight!").color(NamedTextColor::Red),
+    );
+
+    // Creature with 3D A* pathfinding and melee goal
+    let ai = EntityAIGroup::new()
+        .with_target_selector(ClosestEntityTarget::players(24.0))
+        .with_goal_selector(MeleeAttackGoal::new(0.24, 2.0, 20))
+        .with_goal_selector(RandomStrollGoal::new(6, 0.12, 80));
+
+    server.spawn_entity(
+        instance,
+        Entity::creature(EntityType::WARDEN).with_behavior(ai),
+        Pos::new(10.5, 40.0, 10.5),
+    );
+}
+```
+
 ---
 
-## Runnable Examples
+## Workspace Crates
 
-| Example | Milestone | Command |
-|---|---|---|
-| `status_server` | M1 | `cargo run -p minestom --example status_server` |
-| `flat_world` | M2 | `cargo run -p minestom --example flat_world` |
-| `commands_and_events` | M3 | `cargo run -p minestom --example commands_and_events` |
-| `multiplayer_entities` | M4 | `cargo run -p minestom --example multiplayer_entities` |
-| `blocks_and_batches` | M5 | `cargo run -p minestom --example blocks_and_batches` |
-| `inventory_demo` | M6 | `cargo run -p minestom --example inventory_demo` |
-| `world_features_demo` | M7 | `cargo run -p minestom --example world_features_demo` |
-| `production_network` | M8 | `cargo run -p minestom --example production_network` |
-| `entity_ai_and_combat` | M9 | `cargo run -p minestom --example entity_ai_and_combat` |
-| `full_showcase` | M10 | `cargo run -p minestom --example full_showcase` |
+The repository is organized as a 17-crate acyclic Cargo workspace:
 
----
-
-## Microbenchmarks (`divan`, Release Profile)
-
-| Benchmark | Median Latency |
+| Crate | Responsibility |
 |---|---|
-| `cached_chunk_packet_clone_hit` (`Bytes` shallow clone) | **`13.92 ns`** |
-| `listener_handle_hot_dispatch` (`ListenerHandle<E>`) | **`47.25 ns`** |
-| `event_node_cached_dispatch` (`EventNode` hierarchy) | **`67.50 ns`** |
-| `inventory_quick_move_and_pickup_cycle` | **`92.72 ns`** |
-| `block_with_property_mixed_radix` (`Block::with_property` ×2 + `get_property`) | **`103.0 ns`** |
-| `varint_encode_decode_batch` (8 values) | **`104.7 ns`** |
-| `command_manager_parse_and_execute` | **`396.2 ns`** |
-| `network_nbt_compound_roundtrip` | **`825.2 ns`** |
-| `scheduler_tick_phase_100_tasks` (100 repeating tasks) | **`2.01 µs`** |
-| `item_stack_data_components_roundtrip` | **`3.47 µs`** |
-| `relative_batch_apply_125_blocks` (5×5×5 batch + `MultiBlockChange`) | **`3.88 µs`** |
-| `spatial_entity_tracker_reconcile_1000_entities` | **`5.25 µs`** |
-| `aes128_cfb8_stream_roundtrip_1kb` | **`56.71 µs`** |
-| `astar_pathfinding_around_obstacle_wall` (3D A* across 2 chunks) | **`58.54 µs`** |
-| `flat_chunk_generate_and_serialize_first_time` | **`83.75 µs`** |
-| `anvil_chunk_nbt_roundtrip` (`.mca` chunk NBT encode + decode) | **`184.7 µs`** |
-| `bfs_chunk_lighting_sky_and_block` (full 24-section 3D BFS light) | **`600.4 µs`** |
+| `minestom` | Umbrella facade, unified `Error`, `prelude`, runnable examples, integration tests, and benchmarks |
+| `minestom-server` | `MinecraftServer`, `PlayerRef`, `EntityRef`, 20 TPS tick loop, `AuthMode`, `Sidebar`, `BossBar`, `Dialog`, `ServerSnapshot` |
+| `minestom-network` | Async Tokio `PacketStream`, RSA-1024 / AES-128-CFB8 encryption, Mojang session client, Velocity HMAC, BungeeGuard, rate limiting |
+| `minestom-world` | `InstanceContainer`, `SharedInstance`, paletted `Chunk`/`Section`, `AnvilLoader` (`.mca`), 3D BFS lighting, `Batch`, `WorldBorder` |
+| `minestom-entity` | `Entity`, `EntityType`, `metadata_def` (`110` modules), sub-voxel AABB collision, `EntityTracker`, attributes, potions, A* `Navigator`, AI |
+| `minestom-protocol` | Protocol `776` Handshake/Status/Login/Config/Play packets, `MetadataValue` (`0..=42`), reusable thread-local Zlib `FrameCodec` |
+| `minestom-item` | `Material` (`1,537`), MC 26.2 Data Components, `HashedStack`, 46-slot `PlayerInventory`, 25-type `Inventory` windows, click processor |
+| `minestom-block` | `Block` (`1,196` blocks / `32,366` states), sub-voxel `BlockAabb` shapes, `BlockHandler`, `BlockManager`, vanilla `BlockPlacementRule`s |
+| `minestom-command` | Brigadier-compatible `CommandManager`, typed `Argument<T>`, `EntitySelector` (`@p`/`@a`/`@r`/`@e`/`@s`), `DeclareCommands`, `TabComplete` |
+| `minestom-event` | Hierarchical `EventNode`, domain filters, priorities, `expire_count` / `expire_when`, `call_async`, cached `ListenerHandle<E>` |
+| `minestom-scheduler` | `BinaryHeap`-backed 20 TPS `SchedulerManager`, `TickStart` / `TickEnd`, `Immediate` / `NextTick` / `Tick(n)` schedules |
+| `minestom-registry` | 27 Configuration dynamic registries, 32 client tag registries, `DimensionType` (`overworld`, `overworld_caves`, `the_nether`, `the_end`) |
+| `minestom-text` | Adventure-style `Component`, `Style`, JSON, MC 26.2 nameless NBT, legacy (`§`/`&`), and MiniMessage subset codecs |
+| `minestom-nbt` | Binary named & network-nameless NBT (including Modified UTF-8 & heterogeneous lists), GZip/Zlib, SNBT (`Display`/`FromStr`), `ReadLimiter` |
+| `minestom-core` | `Pos`, `Vec3`, `BlockVec`, `ChunkPos`, `Direction`/`BlockFace`, validated `Key`, phantom-typed `Tag<T>` & `TagMap` |
+| `minestom-data` | Offline `xtask`-generated static tables for Minecraft `26.2` (`net.minestom:data:26.2-rv3`) |
+| `minestom-macros` | Procedural `#[derive(PacketMeta)]` macro |
 
 ---
 
-## Documentation & Quality Gate
+## Scope & Intentional Non-Goals
 
-- [Parity Matrix (`docs/PARITY.md`)](./docs/PARITY.md)
-- [Migrating from Java Minestom (`docs/MIGRATING_FROM_MINESTOM.md`)](./docs/MIGRATING_FROM_MINESTOM.md)
-- [Architecture Decision Records (`docs/adr/`)](./docs/adr/)
+Following upstream Minestom's philosophy, `minestom-rs` is a **server framework**, not a clone of the vanilla survival server:
+
+- **Included out of the box:** Wire protocol (`776`), authentication/proxy modes, chunk palettes & streaming/unloading, `.mca` Anvil load/save (blocks, block entities, 4×4×4 biomes, lighting), sky/block BFS light propagation, vanilla block state & orientation/connection rules, sub-voxel entity physics, A* pathfinding + goal/target AI primitives, attributes/potions/damage, inventory window click mechanics, commands, scoreboards, boss bars, particles, sounds, resource packs, and dialogs.
+- **Intentionally left to user/game code:** Vanilla Overworld/Nether/End noise biome terrain generation (implement `Generator` on `InstanceContainer`), redstone wire signal propagation, water/lava flow cellular automata, vanilla crafting-grid recipe matching, block loot-table drops on break, and natural mob spawning cycles.
+
+---
+
+## Examples
+
+Run any example in `crates/minestom/examples/` with Cargo:
 
 ```bash
-# Regenerate static MC 26.2 data from pinned xtask/data/minestom-data-26.2-rv3.tar.gz
+cargo run -p minestom --example flat_world
+cargo run -p minestom --example commands_and_events
+cargo run -p minestom --example blocks_and_batches
+cargo run -p minestom --example inventory_demo
+cargo run -p minestom --example world_features_demo
+cargo run -p minestom --example entity_ai_and_combat
+cargo run -p minestom --example full_showcase
+```
+
+---
+
+## Development, Verification & Benchmarks
+
+```bash
+# Regenerate static MC 26.2 tables from pinned xtask/data/minestom-data-26.2-rv3.tar.gz
 cargo xtask codegen
 
-# Run full CI quality gate (codegen --check, rustfmt, clippy pedantic -D warnings,
-# cargo nextest, doctests, rustdoc -D warnings, and cargo deny check)
+# Run the full CI suite (codegen --check, rustfmt, clippy pedantic -D warnings,
+# cargo nextest, doctests, rustdoc -D warnings, and cargo deny)
 cargo xtask ci
 
 # Run Divan microbenchmarks
@@ -146,6 +270,32 @@ cargo bench -p minestom --bench protocol_bench
 cargo bench -p minestom --bench chunk_bench
 ```
 
+### Reference Microbenchmarks (`divan`, `--release`)
+
+| Benchmark | Median |
+|---|---:|
+| `cached_chunk_packet_clone_hit` (`Bytes` shallow clone) | `13.9 ns` |
+| `listener_handle_hot_dispatch` (`ListenerHandle<E>`) | `47.3 ns` |
+| `event_node_cached_dispatch` (`EventNode` tree) | `67.5 ns` |
+| `inventory_quick_move_and_pickup_cycle` | `92.7 ns` |
+| `block_with_property_mixed_radix` | `103.0 ns` |
+| `command_manager_parse_and_execute` | `396.2 ns` |
+| `network_nbt_compound_roundtrip` | `825.2 ns` |
+| `scheduler_tick_phase_100_tasks` | `2.01 µs` |
+| `item_stack_data_components_roundtrip` | `3.47 µs` |
+| `relative_batch_apply_125_blocks` | `3.88 µs` |
+| `spatial_entity_tracker_reconcile_1000_entities` | `5.25 µs` |
+| `astar_pathfinding_around_obstacle_wall` | `58.5 µs` |
+| `flat_chunk_generate_and_serialize_first_time` | `83.8 µs` |
+| `anvil_chunk_nbt_roundtrip` | `184.7 µs` |
+| `bfs_chunk_lighting_sky_and_block` (24 sections) | `600.4 µs` |
+
+## Additional Documentation
+
+- [Upstream Minestom Parity Matrix](docs/PARITY.md)
+- [Migrating from Java Minestom](docs/MIGRATING_FROM_MINESTOM.md)
+- [Architecture Decision Records (`docs/adr/`)](docs/adr/)
+
 ## License
 
-Licensed under the [Apache License, Version 2.0](./LICENSE). See [NOTICE](./NOTICE) for upstream Minestom attribution.
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE) for upstream Minestom attribution.

@@ -1,11 +1,13 @@
-//! M10 Flagship Showcase: exercises virtually every `minestom-rs` subsystem in one server:
-//! - Parallel chunk generation + 3D BFS sky/block lighting + custom `AbsoluteBlockBatch`
+//! Flagship Showcase: exercises the core `minestom-rs` subsystems in one server:
+//! - Parallel chunk generation + 3D BFS sky/block lighting + vanilla `BlockPlacementRule`s
+//! - Ergonomic `PlayerRef` (`ev.player.*`) and `EntityRef` (`hologram.set_meta(...)`) handles
+//! - Floating `Entity::text_display` hologram with live `metadata_def` updates
 //! - `Sidebar` scoreboard + `TeamManager` colored prefix + `TabList` header/footer
-//! - `BossBar` live health/progress bar + `Title` + `ActionBar`
-//! - `Particle` effects + `Sound` playback + `ToastNotification` pop-up
-//! - `RecipeManager` custom stonecutter recipe + MC 26.2 `Dialog::notice` modal (`/rules`)
-//! - 20 TPS `Scheduler` task updating the sidebar & boss bar using lock-free `server.snapshot()`
-//! - Autonomous A* `EntityAIGroup` Arena Guardian + melee combat!
+//! - `BossBar` live progress bar + `Title` + `ActionBar`
+//! - `Particle` (`125` constants) + `SoundEvent` (`1,968` constants) + `ToastNotification`
+//! - `RecipeManager` (`RecipePropertySet`) + MC 26.2 `Dialog::notice` modal (`/rules`)
+//! - 20 TPS `Scheduler` task reading lock-free `server.snapshot()`
+//! - Autonomous A* `EntityAIGroup` Arena Guardian + data-driven melee combat
 
 use minestom::prelude::*;
 
@@ -18,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Component::text("minestom-rs 26.2 ")
                 .color(NamedTextColor::Gold)
                 .bold(true)
-                .append(Component::text("Full Parity Showcase").color(NamedTextColor::Aqua)),
+                .append(Component::text("Protocol 776").color(NamedTextColor::Aqua)),
         )
         .build()?;
 
@@ -29,14 +31,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         unit.modifier().fill_height(0, 39, Block::STONE);
         unit.modifier().fill_height(39, 40, Block::GRASS_BLOCK);
     });
-    instance.set_block(BlockVec::new(0, 40, 4), Block::GLOWSTONE);
+    instance.set_block(BlockVec::new(0, 40, 4), Block::SEA_LANTERN);
 
+    server
+        .recipe_manager()
+        .set_property_set(RecipePropertySet::FurnaceInput, &[Material::RAW_IRON]);
     server.recipe_manager().add_stonecutter_recipe(
         &[Material::COBBLESTONE],
-        ItemStack::of(Material::DIAMOND, 1),
+        ItemStack::of(Material::STONE_BRICKS, 1),
     );
 
-    // 2. Global team, Sidebar, and BossBar
+    // 2. Floating TextDisplay hologram at spawn using `metadata_def`
+    let hologram = server.spawn_entity(
+        &instance,
+        Entity::text_display(
+            Component::text("minestom-rs 26.2")
+                .color(NamedTextColor::Gold)
+                .bold(true),
+        )
+        .with_meta(metadata_def::display::BILLBOARD_CONSTRAINTS, 3),
+        Pos::new(0.5, 42.5, 4.5),
+    );
+
+    // 3. Global team, Sidebar, and BossBar
     server.create_team(
         "champions",
         TeamSettings {
@@ -84,10 +101,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         BossBarOverlay::Notched10,
     );
 
-    // 3. Periodic 1-second (20-tick) HUD refresh reading lock-free `server.snapshot()`
+    // 4. Periodic 1-second (20-tick) HUD & hologram refresh reading lock-free `server.snapshot()`
     let srv_sched = server.clone();
     let sb_sched = sidebar.clone();
     let bb_sched = boss_bar.clone();
+    let holo_sched = hologram.clone();
     let _ = server
         .scheduler_manager()
         .build_task(move || {
@@ -110,6 +128,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     1,
                 ),
             );
+            holo_sched.set_meta(
+                metadata_def::text_display::TEXT,
+                Component::text(format!("minestom-rs • {} online", snap.players.len()))
+                    .color(NamedTextColor::Gold),
+            );
             #[allow(clippy::cast_precision_loss)]
             let pulse = ((snap.tick_number % 200) as f32) / 200.0;
             srv_sched.set_boss_bar_progress(&bb_sched, pulse);
@@ -117,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .repeat(TaskSchedule::Tick(20))
         .schedule();
 
-    // 4. `/rules` command opening an MC 26.2 modal Notice Dialog + particle & sound flourish
+    // 5. `/rules` command opening an MC 26.2 modal Notice Dialog + particle & sound flourish
     let srv_cmd = server.clone();
     let inst_cmd = instance.clone();
     server
@@ -125,17 +148,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register(
             Command::new("rules").with_default_executor(move |sender, _ctx| {
                 if let Some(p) = sender.as_player() {
-                    let dlg = Dialog::notice(
+                    let player = srv_cmd.player(p.player_id);
+                    player.show_dialog(&Dialog::notice(
                         Component::text("Server Rules").color(NamedTextColor::Gold),
                         Component::text(
-                            "1. Safe Rust only (#![forbid(unsafe_code)]).\n2. Have fun!",
+                            "1. Safe Rust only (#![forbid(unsafe_code)]).\n2. All 1,196 blocks & 158 entities ready!",
                         ),
                         Component::text("Understood"),
-                    );
-                    srv_cmd.show_dialog(p.player_id, &dlg);
-                    srv_cmd.play_sound_to_player(
-                        p.player_id,
-                        &Sound::builtin(Sound::UI_BUTTON_CLICK, SoundSource::Ui, 1.0, 1.2),
+                    ));
+                    player.play_sound(
+                        &Sound::builtin(SoundEvent::UI_BUTTON_CLICK, SoundSource::Ui, 1.0, 1.2),
                         p.position.as_vec(),
                     );
                     srv_cmd.spawn_particle(
@@ -151,20 +173,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }),
         );
 
-    // 5. Spawn an AI Guardian
+    // 6. Spawn an AI Guardian
     let ai = EntityAIGroup::new()
         .with_target_selector(LastEntityDamagerTarget::new(24.0))
         .with_goal_selector(MeleeAttackGoal::new(0.22, 2.0, 20))
         .with_goal_selector(RandomStrollGoal::new(5, 0.12, 80));
     server.spawn_entity(
         &instance,
-        Entity::creature(EntityType::ZOMBIE)
+        Entity::creature(EntityType::IRON_GOLEM)
             .with_custom_name(Component::text("Showcase Sentinel"))
             .with_behavior(ai),
         Pos::new(6.5, 40.0, 6.5),
     );
 
-    // 6. Player join setup & welcome UI
+    // 7. Player join setup & welcome UI via `ev.player` (`PlayerRef`)
     let inst_cfg = instance.clone();
     server
         .global_event_handler()
@@ -183,40 +205,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !ev.first_spawn {
                 return;
             }
-            let pid = ev.player_id;
             srv_join.add_team_member("champions", ev.username.clone());
-            srv_join.add_sidebar_viewer(&sb_join, pid);
-            srv_join.add_boss_bar_viewer(&bb_join, pid);
-            srv_join.set_player_list_header_footer(
-                pid,
+            ev.player.show_sidebar(&sb_join);
+            ev.player.show_boss_bar(&bb_join);
+            ev.player.set_tab_header_footer(
                 Component::text("Welcome to minestom-rs 26.2").color(NamedTextColor::Gold),
                 Component::text("Type /rules for MC 26.2 Dialog").color(NamedTextColor::Gray),
             );
-            srv_join.send_title(
-                pid,
-                &Title::new(
-                    Component::text("Welcome!").color(NamedTextColor::Green),
-                    Component::text("100% Safe Rust Minecraft 26.2").color(NamedTextColor::Yellow),
-                ),
-            );
-            srv_join.send_action_bar(
-                pid,
+            ev.player.send_title(&Title::new(
+                Component::text("Welcome!").color(NamedTextColor::Green),
+                Component::text("Minecraft 26.2 • Protocol 776").color(NamedTextColor::Yellow),
+            ));
+            ev.player.send_action_bar(
                 Component::text("Use /rules to test Dialogs!").color(NamedTextColor::Aqua),
             );
-            srv_join.send_toast(
-                pid,
-                &ToastNotification::new(
-                    Component::text("Joined minestom-rs!"),
-                    ItemStack::single(Material::DIAMOND_SWORD),
-                    AdvancementFrameType::Goal,
+            ev.player.send_toast(&ToastNotification::new(
+                Component::text("Joined minestom-rs!"),
+                ItemStack::single(Material::DIAMOND_SWORD),
+                AdvancementFrameType::Goal,
+            ));
+            ev.player.play_sound(
+                &Sound::builtin(
+                    SoundEvent::ENTITY_PLAYER_LEVELUP,
+                    SoundSource::Player,
+                    0.8,
+                    1.0,
                 ),
-            );
-            srv_join.play_sound_to_player(
-                pid,
-                &Sound::builtin(Sound::PLAYER_LEVELUP, SoundSource::Player, 0.8, 1.0),
                 ev.position.as_vec(),
             );
-            srv_join.give_player_item(pid, ItemStack::single(Material::DIAMOND_SWORD));
+            let blade = ItemStack::single(Material::DIAMOND_SWORD)
+                .with_custom_name(Component::text("Champion Blade").color(NamedTextColor::Aqua))
+                .with_enchantment(Enchantment::SHARPNESS, 5);
+            ev.player.give_item(blade);
+            ev.player.give_item(ItemStack::of(Material::OAK_STAIRS, 64));
+            ev.player.give_item(ItemStack::of(Material::OAK_FENCE, 64));
+            ev.player.give_item(ItemStack::of(Material::OAK_DOOR, 16));
         });
 
     server.start("0.0.0.0:25565").await?;

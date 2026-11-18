@@ -327,12 +327,24 @@ pub mod parser_ids {
     pub const BLOCK_POS: i32 = 8;
     /// `minecraft:vec3` (`10`).
     pub const VEC3: i32 = 10;
+    /// `minecraft:block_state` (`12`).
+    pub const BLOCK_STATE: i32 = 12;
+    /// `minecraft:item_stack` (`14`).
+    pub const ITEM_STACK: i32 = 14;
+    /// `minecraft:component` (`18`).
+    pub const COMPONENT: i32 = 18;
+    /// `minecraft:nbt_compound_tag` (`21`).
+    pub const NBT_COMPOUND_TAG: i32 = 21;
     /// `minecraft:score_holder` (`31`).
     pub const SCORE_HOLDER: i32 = 31;
+    /// `minecraft:resource_location` (`36`).
+    pub const RESOURCE_LOCATION: i32 = 36;
     /// `minecraft:gamemode` (`42`).
     pub const GAMEMODE: i32 = 42;
     /// `minecraft:time` (`43`).
     pub const TIME: i32 = 43;
+    /// `minecraft:uuid` (`56`).
+    pub const UUID: i32 = 56;
 }
 
 /// Node flags in [`CommandGraphNode`].

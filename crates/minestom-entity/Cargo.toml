@@ -16,6 +16,7 @@ minestom-item.workspace = true
 minestom-protocol.workspace = true
 minestom-text.workspace = true
 rustc-hash.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 

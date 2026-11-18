@@ -198,11 +198,13 @@ async fn m10_ui_media_scoreboard_bossbar_recipes_dialogs_resourcepacks_and_snaps
     instance.set_generator(|unit: &mut GenerationUnit| {
         unit.modifier().fill_height(0, 40, Block::STONE);
     });
-    let sentinel_eid = server.spawn_entity(
-        &instance,
-        Entity::new(EntityType::ARMOR_STAND),
-        Pos::new(4.5, 40.0, 4.5),
-    );
+    let sentinel_eid = server
+        .spawn_entity(
+            &instance,
+            Entity::new(EntityType::ARMOR_STAND),
+            Pos::new(4.5, 40.0, 4.5),
+        )
+        .network_id();
 
     // Pre-register a recipe and a scoreboard team BEFORE any player connects!
     server

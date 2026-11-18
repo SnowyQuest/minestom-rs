@@ -63,7 +63,7 @@ impl PartialOrd for OpenNode {
 fn is_passable_space(world: &dyn BlockGetter, base: BlockVec, height: i32) -> bool {
     for dy in 0..height.max(1) {
         let b = world.get_block(BlockVec::new(base.x, base.y + dy, base.z));
-        if b.is_solid() || b.is_liquid() {
+        if b.blocks_motion() || b.has_fluid() {
             return false;
         }
     }
@@ -71,11 +71,11 @@ fn is_passable_space(world: &dyn BlockGetter, base: BlockVec, height: i32) -> bo
 }
 
 /// Returns `true` if an entity of `height` blocks can stand with its feet in `pos`
-/// (solid floor at `pos.y - 1` and non-solid, non-liquid space in `pos.y .. pos.y + height`).
+/// (motion-blocking floor at `pos.y - 1` and passable, non-fluid space in `pos.y .. pos.y + height`).
 #[must_use]
 pub fn is_standable(world: &dyn BlockGetter, pos: BlockVec, height: i32) -> bool {
     let floor = world.get_block(BlockVec::new(pos.x, pos.y - 1, pos.z));
-    floor.is_solid() && is_passable_space(world, pos, height)
+    floor.blocks_motion() && is_passable_space(world, pos, height)
 }
 
 #[inline]
@@ -196,7 +196,7 @@ pub fn find_path_with_config(
                 // Check 1-block step-up (requires overhead jump clearance above `cur`)
                 let step_up = BlockVec::new(cur.x + dx, cur.y + 1, cur.z + dz);
                 let headroom = BlockVec::new(cur.x, cur.y + h, cur.z);
-                if !world.get_block(headroom).is_solid() && is_standable(world, step_up, h) {
+                if !world.get_block(headroom).blocks_motion() && is_standable(world, step_up, h) {
                     next_opt = Some((step_up, base_cost + 600));
                 } else if is_passable_space(world, flat, h) {
                     // Check safe downward drop (`1..=max_fall_distance`)

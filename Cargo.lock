@@ -1106,6 +1106,7 @@ dependencies = [
  "minestom-data",
  "parking_lot",
  "rustc-hash",
+ "serde",
  "thiserror",
 ]
 
@@ -1114,6 +1115,7 @@ name = "minestom-command"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "minestom-block",
  "minestom-core",
  "minestom-item",
  "minestom-protocol",
@@ -1154,6 +1156,7 @@ dependencies = [
  "minestom-protocol",
  "minestom-text",
  "rustc-hash",
+ "serde",
  "slotmap",
  "thiserror",
  "uuid",
@@ -1180,6 +1183,7 @@ dependencies = [
  "minestom-text",
  "parking_lot",
  "rustc-hash",
+ "serde",
  "thiserror",
 ]
 
@@ -1283,6 +1287,7 @@ dependencies = [
  "minestom-scheduler",
  "minestom-text",
  "minestom-world",
+ "parking_lot",
  "rustc-hash",
  "serde",
  "slotmap",

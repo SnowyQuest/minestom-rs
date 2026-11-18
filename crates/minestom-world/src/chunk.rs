@@ -85,18 +85,34 @@ impl Section {
             (false, true) => self.block_count = self.block_count.saturating_sub(1),
             _ => {}
         }
-        match (prev.is_liquid(), block.is_liquid()) {
+        match (prev.has_fluid(), block.has_fluid()) {
             (false, true) => self.liquid_count = self.liquid_count.saturating_add(1),
             (true, false) => self.liquid_count = self.liquid_count.saturating_sub(1),
             _ => {}
         }
     }
 
+    /// Reads the biome registry ID (`0..BIOME_COUNT`) at 4×4×4 cell `(bx, by, bz)` (`0..4`).
+    #[must_use]
+    pub fn get_biome_cell(&self, bx: usize, by: usize, bz: usize) -> u32 {
+        self.biomes.get(bx, by, bz)
+    }
+
+    /// Sets the biome registry ID at 4×4×4 cell `(bx, by, bz)` (`0..4`).
+    pub fn set_biome_cell(&mut self, bx: usize, by: usize, bz: usize, biome_id: u32) {
+        self.biomes.set(bx, by, bz, biome_id);
+    }
+
+    /// Fills all 64 biome cells in this section with `biome_id`.
+    pub fn fill_biome(&mut self, biome_id: u32) {
+        self.biomes.fill(biome_id);
+    }
+
     /// Fills all 4,096 blocks in this section with `block` in `O(1)`.
     pub fn fill(&mut self, block: Block) {
         self.blocks.fill(u32::from(block.state_id()));
         self.block_count = if block.is_air() { 0 } else { 4096 };
-        self.liquid_count = if block.is_liquid() { 4096 } else { 0 };
+        self.liquid_count = if block.has_fluid() { 4096 } else { 0 };
     }
 
     /// Encodes this section in MC 26.2 `ChunkData.Section` format (`i16 blockCount`, `i16 liquidCount`,
@@ -151,6 +167,7 @@ pub struct Chunk {
     pos: ChunkPos,
     min_y: i32,
     height: i32,
+    has_skylight: bool,
     sections: Vec<Section>,
     block_entities: FxHashMap<(u8, i16, u8), BlockEntityState>,
     lighting_enabled: bool,
@@ -166,11 +183,18 @@ impl Chunk {
             pos,
             min_y: dimension.min_y,
             height: dimension.height,
+            has_skylight: dimension.has_skylight,
             sections: vec![Section::new(); count],
             block_entities: FxHashMap::default(),
             lighting_enabled: false,
             cached_payload: None,
         }
+    }
+
+    /// Returns `true` if this chunk's dimension has sky light (`true` in Overworld, `false` in Nether/End).
+    #[must_use]
+    pub const fn has_skylight(&self) -> bool {
+        self.has_skylight
     }
 
     /// Enables or disables dynamic 3D BFS sky & block lighting for this chunk (`LightingChunk` mode).
@@ -241,6 +265,38 @@ impl Chunk {
         if block.is_air() {
             self.block_entities
                 .remove(&(local_x as u8, y as i16, local_z as u8));
+        }
+        self.cached_payload = None;
+    }
+
+    /// Reads the biome registry ID at block coordinate `(local_x, y, local_z)` (`4×4×4` cell resolution).
+    #[must_use]
+    pub fn get_biome(&self, local_x: usize, y: i32, local_z: usize) -> u32 {
+        if y < self.min_y || y >= self.max_y() || local_x >= 16 || local_z >= 16 {
+            return minestom_data::generated::dynamic_registries::PLAINS_BIOME_ID;
+        }
+        let rel_y = (y - self.min_y) as usize;
+        let sec_idx = rel_y >> 4;
+        let by = (rel_y & 15) >> 2;
+        self.sections[sec_idx].get_biome_cell(local_x >> 2, by, local_z >> 2)
+    }
+
+    /// Sets the biome registry ID for the `4×4×4` cell containing `(local_x, y, local_z)`.
+    pub fn set_biome(&mut self, local_x: usize, y: i32, local_z: usize, biome_id: u32) {
+        if y < self.min_y || y >= self.max_y() || local_x >= 16 || local_z >= 16 {
+            return;
+        }
+        let rel_y = (y - self.min_y) as usize;
+        let sec_idx = rel_y >> 4;
+        let by = (rel_y & 15) >> 2;
+        self.sections[sec_idx].set_biome_cell(local_x >> 2, by, local_z >> 2, biome_id);
+        self.cached_payload = None;
+    }
+
+    /// Fills all biome cells across the entire chunk column with `biome_id`.
+    pub fn fill_biome(&mut self, biome_id: u32) {
+        for sec in &mut self.sections {
+            sec.fill_biome(biome_id);
         }
         self.cached_payload = None;
     }
@@ -324,7 +380,7 @@ impl Chunk {
                                 world_surface[col] = top_offset;
                                 found_ws = true;
                             }
-                            if !found_mb && (b.is_solid() || b.is_liquid()) {
+                            if !found_mb && (b.blocks_motion() || b.has_fluid()) {
                                 motion_blocking[col] = top_offset;
                                 found_mb = true;
                             }
@@ -338,7 +394,7 @@ impl Chunk {
                                     world_surface[col] = offset;
                                     found_ws = true;
                                 }
-                                if !found_mb && (b.is_solid() || b.is_liquid()) {
+                                if !found_mb && (b.blocks_motion() || b.has_fluid()) {
                                     motion_blocking[col] = offset;
                                     found_mb = true;
                                 }

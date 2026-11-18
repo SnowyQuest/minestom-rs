@@ -1,5 +1,5 @@
-//! Axis-aligned `BoundingBox` (`AABB`) geometry, intersection queries, and gravity/drag
-//! block collision resolution over [`BlockGetter`].
+//! Axis-aligned `BoundingBox` (`AABB`) geometry, sub-voxel block shape sweeping, and
+//! gravity/drag collision resolution over [`BlockGetter`].
 
 use minestom_block::BlockGetter;
 use minestom_core::{BlockVec, Point, Pos, Vec3};
@@ -123,7 +123,8 @@ impl BoundingBox {
             && max_a.z > min_b.z + COLLISION_EPS
     }
 
-    /// Returns `true` if any solid block in `world` overlaps this bounding box at `foot_pos`.
+    /// Returns `true` if any sub-voxel [`Block::collision_shape`](minestom_block::Block::collision_shape)
+    /// box in `world` overlaps this bounding box at `foot_pos` (including 1.5-tall fences/walls below `min.y`).
     #[must_use]
     pub fn collides_with_blocks(&self, world: &dyn BlockGetter, foot_pos: Vec3) -> bool {
         if self.width() <= 0.0 || self.height() <= 0.0 || self.depth() <= 0.0 {
@@ -132,7 +133,8 @@ impl BoundingBox {
         let (min, max) = self.world_bounds(foot_pos);
         let x0 = (min.x + COLLISION_EPS).floor() as i32;
         let x1 = (max.x - COLLISION_EPS).floor() as i32;
-        let y0 = (min.y + COLLISION_EPS).floor() as i32;
+        // Include `y0 - 1` so 1.5-tall fences, walls, and fence gates collide accurately!
+        let y0 = (min.y + COLLISION_EPS).floor() as i32 - 1;
         let y1 = (max.y - COLLISION_EPS).floor() as i32;
         let z0 = (min.z + COLLISION_EPS).floor() as i32;
         let z1 = (max.z - COLLISION_EPS).floor() as i32;
@@ -140,7 +142,8 @@ impl BoundingBox {
         for by in y0..=y1 {
             for bz in z0..=z1 {
                 for bx in x0..=x1 {
-                    if world.get_block(BlockVec::new(bx, by, bz)).is_solid() {
+                    let bpos = BlockVec::new(bx, by, bz);
+                    if world.get_block(bpos).collides_world_aabb(bpos, min, max) {
                         return true;
                     }
                 }
@@ -150,6 +153,150 @@ impl BoundingBox {
     }
 }
 
+fn sweep_axis_y(world: &dyn BlockGetter, min: Vec3, max: Vec3, dy: f64) -> f64 {
+    if dy.abs() < COLLISION_EPS {
+        return 0.0;
+    }
+    let x0 = (min.x + COLLISION_EPS).floor() as i32;
+    let x1 = (max.x - COLLISION_EPS).floor() as i32;
+    let z0 = (min.z + COLLISION_EPS).floor() as i32;
+    let z1 = (max.z - COLLISION_EPS).floor() as i32;
+    let y0 = (min.y.min(min.y + dy) + COLLISION_EPS).floor() as i32 - 1;
+    let y1 = (max.y.max(max.y + dy) - COLLISION_EPS).floor() as i32;
+
+    let mut allowed = dy;
+    for by in y0..=y1 {
+        for bz in z0..=z1 {
+            for bx in x0..=x1 {
+                let b = world.get_block(BlockVec::new(bx, by, bz));
+                for box_aabb in b.collision_shape() {
+                    let b_min_x = f64::from(bx) + f64::from(box_aabb.min_x);
+                    let b_max_x = f64::from(bx) + f64::from(box_aabb.max_x);
+                    let b_min_z = f64::from(bz) + f64::from(box_aabb.min_z);
+                    let b_max_z = f64::from(bz) + f64::from(box_aabb.max_z);
+                    if max.x <= b_min_x + COLLISION_EPS
+                        || min.x >= b_max_x - COLLISION_EPS
+                        || max.z <= b_min_z + COLLISION_EPS
+                        || min.z >= b_max_z - COLLISION_EPS
+                    {
+                        continue;
+                    }
+                    let b_min_y = f64::from(by) + f64::from(box_aabb.min_y);
+                    let b_max_y = f64::from(by) + f64::from(box_aabb.max_y);
+                    if allowed > 0.0 && max.y <= b_min_y + COLLISION_EPS {
+                        let gap = b_min_y - max.y;
+                        if gap < allowed {
+                            allowed = gap.max(0.0);
+                        }
+                    } else if allowed < 0.0 && min.y >= b_max_y - COLLISION_EPS {
+                        let gap = b_max_y - min.y;
+                        if gap > allowed {
+                            allowed = gap.min(0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    allowed
+}
+
+fn sweep_axis_x(world: &dyn BlockGetter, min: Vec3, max: Vec3, dx: f64) -> f64 {
+    if dx.abs() < COLLISION_EPS {
+        return 0.0;
+    }
+    let y0 = (min.y + COLLISION_EPS).floor() as i32 - 1;
+    let y1 = (max.y - COLLISION_EPS).floor() as i32;
+    let z0 = (min.z + COLLISION_EPS).floor() as i32;
+    let z1 = (max.z - COLLISION_EPS).floor() as i32;
+    let x0 = (min.x.min(min.x + dx) + COLLISION_EPS).floor() as i32;
+    let x1 = (max.x.max(max.x + dx) - COLLISION_EPS).floor() as i32;
+
+    let mut allowed = dx;
+    for by in y0..=y1 {
+        for bz in z0..=z1 {
+            for bx in x0..=x1 {
+                let b = world.get_block(BlockVec::new(bx, by, bz));
+                for box_aabb in b.collision_shape() {
+                    let b_min_y = f64::from(by) + f64::from(box_aabb.min_y);
+                    let b_max_y = f64::from(by) + f64::from(box_aabb.max_y);
+                    let b_min_z = f64::from(bz) + f64::from(box_aabb.min_z);
+                    let b_max_z = f64::from(bz) + f64::from(box_aabb.max_z);
+                    if max.y <= b_min_y + COLLISION_EPS
+                        || min.y >= b_max_y - COLLISION_EPS
+                        || max.z <= b_min_z + COLLISION_EPS
+                        || min.z >= b_max_z - COLLISION_EPS
+                    {
+                        continue;
+                    }
+                    let b_min_x = f64::from(bx) + f64::from(box_aabb.min_x);
+                    let b_max_x = f64::from(bx) + f64::from(box_aabb.max_x);
+                    if allowed > 0.0 && max.x <= b_min_x + COLLISION_EPS {
+                        let gap = b_min_x - max.x;
+                        if gap < allowed {
+                            allowed = gap.max(0.0);
+                        }
+                    } else if allowed < 0.0 && min.x >= b_max_x - COLLISION_EPS {
+                        let gap = b_max_x - min.x;
+                        if gap > allowed {
+                            allowed = gap.min(0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    allowed
+}
+
+fn sweep_axis_z(world: &dyn BlockGetter, min: Vec3, max: Vec3, dz: f64) -> f64 {
+    if dz.abs() < COLLISION_EPS {
+        return 0.0;
+    }
+    let y0 = (min.y + COLLISION_EPS).floor() as i32 - 1;
+    let y1 = (max.y - COLLISION_EPS).floor() as i32;
+    let x0 = (min.x + COLLISION_EPS).floor() as i32;
+    let x1 = (max.x - COLLISION_EPS).floor() as i32;
+    let z0 = (min.z.min(min.z + dz) + COLLISION_EPS).floor() as i32;
+    let z1 = (max.z.max(max.z + dz) - COLLISION_EPS).floor() as i32;
+
+    let mut allowed = dz;
+    for by in y0..=y1 {
+        for bz in z0..=z1 {
+            for bx in x0..=x1 {
+                let b = world.get_block(BlockVec::new(bx, by, bz));
+                for box_aabb in b.collision_shape() {
+                    let b_min_y = f64::from(by) + f64::from(box_aabb.min_y);
+                    let b_max_y = f64::from(by) + f64::from(box_aabb.max_y);
+                    let b_min_x = f64::from(bx) + f64::from(box_aabb.min_x);
+                    let b_max_x = f64::from(bx) + f64::from(box_aabb.max_x);
+                    if max.y <= b_min_y + COLLISION_EPS
+                        || min.y >= b_max_y - COLLISION_EPS
+                        || max.x <= b_min_x + COLLISION_EPS
+                        || min.x >= b_max_x - COLLISION_EPS
+                    {
+                        continue;
+                    }
+                    let b_min_z = f64::from(bz) + f64::from(box_aabb.min_z);
+                    let b_max_z = f64::from(bz) + f64::from(box_aabb.max_z);
+                    if allowed > 0.0 && max.z <= b_min_z + COLLISION_EPS {
+                        let gap = b_min_z - max.z;
+                        if gap < allowed {
+                            allowed = gap.max(0.0);
+                        }
+                    } else if allowed < 0.0 && min.z >= b_max_z - COLLISION_EPS {
+                        let gap = b_max_z - min.z;
+                        if gap > allowed {
+                            allowed = gap.min(0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    allowed
+}
+
 /// Outcome of a single 20 TPS entity physics & collision step.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PhysicsStepOutcome {
@@ -157,14 +304,14 @@ pub struct PhysicsStepOutcome {
     pub position: Pos,
     /// Post-drag velocity for the next tick.
     pub velocity: Vec3,
-    /// `true` if resting on a solid block below (`dy < 0` clamped).
+    /// `true` if resting on a solid/sub-voxel block face below (`dy < 0` clamped).
     pub on_ground: bool,
-    /// `true` if X or Z motion was blocked by a solid wall.
+    /// `true` if X or Z motion was blocked by a wall/fence/step.
     pub collided_horizontally: bool,
 }
 
-/// Steps gravity, axis-by-axis solid-block collision (`Y` -> `X` -> `Z`), and aerodynamic drag
-/// for one 50ms server tick (`Aerodynamics` + `CollisionUtils` in Minestom).
+/// Steps gravity, exact sub-voxel AABB sweep (`Y` -> `X` -> `Z` over `Block::collision_shape()`),
+/// and ground/air friction drag (`Aerodynamics` + `CollisionUtils` in Minestom).
 #[must_use]
 pub fn step_entity_physics(
     world: &dyn BlockGetter,
@@ -181,56 +328,66 @@ pub fn step_entity_physics(
     let mut on_ground = false;
     let mut collided_h = false;
 
-    // 1. Resolve vertical Y movement
-    if vel.y.abs() > 0.0 {
-        let candidate_y = Vec3::new(cur.x, cur.y + vel.y, cur.z);
-        if bbox.collides_with_blocks(world, candidate_y) {
-            if vel.y < 0.0 {
-                // Snap cleanly onto top face of supporting block
-                let min_y = cur.y + bbox.rel_min.y + vel.y;
-                let block_top = (min_y.floor() + 1.0) - bbox.rel_min.y;
-                if block_top <= cur.y + 0.001
-                    && !bbox.collides_with_blocks(world, Vec3::new(cur.x, block_top, cur.z))
-                {
-                    cur.y = block_top;
+    if bbox.width() > 0.0 && bbox.height() > 0.0 && bbox.depth() > 0.0 {
+        // 1. Sweep vertical Y movement against sub-voxel boxes (slabs, stairs, fences, snow layers)
+        if vel.y.abs() > 0.0 {
+            let (min, max) = bbox.world_bounds(cur);
+            let moved_y = sweep_axis_y(world, min, max, vel.y);
+            cur.y += moved_y;
+            if (moved_y - vel.y).abs() > COLLISION_EPS {
+                if vel.y < 0.0 {
+                    on_ground = true;
                 }
-                on_ground = true;
+                vel.y = 0.0;
             }
-            vel.y = 0.0;
         } else {
-            cur.y = candidate_y.y;
+            on_ground = bbox.collides_with_blocks(world, Vec3::new(cur.x, cur.y - 0.001, cur.z));
+        }
+
+        // 2. Sweep X movement
+        if vel.x.abs() > 0.0 {
+            let (min, max) = bbox.world_bounds(cur);
+            let moved_x = sweep_axis_x(world, min, max, vel.x);
+            cur.x += moved_x;
+            if (moved_x - vel.x).abs() > COLLISION_EPS {
+                vel.x = 0.0;
+                collided_h = true;
+            }
+        }
+
+        // 3. Sweep Z movement
+        if vel.z.abs() > 0.0 {
+            let (min, max) = bbox.world_bounds(cur);
+            let moved_z = sweep_axis_z(world, min, max, vel.z);
+            cur.z += moved_z;
+            if (moved_z - vel.z).abs() > COLLISION_EPS {
+                vel.z = 0.0;
+                collided_h = true;
+            }
         }
     } else {
-        // Check if standing directly atop a solid block
-        on_ground = bbox.collides_with_blocks(world, Vec3::new(cur.x, cur.y - 0.001, cur.z));
+        cur += vel;
     }
 
-    // 2. Resolve X movement
-    if vel.x.abs() > 0.0 {
-        let candidate_x = Vec3::new(cur.x + vel.x, cur.y, cur.z);
-        if bbox.collides_with_blocks(world, candidate_x) {
-            vel.x = 0.0;
-            collided_h = true;
+    // Apply block-specific ground slipperiness (`0.6` default -> `0.546`, `0.98` ice -> `0.8918`)
+    let ground_friction = if on_ground {
+        let support = world.get_block(BlockVec::new(
+            cur.x.floor() as i32,
+            (cur.y - 0.2).floor() as i32,
+            cur.z.floor() as i32,
+        ));
+        let f = f64::from(if support.is_air() {
+            0.6
         } else {
-            cur.x = candidate_x.x;
-        }
-    }
+            support.friction()
+        });
+        f * 0.91
+    } else {
+        0.91
+    };
 
-    // 3. Resolve Z movement
-    if vel.z.abs() > 0.0 {
-        let candidate_z = Vec3::new(cur.x, cur.y, cur.z + vel.z);
-        if bbox.collides_with_blocks(world, candidate_z) {
-            vel.z = 0.0;
-            collided_h = true;
-        } else {
-            cur.z = candidate_z.z;
-        }
-    }
-
-    // Standard Minecraft ground/air drag
-    let h_drag = if on_ground { 0.546 } else { 0.91 };
-    vel.x *= h_drag;
-    vel.z *= h_drag;
+    vel.x *= ground_friction;
+    vel.z *= ground_friction;
     vel.y *= 0.98;
     if vel.x.abs() < 1.0e-6 {
         vel.x = 0.0;
@@ -253,46 +410,60 @@ pub fn step_entity_physics(
 #[cfg(test)]
 mod tests {
     use minestom_block::Block;
+    use rustc_hash::FxHashMap;
 
     use super::*;
 
-    struct FlatFloor;
-    impl BlockGetter for FlatFloor {
+    struct TestWorld(FxHashMap<BlockVec, Block>);
+    impl BlockGetter for TestWorld {
         fn get_block(&self, pos: BlockVec) -> Block {
-            if pos.y < 40 {
-                Block::GRASS_BLOCK
-            } else if pos.x == 5 && pos.y == 40 && pos.z == 0 {
-                Block::STONE
-            } else {
-                Block::AIR
-            }
+            self.0.get(&pos).copied().unwrap_or(Block::AIR)
         }
     }
 
     #[test]
-    fn falling_entity_lands_on_floor_and_stops_against_wall() {
-        let world = FlatFloor;
-        let bbox = BoundingBox::PLAYER;
-        let mut pos = Pos::new(0.5, 42.0, 0.5);
+    fn sub_voxel_bottom_slab_and_open_door_collision() {
+        let mut map = FxHashMap::default();
+        // Bottom oak slab at y=10 (`max_y = 0.5` -> top surface at `10.5`!)
+        map.insert(BlockVec::new(0, 10, 0), Block::OAK_SLAB);
+        let world = TestWorld(map);
+
+        let mut pos = Pos::new(0.5, 11.2, 0.5);
         let mut vel = Vec3::ZERO;
-        let mut grounded = false;
-
-        for _ in 0..40 {
-            let step = step_entity_physics(&world, bbox, pos, vel, false);
-            pos = step.position;
-            vel = step.velocity;
-            grounded = step.on_ground;
-            if grounded {
-                break;
-            }
+        for _ in 0..20 {
+            let out = step_entity_physics(&world, BoundingBox::PLAYER, pos, vel, false);
+            pos = out.position;
+            vel = out.velocity;
         }
-        assert!(grounded);
-        assert!((pos.y - 40.0).abs() < 1e-4);
+        assert!(
+            (pos.y - 10.5).abs() < 1e-4,
+            "expected landing on bottom slab at 10.5, got {}",
+            pos.y
+        );
 
-        // Push horizontally into the stone pillar at (5, 40, 0)
-        pos = Pos::new(4.65, 40.0, 0.5);
-        let wall_step = step_entity_physics(&world, bbox, pos, Vec3::new(0.5, 0.0, 0.0), false);
-        assert!(wall_step.collided_horizontally);
-        assert!((wall_step.velocity.x - 0.0).abs() < f64::EPSILON);
+        // Open oak fence gate has empty collision shape, and open oak door rotates to a thin
+        // 3/16 hinge panel so a player walks cleanly through the doorway!
+        let open_gate = Block::OAK_FENCE_GATE.with_property("open", "true").unwrap();
+        assert_eq!(open_gate.collision_shape().len(), 0);
+
+        let open_door = Block::OAK_DOOR.with_property("open", "true").unwrap();
+        assert_eq!(open_door.collision_shape().len(), 1);
+        let mut door_map = FxHashMap::default();
+        door_map.insert(BlockVec::new(0, 9, 0), Block::STONE);
+        door_map.insert(BlockVec::new(0, 9, 1), Block::STONE);
+        door_map.insert(BlockVec::new(0, 10, 0), open_door);
+        let door_world = TestWorld(door_map);
+        let walk = step_entity_physics(
+            &door_world,
+            BoundingBox::PLAYER,
+            Pos::new(0.6, 10.0, -0.2),
+            Vec3::new(0.0, 0.0, 0.8),
+            true,
+        );
+        assert!(
+            walk.position.z > 0.3,
+            "player should walk through open door, got z={}",
+            walk.position.z
+        );
     }
 }

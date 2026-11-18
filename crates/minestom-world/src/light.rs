@@ -103,29 +103,31 @@ pub fn compute_chunk_light(chunk: &Chunk) -> LightData {
 
     // 1. Sky Light: cast vertical sunlight (`15`) down each `(x, z)` column, then 6-neighbor BFS!
     let mut sky_queue: VecDeque<(usize, usize, usize, u8)> = VecDeque::new();
-    for lz in 0..16 {
-        for lx in 0..16 {
-            let mut level = 15_u8;
-            for wy in (0..total_y).rev() {
-                let v_idx = flat_idx(lx, wy, lz);
-                let op = opacities[v_idx];
-                if op >= 15 {
-                    break;
-                }
-                level = level.saturating_sub(op);
-                if level == 0 {
-                    break;
-                }
-                sky[v_idx] = level;
-                // Only enqueue column voxels where horizontal neighbors might be shadowed or semi-opaque
-                if level < 15
-                    || (lx > 0 && opacities[flat_idx(lx - 1, wy, lz)] > 0)
-                    || (lx < 15 && opacities[flat_idx(lx + 1, wy, lz)] > 0)
-                    || (lz > 0 && opacities[flat_idx(lx, wy, lz - 1)] > 0)
-                    || (lz < 15 && opacities[flat_idx(lx, wy, lz + 1)] > 0)
-                    || (wy > 0 && opacities[flat_idx(lx, wy - 1, lz)] >= 15)
-                {
-                    sky_queue.push_back((lx, wy, lz, level));
+    if chunk.has_skylight() {
+        for lz in 0..16 {
+            for lx in 0..16 {
+                let mut level = 15_u8;
+                for wy in (0..total_y).rev() {
+                    let v_idx = flat_idx(lx, wy, lz);
+                    let op = opacities[v_idx];
+                    if op >= 15 {
+                        break;
+                    }
+                    level = level.saturating_sub(op);
+                    if level == 0 {
+                        break;
+                    }
+                    sky[v_idx] = level;
+                    // Only enqueue column voxels where horizontal neighbors might be shadowed or semi-opaque
+                    if level < 15
+                        || (lx > 0 && opacities[flat_idx(lx - 1, wy, lz)] > 0)
+                        || (lx < 15 && opacities[flat_idx(lx + 1, wy, lz)] > 0)
+                        || (lz > 0 && opacities[flat_idx(lx, wy, lz - 1)] > 0)
+                        || (lz < 15 && opacities[flat_idx(lx, wy, lz + 1)] > 0)
+                        || (wy > 0 && opacities[flat_idx(lx, wy - 1, lz)] >= 15)
+                    {
+                        sky_queue.push_back((lx, wy, lz, level));
+                    }
                 }
             }
         }

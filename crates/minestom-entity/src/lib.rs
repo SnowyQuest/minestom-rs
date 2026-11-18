@@ -1,14 +1,17 @@
-//! Compositional `Entity`, `EntityType`, `EntityMetadata`, `BoundingBox` physics,
-//! spatial `EntityTracker`, and `EntityBehavior` traits (ADR 0004).
+//! Compositional `Entity`, `EntityType` (`158` vanilla types with generated hitboxes,
+//! aerodynamics & default attributes), `EntityMetadata` + complete `metadata_def` (`110` classes,
+//! `298` typed keys & bitmasks), sub-voxel `BoundingBox` physics, spatial `EntityTracker`,
+//! and `EntityBehavior` / AI goal traits (ADR 0004).
 //!
 //! ```
-//! use minestom_entity::{Entity, EntityType};
+//! use minestom_entity::{Attribute, Entity, EntityType, metadata_def};
 //! use minestom_text::Component;
 //!
-//! let zombie = Entity::creature(EntityType::ZOMBIE)
-//!     .with_custom_name(Component::text("Castle Guard"));
-//! assert!(zombie.is_living());
-//! assert_eq!(zombie.entity_type(), EntityType::ZOMBIE);
+//! let warden = Entity::creature(EntityType::WARDEN)
+//!     .with_custom_name(Component::text("Deep Dark Guardian"))
+//!     .with_meta(metadata_def::warden::ANGER_LEVEL, 80);
+//! assert_eq!(warden.living.as_ref().unwrap().max_health, 500.0);
+//! assert_eq!(warden.core.metadata.get_key(metadata_def::warden::ANGER_LEVEL), Some(80));
 //! ```
 
 pub mod ai;
@@ -17,16 +20,25 @@ pub mod collision;
 pub mod damage;
 pub mod effect;
 pub mod metadata;
+pub mod metadata_def;
 pub mod pathfinding;
 pub mod tracker;
 
-use minestom_block::BlockGetter;
+use std::fmt;
+use std::str::FromStr;
+
+use minestom_block::{Block, BlockGetter};
 use minestom_core::{GameMode, Hand, InstanceId, PlayerId, Pos, TagMap, Vec3};
-use minestom_data::generated::entity_types::{self, ENTITY_INFOS, EntityTypeInfo};
+pub use minestom_data::generated::entity_types::{EntityPacketType, EntityTypeInfo};
+use minestom_data::generated::{
+    entity_types::{self, ENTITY_INFOS},
+    painting_variants::{self, PAINTING_VARIANT_INFOS, PaintingVariantInfo},
+    villager_professions,
+};
 use minestom_event::{CancellableEvent, Event, InstanceEvent, PlayerEvent};
 use minestom_item::ItemStack;
-use minestom_protocol::entity::MetadataValue;
 use minestom_text::Component;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 pub use ai::{
@@ -45,13 +57,14 @@ pub use damage::{
 };
 pub use effect::{EffectMap, Potion, PotionEffect};
 pub use metadata::EntityMetadata;
+pub use metadata_def::{BitMaskKey, ByteMaskKey, MetadataKey};
 pub use pathfinding::{
     Navigator, PathSearchConfig, find_path, find_path_with_config, is_standable,
 };
 pub use tracker::{EntityTracker, ViewerReconcileDiff};
 
 /// Errors returned by entity operations.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EntityError {
     /// Referenced entity handle is no longer alive.
     #[error("entity no longer exists")]
@@ -59,64 +72,27 @@ pub enum EntityError {
     /// Unknown vanilla entity type protocol ID.
     #[error("unknown entity type ID: {0}")]
     UnknownEntityType(u32),
+    /// Unknown vanilla entity type key.
+    #[error("unknown entity type key: `{0}`")]
+    UnknownEntityTypeKey(String),
     /// Unknown vanilla entity attribute protocol ID.
     #[error("unknown attribute ID: {0}")]
     UnknownAttribute(u32),
     /// Unknown vanilla potion effect protocol ID.
     #[error("unknown potion effect ID: {0}")]
     UnknownPotionEffect(u32),
+    /// Unknown vanilla damage type protocol ID.
+    #[error("unknown damage type ID: {0}")]
+    UnknownDamageType(u32),
 }
 
-/// Strongly typed `Copy` handle for a Minecraft 26.2 `EntityType` (`minecraft:entity_type`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Strongly typed `Copy` handle for all **158** Minecraft 26.2 `EntityType`s (`minecraft:entity_type`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntityType(u32);
 
-impl EntityType {
-    /// `minecraft:armor_stand`.
-    pub const ARMOR_STAND: Self = Self(entity_types::ARMOR_STAND);
-    /// `minecraft:arrow`.
-    pub const ARROW: Self = Self(entity_types::ARROW);
-    /// `minecraft:block_display`.
-    pub const BLOCK_DISPLAY: Self = Self(entity_types::BLOCK_DISPLAY);
-    /// `minecraft:chicken`.
-    pub const CHICKEN: Self = Self(entity_types::CHICKEN);
-    /// `minecraft:cow`.
-    pub const COW: Self = Self(entity_types::COW);
-    /// `minecraft:creeper`.
-    pub const CREEPER: Self = Self(entity_types::CREEPER);
-    /// `minecraft:enderman`.
-    pub const ENDERMAN: Self = Self(entity_types::ENDERMAN);
-    /// `minecraft:falling_block`.
-    pub const FALLING_BLOCK: Self = Self(entity_types::FALLING_BLOCK);
-    /// `minecraft:interaction`.
-    pub const INTERACTION: Self = Self(entity_types::INTERACTION);
-    /// `minecraft:iron_golem`.
-    pub const IRON_GOLEM: Self = Self(entity_types::IRON_GOLEM);
-    /// `minecraft:item`.
-    pub const ITEM: Self = Self(entity_types::ITEM);
-    /// `minecraft:item_display`.
-    pub const ITEM_DISPLAY: Self = Self(entity_types::ITEM_DISPLAY);
-    /// `minecraft:pig`.
-    pub const PIG: Self = Self(entity_types::PIG);
-    /// `minecraft:player`.
-    pub const PLAYER: Self = Self(entity_types::PLAYER);
-    /// `minecraft:sheep`.
-    pub const SHEEP: Self = Self(entity_types::SHEEP);
-    /// `minecraft:skeleton`.
-    pub const SKELETON: Self = Self(entity_types::SKELETON);
-    /// `minecraft:snowball`.
-    pub const SNOWBALL: Self = Self(entity_types::SNOWBALL);
-    /// `minecraft:spider`.
-    pub const SPIDER: Self = Self(entity_types::SPIDER);
-    /// `minecraft:text_display`.
-    pub const TEXT_DISPLAY: Self = Self(entity_types::TEXT_DISPLAY);
-    /// `minecraft:villager`.
-    pub const VILLAGER: Self = Self(entity_types::VILLAGER);
-    /// `minecraft:wolf`.
-    pub const WOLF: Self = Self(entity_types::WOLF);
-    /// `minecraft:zombie`.
-    pub const ZOMBIE: Self = Self(entity_types::ZOMBIE);
+minestom_data::impl_entity_type_constants!(EntityType);
 
+impl EntityType {
     /// Constructs an [`EntityType`] from a validated protocol ID (`0..158`).
     pub const fn from_id(id: u32) -> Result<Self, EntityError> {
         if (id as usize) < ENTITY_INFOS.len() {
@@ -126,16 +102,13 @@ impl EntityType {
         }
     }
 
-    /// Looks up an [`EntityType`] by its `minecraft:...` resource key.
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        ENTITY_INFOS
-            .iter()
-            .find(|info| info.key == key)
-            .map(|info| Self(info.id))
+        entity_types::lookup_key(key).map(Self)
     }
 
-    /// Numeric protocol ID for `SpawnEntityPacket`.
+    /// Numeric protocol ID for `SpawnEntityPacket` (`0..158`).
     #[must_use]
     pub const fn id(self) -> u32 {
         self.0
@@ -147,10 +120,22 @@ impl EntityType {
         &ENTITY_INFOS[self.0 as usize]
     }
 
-    /// Canonical `minecraft:...` key.
+    /// Canonical `"minecraft:..."` key.
     #[must_use]
     pub const fn key(self) -> &'static str {
         self.info().key
+    }
+
+    /// Vanilla client translation key.
+    #[must_use]
+    pub const fn translation_key(self) -> &'static str {
+        self.info().translation_key
+    }
+
+    /// Spawn packet category (`Base`, `Living`, `Player`, `ExperienceOrb`, `Painting`).
+    #[must_use]
+    pub const fn packet_type(self) -> EntityPacketType {
+        self.info().packet_type
     }
 
     /// Default [`BoundingBox`] from `entity_type.json`.
@@ -160,10 +145,116 @@ impl EntityType {
         BoundingBox::symmetric(info.width, info.height)
     }
 
+    /// Default eye height offset from feet.
+    #[must_use]
+    pub const fn eye_height(self) -> f64 {
+        self.info().eye_height
+    }
+
     /// Whether this entity type extends `LivingEntity` in vanilla.
     #[must_use]
     pub const fn is_living(self) -> bool {
         self.info().living
+    }
+
+    /// Whether this entity type is immune to fire and lava damage.
+    #[must_use]
+    pub const fn is_fire_immune(self) -> bool {
+        self.info().fire_immune
+    }
+
+    /// Exact vanilla client tracking range in chunks.
+    #[must_use]
+    pub const fn tracking_range_chunks(self) -> u8 {
+        self.info().tracking_range_chunks
+    }
+}
+
+impl TryFrom<u32> for EntityType {
+    type Error = EntityError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        Self::from_id(value)
+    }
+}
+
+impl From<EntityType> for u32 {
+    fn from(value: EntityType) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for EntityType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.key())
+    }
+}
+
+impl FromStr for EntityType {
+    type Err = EntityError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_key(s).ok_or_else(|| EntityError::UnknownEntityTypeKey(s.to_owned()))
+    }
+}
+
+impl Serialize for EntityType {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.key())
+    }
+}
+
+impl<'de> Deserialize<'de> for EntityType {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Self::from_key(&s)
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown entity type `{s}`")))
+    }
+}
+
+/// Strongly typed `Copy` handle for all **15** vanilla `VillagerProfession`s (`minecraft:villager_profession`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct VillagerProfession(pub u32);
+
+minestom_data::impl_villager_profession_constants!(VillagerProfession);
+
+impl VillagerProfession {
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<Self> {
+        villager_professions::lookup_key(key).map(Self)
+    }
+
+    /// Canonical `"minecraft:..."` key.
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        villager_professions::ENTRIES[self.0 as usize].1
+    }
+}
+
+/// Strongly typed `Copy` handle for all **51** vanilla `PaintingVariant`s (`minecraft:painting_variant`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct PaintingVariant(pub u32);
+
+minestom_data::impl_painting_variant_constants!(PaintingVariant);
+
+impl PaintingVariant {
+    /// Zero-allocation `O(log N)` lookup by `"minecraft:..."` or bare `"..."` key.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<Self> {
+        painting_variants::lookup_key(key).map(Self)
+    }
+
+    /// Static [`PaintingVariantInfo`] entry.
+    #[must_use]
+    pub const fn info(self) -> &'static PaintingVariantInfo {
+        &PAINTING_VARIANT_INFOS[self.0 as usize]
+    }
+
+    /// Canonical `"minecraft:..."` key.
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        self.info().key
     }
 }
 
@@ -313,6 +404,22 @@ impl Default for LivingState {
     }
 }
 
+impl LivingState {
+    /// Initializes [`LivingState`] with exact vanilla `defaultAttributes` from `entity_type.json`
+    /// (e.g. `Warden = 500 HP / 30 dmg`, `IronGolem = 100 HP`, `Chicken = 4 HP`, `Zombie = 20 HP / 3 dmg / 2 armor`).
+    #[must_use]
+    pub fn for_entity_type(entity_type: EntityType) -> Self {
+        let attributes = AttributeMap::from_defaults(entity_type.info().default_attributes);
+        let max_health = attributes.get_value(Attribute::MAX_HEALTH) as f32;
+        Self {
+            health: max_health,
+            max_health,
+            attributes,
+            ..Self::default()
+        }
+    }
+}
+
 /// Role classification of an [`Entity`] (`Entity`, `LivingEntity`, `EntityCreature`, `ItemEntity` in Minestom).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntityRole {
@@ -370,11 +477,17 @@ impl std::fmt::Debug for Entity {
 }
 
 impl Entity {
-    /// Constructs a new [`Entity`] of `entity_type` (automatically initializing [`LivingState`]
-    /// if `entity_type.is_living()`).
+    /// Constructs a new [`Entity`] of `entity_type`, automatically populating [`LivingState`]
+    /// with vanilla `defaultAttributes` when `entity_type.is_living()`.
     #[must_use]
     pub fn new(entity_type: EntityType) -> Self {
         let is_liv = entity_type.is_living();
+        let living = is_liv.then(|| LivingState::for_entity_type(entity_type));
+        let mut metadata = EntityMetadata::new();
+        if let Some(liv) = &living {
+            metadata.set_health(liv.health);
+            metadata.clear_dirty();
+        }
         Self {
             core: EntityCore {
                 network_id: 0,
@@ -385,14 +498,14 @@ impl Entity {
                 velocity: Vec3::ZERO,
                 bounding_box: entity_type.bounding_box(),
                 on_ground: false,
-                has_physics: true,
+                has_physics: entity_type.info().acceleration > 0.0 || is_liv,
                 object_data: 0,
-                metadata: EntityMetadata::new(),
+                metadata,
                 tags: TagMap::new(),
                 alive_ticks: 0,
                 should_remove: false,
             },
-            living: is_liv.then(LivingState::default),
+            living,
             role: if is_liv {
                 EntityRole::Living
             } else {
@@ -407,25 +520,82 @@ impl Entity {
     pub fn creature(entity_type: EntityType) -> Self {
         let mut e = Self::new(entity_type);
         if e.living.is_none() {
-            e.living = Some(LivingState::default());
+            e.living = Some(LivingState::for_entity_type(entity_type));
         }
         e.role = EntityRole::Creature;
         e
     }
 
     /// Constructs a dropped world `ItemEntity` (`EntityType::ITEM`) carrying `item_stack`
-    /// (`MetadataDef.ItemEntity.ITEM` at index `8`) and `pickup_delay_ticks`.
+    /// (`metadata_def::item_entity::ITEM`) and `pickup_delay_ticks`.
     #[must_use]
     pub fn item(item_stack: ItemStack, pickup_delay_ticks: u32) -> Self {
         let mut e = Self::new(EntityType::ITEM);
+        e.core.has_physics = true;
         e.core
             .metadata
-            .set(8, MetadataValue::ItemStack(item_stack.clone()));
+            .set_key(metadata_def::item_entity::ITEM, item_stack.clone());
         e.role = EntityRole::DroppedItem {
             item_stack,
             pickup_delay_ticks,
         };
         e
+    }
+
+    /// Constructs a floating `TextDisplay` entity (`EntityType::TEXT_DISPLAY`) with physics disabled.
+    #[must_use]
+    pub fn text_display(text: impl Into<Component>) -> Self {
+        Self::new(EntityType::TEXT_DISPLAY)
+            .with_physics(false)
+            .with_meta(metadata_def::text_display::TEXT, text.into())
+    }
+
+    /// Constructs a `BlockDisplay` entity (`EntityType::BLOCK_DISPLAY`) displaying `block`.
+    #[must_use]
+    pub fn block_display(block: Block) -> Self {
+        Self::new(EntityType::BLOCK_DISPLAY)
+            .with_physics(false)
+            .with_meta(metadata_def::block_display::DISPLAYED_BLOCK_STATE, block)
+    }
+
+    /// Constructs an `ItemDisplay` entity (`EntityType::ITEM_DISPLAY`) displaying `item_stack`.
+    #[must_use]
+    pub fn item_display(item_stack: ItemStack) -> Self {
+        Self::new(EntityType::ITEM_DISPLAY)
+            .with_physics(false)
+            .with_meta(metadata_def::item_display::DISPLAYED_ITEM, item_stack)
+    }
+
+    /// Constructs an invisible clickable/attackable `Interaction` hitbox (`EntityType::INTERACTION`).
+    #[must_use]
+    pub fn interaction(width: f32, height: f32) -> Self {
+        let mut e = Self::new(EntityType::INTERACTION)
+            .with_physics(false)
+            .with_meta(metadata_def::interaction::WIDTH, width)
+            .with_meta(metadata_def::interaction::HEIGHT, height)
+            .with_meta(metadata_def::interaction::RESPONSIVE, true);
+        e.core.bounding_box = BoundingBox::symmetric(f64::from(width), f64::from(height));
+        e
+    }
+
+    /// Constructs an `ArmorStand` (`EntityType::ARMOR_STAND`).
+    #[must_use]
+    pub fn armor_stand() -> Self {
+        Self::new(EntityType::ARMOR_STAND)
+    }
+
+    /// Sets a typed [`MetadataKey<T>`] entry on `self.core.metadata` in builder style.
+    #[must_use]
+    pub fn with_meta<T>(mut self, key: MetadataKey<T>, value: T) -> Self {
+        self.core.metadata.set_key(key, value);
+        self
+    }
+
+    /// Sets a boolean [`BitMaskKey`] flag on `self.core.metadata` in builder style.
+    #[must_use]
+    pub fn with_flag(mut self, flag: BitMaskKey, enabled: bool) -> Self {
+        self.core.metadata.set_flag(flag, enabled);
+        self
     }
 
     /// Attaches a custom [`EntityBehavior`] implementation (`on_spawn` + 20 TPS `tick`).
@@ -443,7 +613,7 @@ impl Entity {
         self
     }
 
-    /// Enables or disables gravity (`HAS_NO_GRAVITY` metadata + physics flag).
+    /// Enables or disables gravity (`HAS_NO_GRAVITY` metadata).
     #[must_use]
     pub fn with_no_gravity(mut self, no_gravity: bool) -> Self {
         self.core.metadata.set_no_gravity(no_gravity);
@@ -477,7 +647,6 @@ impl Entity {
         if let Some(liv) = &mut self.living {
             liv.attributes.set_base_value(attribute, base_value);
             if attribute == Attribute::MAX_HEALTH {
-                #[allow(clippy::cast_possible_truncation)]
                 let mh = liv.attributes.get_value(Attribute::MAX_HEALTH) as f32;
                 liv.max_health = mh;
                 liv.health = mh;
@@ -721,5 +890,59 @@ impl PlayerHandAnimationEvent {
             instance_id,
             cancelled: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_158_entity_types_default_attributes_and_metadata_defs() {
+        assert_eq!(ENTITY_INFOS.len(), 158);
+
+        // Warden default attributes: 500 HP, 30 attack damage, fire immune!
+        let warden = Entity::creature(EntityType::WARDEN);
+        assert!(EntityType::WARDEN.is_fire_immune());
+        let liv = warden.living.as_ref().unwrap();
+        assert!((liv.max_health - 500.0).abs() < 1e-4);
+        assert!((liv.health - 500.0).abs() < 1e-4);
+        assert!((liv.attributes.get_value(Attribute::ATTACK_DAMAGE) - 30.0).abs() < 1e-4);
+
+        // Chicken = 4 HP, IronGolem = 100 HP, Marker tracking range = 0 (not clamped!)
+        assert_eq!(
+            Entity::new(EntityType::CHICKEN).living.unwrap().max_health,
+            4.0
+        );
+        assert_eq!(
+            Entity::new(EntityType::IRON_GOLEM)
+                .living
+                .unwrap()
+                .max_health,
+            100.0
+        );
+        assert_eq!(EntityType::MARKER.tracking_range_chunks(), 0);
+
+        // Typed MetadataDef across Display, ArmorStand, Creeper, Cat, Villager
+        let td = Entity::text_display("Boss Arena")
+            .with_meta(metadata_def::display::SCALE, [2.0, 2.0, 2.0])
+            .with_flag(metadata_def::text_display::HAS_SHADOW, true);
+        assert_eq!(
+            td.core.metadata.get_key(metadata_def::display::SCALE),
+            Some([2.0, 2.0, 2.0])
+        );
+        assert!(
+            td.core
+                .metadata
+                .get_flag(metadata_def::text_display::HAS_SHADOW)
+        );
+        assert_eq!(metadata_def::text_display::TEXT.index(), 23);
+        assert_eq!(metadata_def::creeper::IS_CHARGED.index(), 17);
+        assert_eq!(metadata_def::cat::SOUND_VARIANT.index(), 24);
+        assert_eq!(
+            metadata_def::mannequin::DISPLAYED_MODEL_PARTS_FLAGS.index(),
+            16
+        );
+        assert_eq!(metadata_def::mannequin::PROFILE.index(), 17);
     }
 }

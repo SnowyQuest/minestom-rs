@@ -61,6 +61,88 @@ fn ensure_rem<B: Buf>(buf: &B, n: usize) -> Result<(), NbtError> {
     }
 }
 
+fn decode_mutf8_fallback(bytes: &[u8]) -> Result<String, NbtError> {
+    let mut out = String::with_capacity(bytes.len());
+    let mut i = 0;
+    let mut high_surrogate: Option<u16> = None;
+    while i < bytes.len() {
+        let b0 = bytes[i];
+        if b0 < 0x80 {
+            if high_surrogate.is_some() {
+                return Err(NbtError::InvalidUtf8);
+            }
+            out.push(char::from(b0));
+            i += 1;
+        } else if (b0 & 0xE0) == 0xC0 {
+            if i + 1 >= bytes.len() || high_surrogate.is_some() {
+                return Err(NbtError::InvalidUtf8);
+            }
+            let b1 = bytes[i + 1];
+            if (b1 & 0xC0) != 0x80 {
+                return Err(NbtError::InvalidUtf8);
+            }
+            let cp = (u32::from(b0 & 0x1F) << 6) | u32::from(b1 & 0x3F);
+            if cp == 0 && b0 == 0xC0 && b1 == 0x80 {
+                out.push('\0');
+            } else if cp >= 0x80
+                && let Some(ch) = char::from_u32(cp)
+            {
+                out.push(ch);
+            } else {
+                return Err(NbtError::InvalidUtf8);
+            }
+            i += 2;
+        } else if (b0 & 0xF0) == 0xE0 {
+            if i + 2 >= bytes.len() {
+                return Err(NbtError::InvalidUtf8);
+            }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+            if (b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 {
+                return Err(NbtError::InvalidUtf8);
+            }
+            let cp =
+                (u32::from(b0 & 0x0F) << 12) | (u32::from(b1 & 0x3F) << 6) | u32::from(b2 & 0x3F);
+            if (0xD800..=0xDBFF).contains(&cp) {
+                if high_surrogate.is_some() {
+                    return Err(NbtError::InvalidUtf8);
+                }
+                high_surrogate = Some(cp as u16);
+            } else if (0xDC00..=0xDFFF).contains(&cp) {
+                let Some(hi) = high_surrogate.take() else {
+                    return Err(NbtError::InvalidUtf8);
+                };
+                let full = 0x1_0000 + ((u32::from(hi - 0xD800)) << 10) + (cp - 0xDC00);
+                let ch = char::from_u32(full).ok_or(NbtError::InvalidUtf8)?;
+                out.push(ch);
+            } else if cp >= 0x800
+                && let Some(ch) = char::from_u32(cp)
+            {
+                if high_surrogate.is_some() {
+                    return Err(NbtError::InvalidUtf8);
+                }
+                out.push(ch);
+            } else {
+                return Err(NbtError::InvalidUtf8);
+            }
+            i += 3;
+        } else if (b0 & 0xF8) == 0xF0 {
+            if i + 3 >= bytes.len() || high_surrogate.is_some() {
+                return Err(NbtError::InvalidUtf8);
+            }
+            let s = std::str::from_utf8(&bytes[i..i + 4]).map_err(|_| NbtError::InvalidUtf8)?;
+            out.push_str(s);
+            i += 4;
+        } else {
+            return Err(NbtError::InvalidUtf8);
+        }
+    }
+    if high_surrogate.is_some() {
+        return Err(NbtError::InvalidUtf8);
+    }
+    Ok(out)
+}
+
 fn read_nbt_string<B: Buf>(buf: &mut B, limiter: &mut ReadLimiter) -> Result<String, NbtError> {
     ensure_rem(buf, 2)?;
     let len = usize::from(buf.get_u16());
@@ -68,7 +150,10 @@ fn read_nbt_string<B: Buf>(buf: &mut B, limiter: &mut ReadLimiter) -> Result<Str
     limiter.charge(24 + len)?;
     let mut raw = vec![0_u8; len];
     buf.copy_to_slice(&mut raw);
-    String::from_utf8(raw).map_err(|_| NbtError::InvalidUtf8)
+    match String::from_utf8(raw) {
+        Ok(s) => Ok(s),
+        Err(err) => decode_mutf8_fallback(err.as_bytes()),
+    }
 }
 
 fn write_nbt_string<B: BufMut>(buf: &mut B, s: &str) -> Result<(), NbtError> {
@@ -155,7 +240,18 @@ fn read_payload<B: Buf>(
             limiter.charge(len.saturating_mul(8))?;
             let mut items = Vec::with_capacity(len.min(65_536));
             for _ in 0..len {
-                items.push(read_payload(buf, elem_type, depth + 1, limiter)?);
+                let elem = read_payload(buf, elem_type, depth + 1, limiter)?;
+                if elem_type == TagType::Compound
+                    && let NbtTag::Compound(mut c) = elem
+                {
+                    if c.len() == 1 && c.contains_key("") {
+                        items.push(c.remove("").unwrap_or(NbtTag::End));
+                    } else {
+                        items.push(NbtTag::Compound(c));
+                    }
+                } else {
+                    items.push(elem);
+                }
             }
             Ok(NbtTag::List(items))
         }
@@ -207,6 +303,26 @@ fn read_payload<B: Buf>(
             Ok(NbtTag::LongArray(out))
         }
     }
+}
+
+fn write_compound_payload<B: BufMut>(
+    buf: &mut B,
+    map: &NbtCompound,
+    depth: usize,
+) -> Result<(), NbtError> {
+    if depth > DEFAULT_MAX_NBT_DEPTH {
+        return Err(NbtError::DepthLimitExceeded(DEFAULT_MAX_NBT_DEPTH));
+    }
+    for (k, v) in map {
+        if *v == NbtTag::End {
+            continue;
+        }
+        buf.put_u8(v.tag_type().id());
+        write_nbt_string(buf, k)?;
+        write_payload(buf, v, depth + 1)?;
+    }
+    buf.put_u8(TagType::End.id());
+    Ok(())
 }
 
 fn write_payload<B: BufMut>(buf: &mut B, tag: &NbtTag, depth: usize) -> Result<(), NbtError> {
@@ -263,17 +379,7 @@ fn write_payload<B: BufMut>(buf: &mut B, tag: &NbtTag, depth: usize) -> Result<(
                 }
             }
         }
-        NbtTag::Compound(map) => {
-            for (k, v) in map {
-                if *v == NbtTag::End {
-                    continue;
-                }
-                buf.put_u8(v.tag_type().id());
-                write_nbt_string(buf, k)?;
-                write_payload(buf, v, depth + 1)?;
-            }
-            buf.put_u8(TagType::End.id());
-        }
+        NbtTag::Compound(map) => write_compound_payload(buf, map, depth)?,
         NbtTag::IntArray(items) => {
             buf.put_i32(items.len() as i32);
             for &v in items {
@@ -330,16 +436,7 @@ pub fn write_network_compound<B: BufMut>(
     compound: &NbtCompound,
 ) -> Result<(), NbtError> {
     buf.put_u8(TagType::Compound.id());
-    for (k, v) in compound {
-        if *v == NbtTag::End {
-            continue;
-        }
-        buf.put_u8(v.tag_type().id());
-        write_nbt_string(buf, k)?;
-        write_payload(buf, v, 2)?;
-    }
-    buf.put_u8(TagType::End.id());
-    Ok(())
+    write_compound_payload(buf, compound, 1)
 }
 
 /// Reads a standard disk-format named-root NBT compound (`[0x0A][u16 name_len][name][payload]`).
@@ -357,7 +454,7 @@ pub fn read_named<B: Buf>(buf: &mut B) -> Result<(String, NbtCompound), NbtError
     }
 }
 
-/// Writes a standard disk-format named-root NBT compound.
+/// Writes a standard disk-format named-root NBT compound without cloning `compound`.
 pub fn write_named<B: BufMut>(
     buf: &mut B,
     root_name: &str,
@@ -365,7 +462,7 @@ pub fn write_named<B: BufMut>(
 ) -> Result<(), NbtError> {
     buf.put_u8(TagType::Compound.id());
     write_nbt_string(buf, root_name)?;
-    write_payload(buf, &NbtTag::Compound(compound.clone()), 1)
+    write_compound_payload(buf, compound, 1)
 }
 
 /// Reads a GZip-compressed named-root NBT compound.

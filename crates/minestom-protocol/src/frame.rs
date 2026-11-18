@@ -1,13 +1,19 @@
 //! Minecraft packet framing (length-prefixing and optional Zlib compression).
 
-use std::io::{Read, Write};
+use std::cell::RefCell;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use flate2::Compression;
-use flate2::read::ZlibDecoder;
-use flate2::write::ZlibEncoder;
+use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 
 use crate::{Decode, PacketPayload, ProtocolError, read_var_int, var_int_len, write_var_int};
+
+thread_local! {
+    static ZLIB_COMPRESS: RefCell<(Compress, Vec<u8>)> = RefCell::new((
+        Compress::new(Compression::default(), true),
+        Vec::with_capacity(8192),
+    ));
+    static ZLIB_DECOMPRESS: RefCell<Decompress> = RefCell::new(Decompress::new(true));
+}
 
 /// Maximum framed packet size in Play/Configuration states (`2_097_151`, 3-byte `VarInt`).
 pub const MAX_PACKET_SIZE: usize = 2_097_151;
@@ -123,26 +129,41 @@ impl FrameCodec {
                     dst.put_slice(uncompressed_body);
                     Ok(())
                 } else {
-                    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                    encoder
-                        .write_all(uncompressed_body)
-                        .map_err(|e| ProtocolError::Compression(e.to_string()))?;
-                    let compressed = encoder
-                        .finish()
-                        .map_err(|e| ProtocolError::Compression(e.to_string()))?;
-                    let data_len_varint = var_int_len(uncompressed_body.len() as i32);
-                    let frame_len = data_len_varint + compressed.len();
-                    if frame_len > MAX_PACKET_SIZE {
-                        return Err(ProtocolError::PacketTooLarge {
-                            len: frame_len,
-                            max: MAX_PACKET_SIZE,
-                        });
-                    }
-                    dst.reserve(var_int_len(frame_len as i32) + frame_len);
-                    write_var_int(dst, frame_len as i32);
-                    write_var_int(dst, uncompressed_body.len() as i32);
-                    dst.put_slice(&compressed);
-                    Ok(())
+                    ZLIB_COMPRESS.with(|cell| {
+                        let (compressor, scratch) = &mut *cell.borrow_mut();
+                        compressor.reset();
+                        scratch.clear();
+                        scratch.reserve(uncompressed_body.len() / 2 + 64);
+                        loop {
+                            let in_off = compressor.total_in() as usize;
+                            let status = compressor
+                                .compress_vec(
+                                    &uncompressed_body[in_off..],
+                                    scratch,
+                                    FlushCompress::Finish,
+                                )
+                                .map_err(|e| ProtocolError::Compression(e.to_string()))?;
+                            match status {
+                                Status::StreamEnd => break,
+                                Status::Ok | Status::BufError => {
+                                    scratch.reserve(scratch.len().max(4096));
+                                }
+                            }
+                        }
+                        let data_len_varint = var_int_len(uncompressed_body.len() as i32);
+                        let frame_len = data_len_varint + scratch.len();
+                        if frame_len > MAX_PACKET_SIZE {
+                            return Err(ProtocolError::PacketTooLarge {
+                                len: frame_len,
+                                max: MAX_PACKET_SIZE,
+                            });
+                        }
+                        dst.reserve(var_int_len(frame_len as i32) + frame_len);
+                        write_var_int(dst, frame_len as i32);
+                        write_var_int(dst, uncompressed_body.len() as i32);
+                        dst.put_slice(scratch);
+                        Ok(())
+                    })
                 }
             }
         }
@@ -220,15 +241,17 @@ impl FrameCodec {
                         max: MAX_PACKET_SIZE,
                     });
                 }
-                let mut decoder =
-                    ZlibDecoder::new(frame_bytes.as_ref()).take((expected + 1) as u64);
-                let mut out = Vec::with_capacity(expected.min(65_536));
-                decoder
-                    .read_to_end(&mut out)
-                    .map_err(|e| ProtocolError::Compression(e.to_string()))?;
-                if out.len() != expected {
+                let mut out = Vec::with_capacity(expected);
+                let status = ZLIB_DECOMPRESS.with(|cell| {
+                    let decomp = &mut *cell.borrow_mut();
+                    decomp.reset(true);
+                    decomp
+                        .decompress_vec(frame_bytes.as_ref(), &mut out, FlushDecompress::Finish)
+                        .map_err(|e| ProtocolError::Compression(e.to_string()))
+                })?;
+                if status != Status::StreamEnd || out.len() != expected {
                     return Err(ProtocolError::Compression(format!(
-                        "decompressed length mismatch: expected {expected}, got {}",
+                        "decompressed length/stream mismatch: status={status:?}, expected {expected}, got {}",
                         out.len()
                     )));
                 }

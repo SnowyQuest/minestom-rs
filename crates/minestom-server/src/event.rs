@@ -1,6 +1,6 @@
 //! Server-level and connection-lifecycle events (`ServerListPingEvent`, `ClientPingServerEvent`,
 //! `AsyncPlayerConfigurationEvent`, `PlayerSpawnEvent`, `PlayerMoveEvent`, `PlayerChatEvent`,
-//! `PlayerCommandEvent`, and `PlayerDisconnectEvent`).
+//! `PlayerCommandEvent`, `PlayerBlockPlaceEvent`, `PlayerBlockBreakEvent`, and `PlayerDisconnectEvent`).
 
 use minestom_block::Block;
 use minestom_core::{BlockFace, BlockVec, Hand, InstanceId, PlayerId, Pos};
@@ -10,6 +10,8 @@ use minestom_nbt::NbtCompound;
 use minestom_protocol::status::ServerStatus;
 use minestom_text::Component;
 use minestom_world::InstanceContainer;
+
+use crate::handle::PlayerRef;
 
 /// Fired during the Status phase when a client sends `StatusRequestPacket` (`0x00`),
 /// allowing listeners to dynamically customize the [`ServerStatus`] or cancel the response.
@@ -75,9 +77,10 @@ impl ClientPingServerEvent {
     }
 }
 
-/// Fired during the Configuration phase after Login succeeds, allowing listeners to assign
-/// the player's spawning [`InstanceContainer`], respawn point, initial [`minestom_core::GameMode`],
-/// and permission level.
+/// Fired during the Configuration phase after Login succeeds, allowing both synchronous
+/// (`add_listener`) and asynchronous (`add_async_listener`) handlers to assign the player's
+/// spawning [`InstanceContainer`], respawn point, initial [`minestom_core::GameMode`], and
+/// permission level.
 #[derive(Debug)]
 pub struct AsyncPlayerConfigurationEvent {
     player: ConfiguringPlayer,
@@ -126,6 +129,8 @@ impl AsyncPlayerConfigurationEvent {
 /// Fired on the 20 TPS tick thread once a player enters the `Play` state inside an instance.
 #[derive(Debug, Clone)]
 pub struct PlayerSpawnEvent {
+    /// Ergonomic handle to the spawned player (`ev.player.send_message(...)`).
+    pub player: PlayerRef,
     /// Generational handle of the spawned player.
     pub player_id: PlayerId,
     /// Player username.
@@ -134,7 +139,7 @@ pub struct PlayerSpawnEvent {
     pub position: Pos,
     /// Target instance.
     pub instance: InstanceContainer,
-    /// `true` on initial join, `false` on subsequent dimension switches.
+    /// `true` on initial join, `false` on subsequent dimension switches / respawns.
     pub first_spawn: bool,
 }
 
@@ -158,6 +163,8 @@ impl InstanceEvent for PlayerSpawnEvent {
 /// `PlayerPositionAndLookPacket`. Listeners may also rewrite `new_position` directly!
 #[derive(Debug, Clone)]
 pub struct PlayerMoveEvent {
+    /// Ergonomic handle to the moving player.
+    pub player: PlayerRef,
     /// Generational [`PlayerId`].
     pub player_id: PlayerId,
     /// Player username.
@@ -201,6 +208,7 @@ impl PlayerMoveEvent {
     /// Creates a new `PlayerMoveEvent`.
     #[must_use]
     pub const fn new(
+        player: PlayerRef,
         player_id: PlayerId,
         username: String,
         instance_id: InstanceId,
@@ -209,6 +217,7 @@ impl PlayerMoveEvent {
         on_ground: bool,
     ) -> Self {
         Self {
+            player,
             player_id,
             username,
             instance_id,
@@ -225,6 +234,8 @@ impl PlayerMoveEvent {
 /// Listeners can customize `formatted_message`, restrict `recipients`, or cancel broadcasting.
 #[derive(Debug, Clone)]
 pub struct PlayerChatEvent {
+    /// Ergonomic handle to the sender.
+    pub player: PlayerRef,
     /// Sender [`PlayerId`].
     pub player_id: PlayerId,
     /// Sender username.
@@ -259,8 +270,14 @@ impl PlayerEvent for PlayerChatEvent {
 impl PlayerChatEvent {
     /// Creates a new `PlayerChatEvent`.
     #[must_use]
-    pub const fn new(player_id: PlayerId, username: String, raw_message: String) -> Self {
+    pub const fn new(
+        player: PlayerRef,
+        player_id: PlayerId,
+        username: String,
+        raw_message: String,
+    ) -> Self {
         Self {
+            player,
             player_id,
             username,
             raw_message,
@@ -283,6 +300,8 @@ impl PlayerChatEvent {
 /// before [`minestom_command::CommandManager`] executes it.
 #[derive(Debug, Clone)]
 pub struct PlayerCommandEvent {
+    /// Ergonomic handle to the invoking player.
+    pub player: PlayerRef,
     /// Invoking [`PlayerId`].
     pub player_id: PlayerId,
     /// Invoking username.
@@ -313,8 +332,14 @@ impl PlayerEvent for PlayerCommandEvent {
 impl PlayerCommandEvent {
     /// Creates a new `PlayerCommandEvent`.
     #[must_use]
-    pub const fn new(player_id: PlayerId, username: String, command: String) -> Self {
+    pub const fn new(
+        player: PlayerRef,
+        player_id: PlayerId,
+        username: String,
+        command: String,
+    ) -> Self {
         Self {
+            player,
             player_id,
             username,
             command,
@@ -326,6 +351,8 @@ impl PlayerCommandEvent {
 /// Fired on the 20 TPS tick thread when an active player disconnects or times out.
 #[derive(Debug, Clone)]
 pub struct PlayerDisconnectEvent {
+    /// Ergonomic handle referencing the disconnected player ID.
+    pub player: PlayerRef,
     /// Disconnected [`PlayerId`].
     pub player_id: PlayerId,
     /// Disconnected player's username.
@@ -354,6 +381,8 @@ impl InstanceEvent for PlayerDisconnectEvent {
 /// prediction automatically via `BlockChangePacket`).
 #[derive(Debug, Clone)]
 pub struct PlayerBlockPlaceEvent {
+    /// Ergonomic handle to the placing player.
+    pub player: PlayerRef,
     /// Placing [`PlayerId`].
     pub player_id: PlayerId,
     /// Placing player's username.
@@ -406,7 +435,9 @@ impl BlockEvent for PlayerBlockPlaceEvent {
 impl PlayerBlockPlaceEvent {
     /// Creates a new `PlayerBlockPlaceEvent`.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
+        player: PlayerRef,
         player_id: PlayerId,
         username: String,
         instance_id: InstanceId,
@@ -416,6 +447,7 @@ impl PlayerBlockPlaceEvent {
         block: Block,
     ) -> Self {
         Self {
+            player,
             player_id,
             username,
             instance_id,
@@ -435,6 +467,8 @@ impl PlayerBlockPlaceEvent {
 /// (reverting client prediction automatically via `BlockChangePacket`).
 #[derive(Debug, Clone)]
 pub struct PlayerBlockBreakEvent {
+    /// Ergonomic handle to the breaking player.
+    pub player: PlayerRef,
     /// Breaking [`PlayerId`].
     pub player_id: PlayerId,
     /// Breaking player's username.
@@ -486,6 +520,7 @@ impl PlayerBlockBreakEvent {
     /// Creates a new `PlayerBlockBreakEvent` defaulting `result_block` to [`Block::AIR`].
     #[must_use]
     pub const fn new(
+        player: PlayerRef,
         player_id: PlayerId,
         username: String,
         instance_id: InstanceId,
@@ -494,6 +529,7 @@ impl PlayerBlockBreakEvent {
         block: Block,
     ) -> Self {
         Self {
+            player,
             player_id,
             username,
             instance_id,

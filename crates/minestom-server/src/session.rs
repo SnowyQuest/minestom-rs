@@ -348,7 +348,7 @@ pub(crate) async fn run_client_session(
         profile.uuid,
         profile.username.clone(),
     ));
-    shared.events.call(&mut config_event);
+    shared.events.call_async(&mut config_event).await;
     let (configured_player, spawning_instance_opt) = config_event.into_parts();
 
     let Some(spawning_instance) = spawning_instance_opt else {
