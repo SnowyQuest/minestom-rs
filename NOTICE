@@ -1,0 +1,17 @@
+minestom-rs
+Copyright 2026 minestom-rs contributors
+
+This product is an idiomatic Rust rewrite inspired by and compatible in spirit
+with Minestom (https://github.com/Minestom/Minestom), originally developed in Java
+by the Minestom contributors and licensed under the Apache License, Version 2.0.
+
+Original work:
+  Minestom
+  Copyright 2020-2026 Minestom contributors
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+
+Minecraft protocol and registry data definitions are generated from
+MinestomDataGenerator (`net.minestom:data:26.2-rv3`, targeting Minecraft: Java Edition 26.2,
+protocol version 776, data version 4903).
+"Minecraft" is a trademark of Mojang Synergies AB; this project is not affiliated
+with or endorsed by Mojang or Microsoft.

@@ -1,0 +1,18 @@
+[package]
+name = "minestom-protocol"
+description = "Minecraft: Java Edition 26.2 (protocol 776) wire codecs and packet types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+minestom-core.workspace = true
+minestom-nbt.workspace = true
+minestom-text.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

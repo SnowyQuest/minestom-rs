@@ -1,0 +1,32 @@
+[package]
+name = "minestom"
+description = "Production-quality Minecraft: Java Edition 26.2 server library in Rust, inspired by Minestom"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+minestom-block.workspace = true
+minestom-command.workspace = true
+minestom-core.workspace = true
+minestom-data.workspace = true
+minestom-entity.workspace = true
+minestom-event.workspace = true
+minestom-item.workspace = true
+minestom-macros.workspace = true
+minestom-nbt.workspace = true
+minestom-network.workspace = true
+minestom-protocol.workspace = true
+minestom-registry.workspace = true
+minestom-scheduler.workspace = true
+minestom-server.workspace = true
+minestom-text.workspace = true
+minestom-world.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

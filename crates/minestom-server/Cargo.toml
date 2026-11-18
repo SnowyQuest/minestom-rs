@@ -1,0 +1,17 @@
+[package]
+name = "minestom-server"
+description = "MinecraftServer runtime, dedicated 20 TPS tick loop, ThreadDispatcher, and config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+minestom-network.workspace = true
+minestom-protocol.workspace = true
+minestom-world.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

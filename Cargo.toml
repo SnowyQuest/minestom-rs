@@ -1,0 +1,79 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/minestom",
+    "crates/minestom-block",
+    "crates/minestom-command",
+    "crates/minestom-core",
+    "crates/minestom-data",
+    "crates/minestom-entity",
+    "crates/minestom-event",
+    "crates/minestom-item",
+    "crates/minestom-macros",
+    "crates/minestom-nbt",
+    "crates/minestom-network",
+    "crates/minestom-protocol",
+    "crates/minestom-registry",
+    "crates/minestom-scheduler",
+    "crates/minestom-server",
+    "crates/minestom-text",
+    "crates/minestom-world",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100.0"
+license = "Apache-2.0"
+repository = "https://github.com/Minestom/minestom-rs"
+keywords = ["minecraft", "server", "minestom", "protocol", "gamedev"]
+categories = ["game-development", "network-programming"]
+
+[workspace.dependencies]
+# Internal workspace crates
+minestom-block = { path = "crates/minestom-block", version = "0.1.0" }
+minestom-command = { path = "crates/minestom-command", version = "0.1.0" }
+minestom-core = { path = "crates/minestom-core", version = "0.1.0" }
+minestom-data = { path = "crates/minestom-data", version = "0.1.0" }
+minestom-entity = { path = "crates/minestom-entity", version = "0.1.0" }
+minestom-event = { path = "crates/minestom-event", version = "0.1.0" }
+minestom-item = { path = "crates/minestom-item", version = "0.1.0" }
+minestom-macros = { path = "crates/minestom-macros", version = "0.1.0" }
+minestom-nbt = { path = "crates/minestom-nbt", version = "0.1.0" }
+minestom-network = { path = "crates/minestom-network", version = "0.1.0" }
+minestom-protocol = { path = "crates/minestom-protocol", version = "0.1.0" }
+minestom-registry = { path = "crates/minestom-registry", version = "0.1.0" }
+minestom-scheduler = { path = "crates/minestom-scheduler", version = "0.1.0" }
+minestom-server = { path = "crates/minestom-server", version = "0.1.0" }
+minestom-text = { path = "crates/minestom-text", version = "0.1.0" }
+minestom-world = { path = "crates/minestom-world", version = "0.1.0" }
+
+# Serialization, compression, hashing, errors & macros (expanded per milestone)
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+proc-macro2 = "1.0"
+quote = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+syn = { version = "2.0", features = ["full"] }
+tar = "0.4"
+thiserror = "2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Justified exceptions for Minecraft protocol codecs, world coordinate math, and fluent builders:
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+missing_errors_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+too_many_lines = "allow"

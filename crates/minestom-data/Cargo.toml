@@ -1,0 +1,13 @@
+[package]
+name = "minestom-data"
+description = "Generated Minecraft 26.2 (protocol 776) constants and static data for minestom-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

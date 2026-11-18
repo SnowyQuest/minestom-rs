@@ -1,0 +1,15 @@
+[package]
+name = "minestom-world"
+description = "Instances, paletted chunks, parallel world generation, lighting, and Anvil loading"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+minestom-nbt.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

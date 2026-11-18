@@ -1,0 +1,16 @@
+[package]
+name = "minestom-text"
+description = "Adventure-style text components, styles, and serializers for minestom-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+minestom-nbt.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

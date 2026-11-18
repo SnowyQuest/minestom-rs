@@ -1,0 +1,20 @@
+msrv = "1.100.0"
+doc-valid-idents = [
+    "ActionBar",
+    "Anvil",
+    "BitSet",
+    "BossBar",
+    "Brigadier",
+    "BungeeCord",
+    "GameMode",
+    "Java",
+    "MiniMessage",
+    "Minecraft",
+    "Minestom",
+    "MinestomDataGenerator",
+    "Mojang",
+    "Polar",
+    "VarInt",
+    "VarLong",
+    "Velocity",
+]
