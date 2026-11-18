@@ -78,13 +78,13 @@ public class CustomZombie extends EntityCreature {
 
 **Rust (`minestom-rs`):**
 ```rust
-let mut zombie = Entity::creature(EntityType::ZOMBIE);
-zombie.add_ai_group(
-    vec![Box::new(MeleeAttackGoal::new(1.2, Duration::from_secs(1)))],
-    vec![Box::new(ClosestEntityTarget::players(16.0))],
-);
+let ai = EntityAIGroup::new()
+    .with_target_selector(ClosestEntityTarget::players(16.0))
+    .with_goal_selector(MeleeAttackGoal::new(0.24, 2.0, 20));
+let zombie = Entity::creature(EntityType::ZOMBIE).with_behavior(ai);
+server.spawn_entity(&instance, zombie, Pos::new(8.5, 40.0, 0.5));
 ```
-Custom per-tick or interaction logic implements the `EntityBehavior` trait instead of overriding `Entity.tick(long)`.
+Custom per-tick or spawn logic implements the `EntityBehavior` trait instead of overriding `Entity.tick(long)`.
 
 ---
 

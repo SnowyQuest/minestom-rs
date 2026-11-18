@@ -12,6 +12,7 @@ pub mod inventory;
 pub mod login;
 pub mod play;
 pub mod status;
+pub mod ui_media;
 
 pub use codec::{
     DEFAULT_MAX_STRING_CHARS, Decode, Encode, OptionalVarInt, PacketPayload, VarInt, VarLong,

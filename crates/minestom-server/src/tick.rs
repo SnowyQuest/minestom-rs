@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use arc_swap::ArcSwap;
 use bytes::Bytes;
 use flume::{Receiver, Sender};
 use minestom_block::{
@@ -67,6 +68,7 @@ use minestom_protocol::play::{
     ServerDifficultyPacket, SpawnPositionPacket, UpdateHealthPacket, UpdateViewPositionPacket,
     WorldPos,
 };
+use minestom_protocol::ui_media::{ClientResourcePackStatusPacket, ResourcePackStatus};
 use minestom_protocol::{decode_packet_exact, encode_packet_payload};
 use minestom_scheduler::SchedulerManager;
 use minestom_text::{Component, NamedTextColor};
@@ -74,11 +76,16 @@ use minestom_world::{InstanceContainer, InstanceManager, Weather, WorldBorder, W
 use rustc_hash::{FxHashMap, FxHashSet};
 use slotmap::SlotMap;
 use tracing::{debug, trace_span, warn};
+use uuid::Uuid;
 
 use crate::ServerConfig;
 use crate::event::{
     PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent, PlayerCommandEvent,
     PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent,
+};
+use crate::features::{PlayerResourcePackStatusEvent, RecipeManager, TeamManager};
+use crate::snapshot::{
+    ChunkSnapshot, EntitySnapshot, InstanceSnapshot, PlayerSnapshot, ServerSnapshot,
 };
 
 /// Outbound command sent from the tick thread to a player's Tokio writer task.
@@ -202,6 +209,31 @@ pub(crate) enum PlayerInvCommand {
     },
 }
 
+/// Cross-thread UI/media/scoreboard/resource-pack/dialog packet routing command.
+pub(crate) enum UiCommand {
+    ToPlayer {
+        player_id: PlayerId,
+        payload: Bytes,
+    },
+    ToPlayers {
+        player_ids: Vec<PlayerId>,
+        payload: Bytes,
+    },
+    ToInstance {
+        instance_id: InstanceId,
+        payload: Bytes,
+    },
+    ToAll {
+        payload: Bytes,
+    },
+    TrackResourcePack {
+        player_id: PlayerId,
+        pack_id: Uuid,
+        forced: bool,
+        push_payload: Bytes,
+    },
+}
+
 /// Message sent from async connection tasks into the dedicated 20 TPS tick loop.
 pub(crate) enum TickMessage {
     /// A player completed Configuration and is ready to join Play.
@@ -255,6 +287,7 @@ struct ActivePlayer {
     loaded_chunks: FxHashSet<ChunkPos>,
     pending_teleport_id: Option<i32>,
     next_teleport_id: i32,
+    forced_resource_packs: FxHashSet<Uuid>,
     outbound_tx: Sender<OutboundCommand>,
     last_keep_alive_sent: Instant,
     pending_keep_alive_id: Option<(i64, Instant)>,
@@ -794,6 +827,9 @@ pub(crate) fn spawn_tick_thread(
     block_manager: BlockManager,
     command_manager: CommandManager,
     scheduler_manager: SchedulerManager,
+    team_manager: TeamManager,
+    recipe_manager: RecipeManager,
+    latest_snapshot: Arc<ArcSwap<ServerSnapshot>>,
     online_count: Arc<AtomicU32>,
     next_entity_id: Arc<AtomicI32>,
     inbox_rx: Receiver<TickMessage>,
@@ -801,6 +837,7 @@ pub(crate) fn spawn_tick_thread(
     block_cmd_rx: Receiver<WorldBlockCommand>,
     inv_cmd_rx: Receiver<PlayerInvCommand>,
     env_cmd_rx: Receiver<WorldEnvCommand>,
+    ui_cmd_rx: Receiver<UiCommand>,
     stop_flag: Arc<AtomicBool>,
 ) -> std::io::Result<JoinHandle<()>> {
     thread::Builder::new()
@@ -813,6 +850,9 @@ pub(crate) fn spawn_tick_thread(
                 &block_manager,
                 &command_manager,
                 &scheduler_manager,
+                &team_manager,
+                &recipe_manager,
+                &latest_snapshot,
                 &online_count,
                 &next_entity_id,
                 &inbox_rx,
@@ -820,6 +860,7 @@ pub(crate) fn spawn_tick_thread(
                 &block_cmd_rx,
                 &inv_cmd_rx,
                 &env_cmd_rx,
+                &ui_cmd_rx,
                 &stop_flag,
             );
         })
@@ -833,6 +874,9 @@ fn run_tick_loop(
     block_manager: &BlockManager,
     command_manager: &CommandManager,
     scheduler_manager: &SchedulerManager,
+    team_manager: &TeamManager,
+    recipe_manager: &RecipeManager,
+    latest_snapshot: &ArcSwap<ServerSnapshot>,
     online_count: &AtomicU32,
     next_entity_id: &AtomicI32,
     inbox_rx: &Receiver<TickMessage>,
@@ -840,6 +884,7 @@ fn run_tick_loop(
     block_cmd_rx: &Receiver<WorldBlockCommand>,
     inv_cmd_rx: &Receiver<PlayerInvCommand>,
     env_cmd_rx: &Receiver<WorldEnvCommand>,
+    ui_cmd_rx: &Receiver<UiCommand>,
     stop_flag: &AtomicBool,
 ) {
     let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(config.ticks_per_second));
@@ -857,11 +902,12 @@ fn run_tick_loop(
         // 0. TickStart scheduled tasks
         scheduler_manager.process_tick_start();
 
-        // 1. Drain queued world EntityCommands, WorldBlockCommands, PlayerInvCommands & WorldEnvCommands
+        // 1. Drain queued world/entity/inventory/env/UI commands
         drain_entity_commands(&mut sim, entity_cmd_rx, events);
         drain_block_commands(&sim, block_cmd_rx);
         drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
         drain_env_commands(&sim, env_cmd_rx);
+        drain_ui_commands(&mut sim, ui_cmd_rx);
 
         // 2. Drain cross-thread player messages & inbound packets
         while let Ok(msg) = inbox_rx.try_recv() {
@@ -912,6 +958,7 @@ fn run_tick_loop(
                         loaded_chunks: FxHashSet::default(),
                         pending_teleport_id: Some(1),
                         next_teleport_id: 2,
+                        forced_resource_packs: FxHashSet::default(),
                         outbound_tx,
                         last_keep_alive_sent: now,
                         pending_keep_alive_id: None,
@@ -923,7 +970,15 @@ fn run_tick_loop(
                     sim.player_by_entity_id.insert(entity_id, pid);
                     online_count.store(sim.players.len() as u32, Ordering::Relaxed);
 
-                    initialize_joining_player(pid, &mut sim, config, events, command_manager);
+                    initialize_joining_player(
+                        pid,
+                        &mut sim,
+                        config,
+                        events,
+                        command_manager,
+                        team_manager,
+                        recipe_manager,
+                    );
                 }
                 TickMessage::InboundPacket { player_id, frame } => {
                     if !sim.players.contains_key(player_id) {
@@ -961,6 +1016,7 @@ fn run_tick_loop(
         drain_block_commands(&sim, block_cmd_rx);
         drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
         drain_env_commands(&sim, env_cmd_rx);
+        drain_ui_commands(&mut sim, ui_cmd_rx);
 
         // 3. Advance world clocks & step 20 TPS Players + World Entities
         for inst in instance_manager.instances() {
@@ -978,6 +1034,7 @@ fn run_tick_loop(
         drain_block_commands(&sim, block_cmd_rx);
         drain_inv_commands(&mut sim, inv_cmd_rx, events, next_entity_id);
         drain_env_commands(&sim, env_cmd_rx);
+        drain_ui_commands(&mut sim, ui_cmd_rx);
 
         // 4. Per-tick KeepAlive check
         let mut timed_out = Vec::new();
@@ -1010,6 +1067,11 @@ fn run_tick_loop(
             online_count.store(sim.players.len() as u32, Ordering::Relaxed);
         }
 
+        latest_snapshot.store(Arc::new(build_server_snapshot(
+            &sim,
+            instance_manager,
+            tick_num,
+        )));
         tick_num = tick_num.wrapping_add(1);
 
         let after = Instant::now();
@@ -2070,12 +2132,149 @@ fn tick_world_entities(sim: &mut WorldSimState, events: &GlobalEventHandler) {
     }
 }
 
+fn drain_ui_commands(sim: &mut WorldSimState, ui_cmd_rx: &Receiver<UiCommand>) {
+    while let Ok(cmd) = ui_cmd_rx.try_recv() {
+        match cmd {
+            UiCommand::ToPlayer { player_id, payload } => {
+                if let Some(p) = sim.players.get(player_id) {
+                    let _ = p.send_encoded(payload);
+                }
+            }
+            UiCommand::ToPlayers {
+                player_ids,
+                payload,
+            } => {
+                for pid in player_ids {
+                    if let Some(p) = sim.players.get(pid) {
+                        let _ = p.send_encoded(payload.clone());
+                    }
+                }
+            }
+            UiCommand::ToInstance {
+                instance_id,
+                payload,
+            } => {
+                for p in sim.players.values() {
+                    if p.instance.id() == instance_id {
+                        let _ = p.send_encoded(payload.clone());
+                    }
+                }
+            }
+            UiCommand::ToAll { payload } => {
+                for p in sim.players.values() {
+                    let _ = p.send_encoded(payload.clone());
+                }
+            }
+            UiCommand::TrackResourcePack {
+                player_id,
+                pack_id,
+                forced,
+                push_payload,
+            } => {
+                if let Some(p) = sim.players.get_mut(player_id) {
+                    if forced {
+                        p.forced_resource_packs.insert(pack_id);
+                    }
+                    let _ = p.send_encoded(push_payload);
+                }
+            }
+        }
+    }
+}
+
+fn build_server_snapshot(
+    sim: &WorldSimState,
+    instance_manager: &InstanceManager,
+    tick_number: u64,
+) -> ServerSnapshot {
+    let players: Vec<PlayerSnapshot> = sim
+        .players
+        .iter()
+        .map(|(pid, p)| PlayerSnapshot {
+            player_id: pid,
+            entity_id: p.entity_id,
+            uuid: p.profile.uuid,
+            username: p.profile.username.clone(),
+            game_mode: p.game_mode,
+            instance_id: p.instance.id(),
+            position: p.position,
+            health: p.health,
+            max_health: p.max_health,
+            on_ground: p.on_ground,
+        })
+        .collect();
+
+    let entities: Vec<EntitySnapshot> = sim
+        .entities
+        .iter()
+        .map(|(&eid, we)| EntitySnapshot {
+            entity_id: eid,
+            uuid: we.entity.core.uuid,
+            entity_type: we.entity.entity_type(),
+            instance_id: we.instance.id(),
+            position: we.entity.core.position,
+            velocity: we.entity.core.velocity,
+            health: we.entity.living.as_ref().map(|l| l.health),
+        })
+        .collect();
+
+    let instances: Vec<InstanceSnapshot> = instance_manager
+        .instances()
+        .into_iter()
+        .map(|inst| {
+            let inst_id = inst.id();
+            let wt = inst.world_time();
+            let mut chunk_counts: FxHashMap<ChunkPos, usize> = FxHashMap::default();
+            let mut player_ids = Vec::new();
+            for (pid, p) in &sim.players {
+                if p.instance.id() == inst_id {
+                    player_ids.push(pid);
+                    for &cpos in &p.loaded_chunks {
+                        *chunk_counts.entry(cpos).or_insert(0) += 1;
+                    }
+                }
+            }
+            let chunks = chunk_counts
+                .into_iter()
+                .map(|(chunk_pos, viewer_count)| ChunkSnapshot {
+                    chunk_pos,
+                    viewer_count,
+                })
+                .collect();
+            let entity_ids = sim
+                .entities
+                .iter()
+                .filter_map(|(&eid, we)| (we.instance.id() == inst_id).then_some(eid))
+                .collect();
+            InstanceSnapshot {
+                instance_id: inst_id,
+                dimension_key: inst.dimension_type().key.clone(),
+                is_shared: inst.is_shared(),
+                world_age: wt.world_age,
+                time_of_day: wt.day_time,
+                chunks,
+                entity_ids,
+                player_ids,
+            }
+        })
+        .collect();
+
+    ServerSnapshot {
+        tick_number,
+        players,
+        entities,
+        instances,
+    }
+}
+
 fn initialize_joining_player(
     pid: PlayerId,
     sim: &mut WorldSimState,
     config: &ServerConfig,
     events: &GlobalEventHandler,
     command_manager: &CommandManager,
+    team_manager: &TeamManager,
+    recipe_manager: &RecipeManager,
 ) {
     let all_entries: Vec<PlayerInfoAddEntry> = sim
         .players
@@ -2192,6 +2391,12 @@ fn initialize_joining_player(
         let sender_view = player.command_sender(pid);
         let declare_cmds = command_manager.build_declare_commands_packet(&sender_view);
         let _ = player.send_packet(&declare_cmds);
+        if !recipe_manager.is_empty() {
+            let _ = player.send_packet(&recipe_manager.to_declare_packet());
+        }
+        for team_pkt in team_manager.all_creation_packets() {
+            let _ = player.send_packet(&team_pkt);
+        }
 
         let self_meta = player.metadata.all_entries();
         if !self_meta.is_empty() {
@@ -3277,6 +3482,45 @@ fn handle_play_packet(
                 }
             }
             sync_player_dirty_metadata(sim, pid);
+            true
+        }
+        0x31 => {
+            let Ok(pkt) = decode_packet_exact::<ClientResourcePackStatusPacket>(frame.payload)
+            else {
+                return false;
+            };
+            let mut ev = PlayerResourcePackStatusEvent {
+                player_id: pid,
+                pack_id: pkt.id,
+                status: pkt.status,
+            };
+            events.call(&mut ev);
+            if let Some(p) = sim.players.get_mut(pid) {
+                let is_forced = p.forced_resource_packs.contains(&pkt.id);
+                if matches!(
+                    pkt.status,
+                    ResourcePackStatus::SuccessfullyLoaded | ResourcePackStatus::Discarded
+                ) {
+                    p.forced_resource_packs.remove(&pkt.id);
+                } else if is_forced
+                    && matches!(
+                        pkt.status,
+                        ResourcePackStatus::Declined
+                            | ResourcePackStatus::FailedDownload
+                            | ResourcePackStatus::InvalidUrl
+                            | ResourcePackStatus::FailedReload
+                    )
+                {
+                    let kick = encode_packet_payload(&PlayDisconnectPacket {
+                        message: Component::translatable(
+                            "multiplayer.requiredTexturePrompt.disconnect",
+                        ),
+                    })
+                    .ok();
+                    let _ = p.outbound_tx.try_send(OutboundCommand::Disconnect(kick));
+                    sim.remove_and_cleanup_player(pid, events);
+                }
+            }
             true
         }
         0x35 => {

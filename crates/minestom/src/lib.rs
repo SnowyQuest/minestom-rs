@@ -104,15 +104,23 @@ pub mod prelude {
     };
     pub use crate::nbt::{NbtCompound, NbtTag};
     pub use crate::protocol::ConnectionState;
+    pub use crate::protocol::ui_media::{
+        AdvancementDisplayData, AdvancementEntry, AdvancementFrameType, BossBarColor,
+        BossBarOverlay, CollisionRule, NameTagVisibility, ParticleData, ParticlePacket,
+        ResourcePackStatus, SidebarNumberFormat, SoundSource, TeamColor, TeamSettings,
+    };
     pub use crate::registry::{DimensionType, Registries};
     pub use crate::scheduler::{
         ExecutionType, Scheduler, SchedulerManager, TaskBuilder, TaskHandle, TaskId, TaskSchedule,
     };
     pub use crate::server::{
-        AsyncPlayerConfigurationEvent, AuthMode, BoundServer, ClientPingServerEvent,
-        MinecraftServer, PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent,
-        PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent, ServerConfig,
-        ServerListPingEvent,
+        AdvancementTab, AsyncPlayerConfigurationEvent, AuthMode, BossBar, BoundServer,
+        ChunkSnapshot, ClientPingServerEvent, Dialog, EntitySnapshot, InstanceSnapshot,
+        MinecraftServer, Particle, PlayerBlockBreakEvent, PlayerBlockPlaceEvent, PlayerChatEvent,
+        PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent, PlayerResourcePackStatusEvent,
+        PlayerSnapshot, PlayerSpawnEvent, RecipeManager, ResourcePackRequest, ServerConfig,
+        ServerListPingEvent, ServerSnapshot, Sidebar, SidebarLine, Sound, TeamManager, Title,
+        TitleTimes, ToastNotification,
     };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};
     pub use crate::world::{
