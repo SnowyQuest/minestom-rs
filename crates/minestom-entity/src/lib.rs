@@ -19,6 +19,7 @@ pub struct ConfiguringPlayer {
     username: String,
     respawn_point: Pos,
     game_mode: GameMode,
+    permission_level: u8,
 }
 
 impl ConfiguringPlayer {
@@ -30,6 +31,7 @@ impl ConfiguringPlayer {
             username,
             respawn_point: Pos::new(0.0, 40.0, 0.0),
             game_mode: GameMode::Survival,
+            permission_level: 0,
         }
     }
 
@@ -65,5 +67,16 @@ impl ConfiguringPlayer {
     /// Sets the player's initial [`GameMode`].
     pub const fn set_game_mode(&mut self, game_mode: GameMode) {
         self.game_mode = game_mode;
+    }
+
+    /// Returns the player's command permission level (`0..=4`).
+    #[must_use]
+    pub const fn permission_level(&self) -> u8 {
+        self.permission_level
+    }
+
+    /// Sets the player's command permission level (`0..=4`).
+    pub const fn set_permission_level(&mut self, level: u8) {
+        self.permission_level = level;
     }
 }

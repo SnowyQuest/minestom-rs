@@ -69,19 +69,28 @@ pub enum Error {
 pub mod prelude {
     pub use crate::Error;
     pub use crate::block::{Block, BlockGetter};
+    pub use crate::command::{
+        Argument, Command, CommandContext, CommandError, CommandManager, CommandSender, Suggestion,
+        SuggestionEntry,
+    };
     pub use crate::core::{
         BlockFace, BlockVec, ChunkPos, Color, Difficulty, Direction, EntityId, GameMode, Hand,
         InstanceId, Key, MainHand, NamespaceId, PlayerId, Point, Pos, Tag, TagMap, Vec3,
     };
     pub use crate::data::{DATA_VERSION, PROTOCOL_VERSION, VERSION_NAME};
     pub use crate::entity::ConfiguringPlayer;
-    pub use crate::event::{CancellableEvent, Event, EventNode, GlobalEventHandler};
+    pub use crate::event::{
+        BlockEvent, CancellableEvent, EntityEvent, Event, EventListener, EventNode,
+        GlobalEventHandler, InstanceEvent, ListenerHandle, PlayerEvent,
+    };
     pub use crate::nbt::{NbtCompound, NbtTag};
     pub use crate::protocol::ConnectionState;
     pub use crate::registry::{DimensionType, Registries};
     pub use crate::scheduler::ExecutionType;
     pub use crate::server::{
-        AsyncPlayerConfigurationEvent, BoundServer, MinecraftServer, PlayerSpawnEvent, ServerConfig,
+        AsyncPlayerConfigurationEvent, BoundServer, ClientPingServerEvent, MinecraftServer,
+        PlayerChatEvent, PlayerCommandEvent, PlayerDisconnectEvent, PlayerMoveEvent,
+        PlayerSpawnEvent, ServerConfig, ServerListPingEvent,
     };
     pub use crate::text::{ClickEvent, Component, HoverEvent, NamedTextColor, Style, TextColor};
     pub use crate::world::{

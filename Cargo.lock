@@ -583,7 +583,14 @@ dependencies = [
 name = "minestom-command"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "minestom-core",
+ "minestom-protocol",
+ "minestom-text",
+ "parking_lot",
+ "rustc-hash",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -617,6 +624,7 @@ dependencies = [
 name = "minestom-event"
 version = "0.1.0"
 dependencies = [
+ "minestom-core",
  "parking_lot",
  "rustc-hash",
 ]
@@ -700,6 +708,7 @@ dependencies = [
  "arc-swap",
  "bytes",
  "flume",
+ "minestom-command",
  "minestom-core",
  "minestom-data",
  "minestom-entity",

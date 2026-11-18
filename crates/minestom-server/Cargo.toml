@@ -11,6 +11,7 @@ repository.workspace = true
 arc-swap.workspace = true
 bytes.workspace = true
 flume.workspace = true
+minestom-command.workspace = true
 minestom-core.workspace = true
 minestom-data.workspace = true
 minestom-entity.workspace = true

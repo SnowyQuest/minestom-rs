@@ -10,6 +10,7 @@ use flume::Sender;
 use minestom_core::offline_player_uuid;
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
 use minestom_entity::ConfiguringPlayer;
+use minestom_event::CancellableEvent;
 use minestom_network::{NetworkError, PRE_AUTH_SOCKET_TIMEOUT, PacketStream};
 use minestom_protocol::config::{
     ClientConfigKeepAlivePacket, ClientConfigPluginMessagePacket, ClientFinishConfigurationPacket,
@@ -36,7 +37,7 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::ServerShared;
-use crate::event::AsyncPlayerConfigurationEvent;
+use crate::event::{AsyncPlayerConfigurationEvent, ClientPingServerEvent, ServerListPingEvent};
 use crate::tick::{OutboundCommand, TickMessage};
 
 const PLAY_READ_TIMEOUT: Duration = Duration::from_secs(30);
@@ -305,6 +306,7 @@ pub(crate) async fn run_client_session(
             entity_id,
             profile,
             game_mode: configured_player.game_mode(),
+            permission_level: configured_player.permission_level(),
             spawn_pos: configured_player.respawn_point(),
             view_distance: client_view_distance,
             instance: spawning_instance,
@@ -370,15 +372,25 @@ async fn handle_status_phase(
                 }
                 let _ = decode_packet_exact::<StatusRequestPacket>(frame.payload)?;
                 status_requested = true;
-                let status = shared.build_status();
-                conn.send_packet(&StatusResponsePacket { status }).await?;
+                let mut ev = ServerListPingEvent::new(shared.build_status());
+                shared.events.call(&mut ev);
+                if ev.is_cancelled() {
+                    let _ = conn.shutdown().await;
+                    return Ok(());
+                }
+                conn.send_packet(&StatusResponsePacket { status: ev.status })
+                    .await?;
             }
             StatusPingRequestPacket::PACKET_ID => {
                 let ping = decode_packet_exact::<StatusPingRequestPacket>(frame.payload)?;
-                conn.send_packet(&StatusPongResponsePacket {
-                    payload: ping.payload,
-                })
-                .await?;
+                let mut ev = ClientPingServerEvent::new(ping.payload);
+                shared.events.call(&mut ev);
+                if !ev.is_cancelled() {
+                    conn.send_packet(&StatusPongResponsePacket {
+                        payload: ev.payload,
+                    })
+                    .await?;
+                }
                 let _ = conn.shutdown().await;
                 return Ok(());
             }

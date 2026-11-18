@@ -1,6 +1,7 @@
 //! Minecraft: Java Edition **26.2** (protocol **776**) wire primitives, packet framing,
 //! and clientbound/serverbound packet structs.
 
+pub mod chat_command;
 pub mod codec;
 pub mod config;
 pub mod frame;

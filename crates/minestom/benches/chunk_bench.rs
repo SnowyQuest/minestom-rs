@@ -53,3 +53,38 @@ fn event_node_cached_dispatch(bencher: divan::Bencher) {
         black_box(ev.0)
     });
 }
+
+#[divan::bench]
+fn listener_handle_hot_dispatch(bencher: divan::Bencher) {
+    struct FastTick(u64);
+    impl Event for FastTick {}
+
+    let root = EventNode::all("root");
+    root.add_listener(|ev: &mut FastTick| ev.0 = ev.0.wrapping_add(1));
+    let handle = root.listener_handle::<FastTick>();
+
+    let mut ev = FastTick(0);
+    handle.call(&mut ev);
+
+    bencher.bench_local(|| {
+        handle.call(black_box(&mut ev));
+        black_box(ev.0)
+    });
+}
+
+#[divan::bench]
+fn command_manager_parse_and_execute(bencher: divan::Bencher) {
+    let manager = CommandManager::new();
+    let x_arg = Argument::integer("amount").between(1, 64);
+    let x_ref = x_arg.clone();
+    manager.register(
+        Command::new("give").add_syntax([x_arg.untyped()], move |_, ctx| {
+            black_box(*ctx.get(&x_ref).unwrap());
+        }),
+    );
+    let mut sender = CommandSender::console();
+
+    bencher.bench_local(|| {
+        manager.execute(&mut sender, black_box("give 32")).unwrap();
+    });
+}

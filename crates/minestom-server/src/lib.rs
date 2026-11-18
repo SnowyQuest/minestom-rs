@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 use arc_swap::ArcSwap;
 use bytes::Bytes;
+use minestom_command::CommandManager;
 use minestom_data::{PROTOCOL_VERSION, VERSION_NAME};
 use minestom_event::GlobalEventHandler;
 use minestom_protocol::status::{ServerStatus, StatusPlayerSample, StatusPlayers, StatusVersion};
@@ -23,7 +24,10 @@ use tokio::sync::watch;
 use tracing::{Instrument, debug, info, info_span};
 
 pub use config::ServerConfig;
-pub use event::{AsyncPlayerConfigurationEvent, PlayerSpawnEvent};
+pub use event::{
+    AsyncPlayerConfigurationEvent, ClientPingServerEvent, PlayerChatEvent, PlayerCommandEvent,
+    PlayerDisconnectEvent, PlayerMoveEvent, PlayerSpawnEvent, ServerListPingEvent,
+};
 
 use session::{build_cached_vanilla_config_packets, run_client_session};
 use tick::{TickMessage, spawn_tick_thread};
@@ -60,6 +64,7 @@ pub(crate) struct ServerShared {
     pub(crate) config: ServerConfig,
     pub(crate) registries: Registries,
     pub(crate) instance_manager: InstanceManager,
+    pub(crate) command_manager: CommandManager,
     pub(crate) events: GlobalEventHandler,
     pub(crate) online_count: Arc<AtomicU32>,
     pub(crate) next_entity_id: AtomicI32,
@@ -173,6 +178,7 @@ impl MinecraftServerBuilder {
                 config: self.config,
                 registries,
                 instance_manager: InstanceManager::new(),
+                command_manager: CommandManager::new(),
                 events: GlobalEventHandler::all("global"),
                 online_count: Arc::new(AtomicU32::new(0)),
                 next_entity_id: AtomicI32::new(1),
@@ -215,6 +221,11 @@ impl MinecraftServer {
     /// Borrows the [`InstanceManager`] (`server.instance_manager()`).
     pub fn instance_manager(&self) -> &InstanceManager {
         &self.shared.instance_manager
+    }
+
+    /// Borrows the [`CommandManager`] (`server.command_manager()`).
+    pub fn command_manager(&self) -> &CommandManager {
+        &self.shared.command_manager
     }
 
     /// Borrows the root [`GlobalEventHandler`] (`server.global_event_handler()`).
@@ -321,6 +332,7 @@ impl BoundServer {
         let tick_handle = spawn_tick_thread(
             self.server.shared.config.clone(),
             self.server.shared.events.clone(),
+            self.server.shared.command_manager.clone(),
             Arc::clone(&self.server.shared.online_count),
             tick_rx,
             Arc::clone(&stop_flag),
