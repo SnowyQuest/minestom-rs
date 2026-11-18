@@ -26,7 +26,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.100.0"
 license = "Apache-2.0"
-repository = "https://github.com/Minestom/minestom-rs"
+repository = "https://github.com/SnowyQuest/minestom-rs"
 keywords = ["minecraft", "server", "minestom", "protocol", "gamedev"]
 categories = ["game-development", "network-programming"]
 
